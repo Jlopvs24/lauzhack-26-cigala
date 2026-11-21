@@ -2,13 +2,14 @@
 
 One story, Alexia, told in under three minutes, hitting UBS (main), AXA and IMC. The climax is **Make it mine**: Alexia adds her own condition and the branch re-grows. Booth variants and a Q&A cheat sheet follow.
 
-> **Never type an engine figure by hand.** Every figure below comes from `python scripts/pitch_figures.py` (engine `core-1.1`, Alexia's demo profile, default assumptions, Sat 21 Nov 21:55, master `64fced9`). **Re-run the script before rehearsing and before submitting**, and update anything that moved here, in the README and in `docs/submission/`. Lumi's lines are produced by `web/src/scene/narration.js` from engine fields, not by an LLM; the script prints them too.
+> **Never type an engine figure by hand.** Every figure below comes from `python scripts/pitch_figures.py` (engine `core-1.1`, Alexia's demo profile, default assumptions, Sat 21 Nov 22:06, master `991f129`). **Re-run the script before rehearsing and before submitting**, and update anything that moved here, in the README and in `docs/submission/`. Lumi's lines are produced by `web/src/scene/narration.js` from engine fields, not by an LLM; the script prints them too.
 
 ## Before you start (3 minutes)
 
 - Chrome or Edge, full screen, at `http://127.0.0.1:5175`. Language **EN**. Sound **on**: the first click unlocks audio.
-- The API is running on port 8000. `/health` shows `"engine": "core"`, `"personal_conditions_supported": true` and Kokoro `available: true`.
-- The header shows the **Verified 6/6** badge. The weather control sits under the header, set to **Clear sky**.
+- The API is running on port 8000, restarted on current `master` (since #92 the default LLM is `qwen/qwen3.6-35b-a3b`). `/health` shows `"engine": "core"`, `"personal_conditions_supported": true` and Kokoro `available: true`.
+- The header shows the **Verified 6/6** badge. The weather control is on its default (**Clear sky**; on the left rail from #87, **Neutral**).
+- Lumi is docked at the bottom right, above the chat line, and her mouth moves when she speaks. Opening the conversation moves her into the chat panel.
 - **Make it mine** appears on the current branch. Try the scholarship sentence once: since #75 it is parsed by deterministic rules (0.02 s, no model), so it works without the LLM.
 - Clear the session before you start: open a new private window. Conditions and comparison pins persist per browser session.
 - Optional AXA beat: the three demo documents are on the desktop (`data/synthetic/docs/P00001-payslip.jpg`, `P00001-bank_statement.pdf`, `P00001-rental_contract.jpg`). **Do this beat only if extraction takes 10 s or less on the demo laptop.** On the shared API on Sat 20:40 it took 57–74 s per photo.
@@ -23,9 +24,9 @@ One story, Alexia, told in under three minutes, hitting UBS (main), AXA and IMC.
 | **0:28–0:50** The hook (UBS) | Click the **Do a master's** limb; the camera flies in. Point at its card: plan check and *what it trades*. | (Stay quiet while Lumi speaks, then:) "Under the UBS starter kit's own cash-only assumptions we reproduce its result exactly: the master's runs out of cash in month 7. Then we make it Swiss: the official 2026 income tax of her city, pillar 3a, and payroll for gross salaries." | *"Do a master's. Two years of master's with a student job, then a better-paid job. Plan check: needs financing. In this scenario the cash runs short from month 7. From here: student job only, study loan of CHF 15,000 or part-time master's with a 60% job. The other branches stay in grey so you can compare."* |
 | **0:50–1:10** What would have to be true (UBS) | **Report** (header) → *What would have to be true* → *What would fix it*. | "We don't forecast; we ask what would have to be true. Her salary after the master's matters most. Against starting work, the break-even is CHF 4,960 a month, and starting a year later costs 17,628. But no salary fixes month 7: that's a cash problem. What would fix it: CHF 762 a month more, or 18,531 once." | – (Lumi stays quiet over reports) |
 | **1:10–1:50** **Make it mine (climax)** | **Esc**. On *Do a master's*: **Make it mine** → **Speak** (or type) *"I'd get a CHF 600 a month scholarship during the master's"* → **Check it** → *Here is how I understood it*: **+CHF 600/month income, months 1–24**, *"Every number here comes from what you said; nothing is invented."* → **Apply to this branch** → **Confirm**. The branch re-grows. | "But Alexia knows something the model doesn't: she'd get a scholarship. She just says it. Her words become one change, using only numbers she said. She confirms, and the engine re-grows this branch and everything under it. The gap shrinks from CHF 18,553 in month 7 to 3,914 in month 13. And the study loan, which needed financing a minute ago, now holds." | – |
-| **1:50–2:12** Weather and comparison (UBS) | On the master's children: tap the **Recession** chip and read the legend aloud (*"If a recession starts in month N: k of 3 options still holds"*), then **Clear sky**. Then **Compare these options** → the comparison page. | "Weather is what she doesn't choose. Here, a recession: every card recomputes. With the loan she keeps no funding gap and meets her goals in all four stress scenarios we test, though inflation or a job loss would push her below the three-month buffer. And she can put any options side by side." | (Lumi reads the weather legend) |
+| **1:50–2:12** Weather and comparison (UBS) | On the master's children: tap the **Recession** chip (on the #87 rail: **Pessimistic**) and read the legend aloud (*"If a recession starts in month N: k of 3 options still holds"*), then back to the default. Then **Compare these options** → the comparison page. | "Weather is what she doesn't choose. Here, a recession: every card recomputes. With the loan she keeps no funding gap and meets her goals in all four stress scenarios we test, though inflation or a job loss would push her below the three-month buffer. And she can put any options side by side." | (Lumi reads the weather legend) |
 | **2:12–2:32** Her path report (UBS) | **Study loan of CHF 15,000** → **Repay over about 5 years** → **Open your report**: the brief, *her conditions*, *what would fix it*, *room to move*, *if you start later*, the stress table, *Validation and reproducibility*. Click **Verified 6/6**. | "Her report, with her own condition in it, ready as a PDF, and every result carries a trace id. Six checks run live on the engine: accounting identities on all 40 nodes, reproducibility, monotonicity, isolation, the UBS kit, and re-verified thresholds. They check the arithmetic and the method, not the future." | *"Study loan of CHF 15,000. … Plan check: holds. In this scenario the cash never runs out. …"* (on the way) |
-| **2:32–2:50** Close (IMC) | Back on the tree. Optional: switch to **ES**, and Lumi re-reads the node in Spanish with a Spanish voice. | "Lumi explains and never recommends. Cigala is free, works in four languages and listens to your own words. A student-network volunteer could run it in ten minutes, before a student signs a lease. Explore your choices, and make them yours. Thank you." | – |
+| **2:32–2:50** Close (IMC) | Back on the tree. Optional: switch to **ES**, and Lumi re-reads the node in Spanish with a Spanish voice. | "Lumi explains and never recommends, and her default model has open weights, so a bank could run it on its own servers. Cigala is free, works in four languages and listens to your own words. A student-network volunteer could run it in ten minutes, before a student signs a lease. Explore your choices, and make them yours. Thank you." | – |
 
 **If something breaks:**
 
@@ -39,17 +40,17 @@ One story, Alexia, told in under three minutes, hitting UBS (main), AXA and IMC.
 
 ### UBS booth
 
-> We centre conditional scenarios; Monte Carlo is an optional simulation lens, not a forecast. Under your starter kit's own cash-only assumptions, our engine reproduces its three scenarios to the franc. Then we made it Swiss: official 2026 income tax for twelve cities and three household types, pillar 3a, and payroll for gross salaries. On each branch it asks what would have to be true, and what would fix it. And the twin becomes yours: say "I'd get a CHF 600 scholarship", confirm, and that branch re-grows. A funding gap is never hidden behind a score. Six checks run live.
+> We centre conditional scenarios; Monte Carlo is an optional simulation lens, not a forecast. Under your starter kit's own cash-only assumptions, our engine reproduces its three scenarios to the franc. Then we made it Swiss: official 2026 income tax for twelve cities and three household types, pillar 3a, and payroll for gross salaries. On each branch it asks what would have to be true, and what would fix it. And the twin becomes yours: say "I'd get a CHF 600 scholarship", confirm, and that branch re-grows. A funding gap is never hidden behind a score. Six checks run live, and Lumi's default model has open weights, so you could host it yourself.
 
-(99 words, about 40 s)
+(112 words, about 45 s)
 
-**Show:** the master's card → Report → *What would have to be true* / *What would fix it* → **Make it mine** with the scholarship → **Compare these options** → **Verified 6/6**.
+**Show:** the master's card → Report → *What would have to be true* / *What would fix it* → **Make it mine** with the scholarship → **Compare these options** (or **+ Add to comparison** from a report) → **Verified 6/6**. If asked about privacy: README, *Privacy: what runs where*.
 
 ### AXA booth
 
-> We use the smallest thing that works at every step. A payslip photo is read by local OCR and a small model with an 800-token budget. Deterministic checks follow, and only if one fails does that document go to a cheap vision model. On 60 synthetic Swiss documents that is 97.7% field accuracy against 99.4% for the frontier model, at 154 times lower cost. "Make it mine" parses common sentences with plain rules, at zero cost, and calls a small model only for the rest. Lumi's voice is local Kokoro. The session's API cost is shown, and a daily budget guard falls back to templates.
+> We use the smallest thing that works at every step. A payslip photo is read by local OCR and a small model with an 800-token budget. Deterministic checks follow, and only if one fails does that document go to a cheap vision model. On 60 synthetic Swiss documents that is 97.7% field accuracy against 99.4% for the frontier model, at 154 times lower cost. "Make it mine" parses common sentences with plain rules, at zero cost, and calls a small open-weight model only for the rest. Lumi's voice is local Kokoro. The session's API cost is shown, and a daily budget guard falls back to templates.
 
-(105 words, about 40 s)
+(106 words, about 40 s)
 
 **Show:** the benchmark table in [`multimodal/benchmark/RESULTS.md`](../multimodal/benchmark/RESULTS.md); *Session API cost* in the chat panel; the roots review with source and confidence per field.
 
@@ -111,11 +112,12 @@ A child applies on top of its ancestors, and a user's condition is appended to t
 **What would you improve next?** (from `core/ENGINE_AUDIT.md` and `core/README.md`)
 
 1. Abroad: city-specific living costs, EUR inflation and FX volatility (today: constant editable EURCHF, ±10% franc stress, Swiss inflation on EUR amounts).
-2. Tax arrears timing (tax is paid in the same month today), and unemployment eligibility rules.
-3. Inflation per category (health premiums, rents).
-4. Correlated shocks in the optional lens.
-5. Tests on real, messier documents.
-6. An ESN pilot measuring whether students can explain their funding gap.
+2. Run the open-weight LLM on our own server (`LLM_BASE_URL`, no fallbacks), so no conversation leaves it. It is configured, not done in the demo.
+3. Tax arrears timing (tax is paid in the same month today), and unemployment eligibility rules.
+4. Inflation per category (health premiums, rents).
+5. Correlated shocks in the optional lens.
+6. Tests on real, messier documents.
+7. An ESN pilot measuring whether students can explain their funding gap.
 
 ### Other likely questions
 
@@ -129,5 +131,6 @@ A child applies on top of its ancestors, and a user's condition is appended to t
 - **"Why is Monte Carlo off?"** It is a simulation, not a forecast, and we keep it secondary so attention stays on choices. It is an optional lens, labelled "not real-world probabilities".
 - **"Why not use the frontier model for documents?"** It costs 154× more for 1.7 points of accuracy.
 - **"Is Lumi giving advice?"** No. It never recommends, and the agent drops sentences that do.
+- **"Where does my data go? Could a bank run this in-house?"** The engine needs no model, Kokoro speaks locally and OCR runs on the device. Lumi's default LLM is Qwen3.6-35B-A3B with open weights (Apache-2.0); a configuration change (`LLM_BASE_URL` and the model name) points it at a self-hosted server, for example on a bank's premises. In the demo it is served through OpenRouter, not locally. Proprietary models (qwen3.7-flash, Haiku, and Gemini Flash-Lite for failed document checks) are fallbacks only. Common personal conditions are parsed by rules and never reach a model.
 - **"Is the data real?"** No. Alexia and the profiles come from the UBS kit (synthetic). The documents are rendered by our generator with invented names and IBANs.
 - **"What did you build this weekend?"** Everything in `core/`, `api/`, `multimodal/` and `web/`. See the README, *What we built at LauzHack*.

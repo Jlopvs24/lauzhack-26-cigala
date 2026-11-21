@@ -2,13 +2,13 @@
 
 # Cigala: every choice grows a different tree
 
-**A financial twin for students. See what each life decision does to your next ten years before you take it, then tell it what is different about *your* life and watch that branch re-grow. A tested, deterministic engine produces every financial result. Lumi, the guide, explains them and never recommends.**
+**A financial twin for students. See what each life decision does to your next ten years before you take it, then tell it what is different about *your* life and watch that branch re-grow. A tested, deterministic engine produces every financial result. Lumi, the guide, explains them and never recommends, on an open-weight default model that could run on your own servers.**
 
 LauzHack 2026 (EPFL) · team cigala · challenges: **UBS AI Financial Twin** (main), **AXA Frugal multimodal AI**, **IMC Tech for Good**.
 
 > TODO (team): the product name is not final. Title options are in [`docs/submission/form.md`](docs/submission/form.md).
 
-> **Every engine figure on this page comes from [`scripts/pitch_figures.py`](scripts/pitch_figures.py)** (engine `core-1.1`, Alexia's demo profile, default assumptions, Sat 21 Nov 21:55, master `64fced9`). The engine is still being improved tonight, so re-run `python scripts/pitch_figures.py` before submitting and update the numbers here, in [`docs/pitch.md`](docs/pitch.md) and in [`docs/submission/`](docs/submission/).
+> **Every engine figure on this page comes from [`scripts/pitch_figures.py`](scripts/pitch_figures.py)** (engine `core-1.1`, Alexia's demo profile, default assumptions, Sat 21 Nov 22:06, master `991f129`). The engine is still being improved tonight, so re-run `python scripts/pitch_figures.py` before submitting and update the numbers here, in [`docs/pitch.md`](docs/pitch.md) and in [`docs/submission/`](docs/submission/).
 
 ## In 30 seconds
 
@@ -19,9 +19,11 @@ Cigala draws her situation as a **tree of life**:
 - **Roots** are who she is. Fill them in with a short questionnaire, by dropping a payslip photo, bank statement or rental contract into a frugal multimodal pipeline, or by voice.
 - **Trunk** is today.
 - **Branches** are her decisions. Each branch is a fully specified *if this, then that* world, simulated month by month for 120 months with the official 2026 income tax of her city (and, for gross salaries, Swiss payroll deductions).
-- **Weather** is what she doesn't choose: recession, inflation, a market crash, job loss or a franc move. She sets it on the tree itself (start month, duration), and every card recomputes. These are selected what-ifs, not an exhaustive list of risks.
+- **Weather** is what she doesn't choose: recession, inflation, a market crash, job loss or a franc move. She sets it on the tree itself (start month, duration), and every card recomputes. These are selected what-ifs, not an exhaustive list of risks. In progress ([#87](https://github.com/Jlopvs24/lauzhack-26-cigala/issues/87)): a left weather rail with three outlooks (Pessimistic, Neutral, Optimistic) and qualitative factors such as *high inflation* or *a strong franc*, shown without numbers.
 
-She picks a branch and the camera flies into it. Its sub-choices grow, and the branches she passed stay greyed out so she can compare. Each card shows a **plan check** (does it hold?) and **what it trades** against its siblings. On every node she can ask *what would have to be true*: break-even salary, goal-seek, the smallest shock that breaks the plan, the cost of waiting a year, which assumption matters most, and *what would fix it* (the smallest change that closes a funding gap). She can pin options from different branches with **Add to comparison** and see them side by side on a spec-sheet page.
+She picks a branch and the camera flies into it. Its sub-choices grow, and the branches she passed stay greyed out so she can compare. Each card shows a **plan check** (does it hold?) and **what it trades** against its siblings. On every node she can ask *what would have to be true*: break-even salary, goal-seek, the smallest shock that breaks the plan, the cost of waiting a year, which assumption matters most, and *what would fix it* (the smallest change that closes a funding gap). She can pin options from different branches with **+ Add to comparison**, from a card or from a path report, and see them side by side on a spec-sheet page.
+
+Lumi, the guide, sits docked at the bottom right above the chat line, her mouth moving with her voice. Opening the conversation moves her into the chat panel.
 
 Then she makes it hers. She tells it, by voice or text, *"I'd get a CHF 600/month scholarship"*. Deterministic rules (EN/ES/FR/DE) turn common phrasings into a change the engine can simulate, using only numbers she said, and a small model handles the rest. She confirms, and that branch and everything below it re-grow, either as a change to the branch or as a new branch to compare. At the end of a branch she opens a visual path report she can save as a PDF: what would fix it, a two-lever *room to move* heatmap, and what changes if she starts later. It is an exploration, not a forecast, and never advice.
 
@@ -42,9 +44,10 @@ Then she makes it hers. She tells it, by voice or text, *"I'd get a CHF 600/mont
 flowchart LR
   subgraph B["Browser: web/ (React, Vite, GSAP)"]
     P["Start portal"] --> T["Tree scene: matched stills, camera zoom, level-3 close-ups"]
-    T --> L["Lumi: bubble + voice"]
+    T --> L["Lumi: docked, lip-synced voice"]
     T --> MM["Make it mine: own conditions"]
     T --> R["Visual path report + PDF"]
+    T --> CP["Comparison: options side by side"]
     V["Verified panel: 6 live checks"]
     C["Chat panel: type, voice note, call"]
   end
@@ -53,7 +56,7 @@ flowchart LR
     TR["/tree/expand, /tree/explore, /simulate, /report"]
     PZ["/tree/personalize: rules first, then a small LLM; numbers must be the user's"]
     VA["/validation"]
-    AG["/agent/ask: LLM narrates, numbers checked"]
+    AG["/agent/ask: open-weight Qwen narrates engine results"]
     EX["/profiles/extract"]
     TTS["/voice/tts: Kokoro-82M, local, cost 0"]
     BG["Daily LLM budget guard"]
@@ -87,10 +90,25 @@ flowchart LR
 ```
 
 - **`core/`** produces every financial result. It covers cash, investments, a locked pillar 3a account and fixed-payment loans; a payroll layer for gross salaries; the official ESTV 2026 income tax for the city, canton and household, including moves of tax residence; EUR amounts abroad; inflation and wage growth; and one-off costs and incomes. Since #77 the tree adapts to the user's own roots: amounts marked as relative to the profile (income kept while studying, the student room, living costs) move with it, while market figures (salaries, flat rents, tuition) stay. Accounting identities are checked on every run. Personal conditions arrive as `node_patches` (a change to a branch that its whole subtree inherits) or `custom_nodes` (a new option to compare). Also: combined decisions, two-lever surfaces, smallest-change search and a start-later scan. Pure functions, JSON in and JSON out. See [`core/README.md`](core/README.md) and the honest self-audit in [`core/ENGINE_AUDIT.md`](core/ENGINE_AUDIT.md).
-- **`api/`** is a thin FastAPI layer. `/tree/personalize` turns a sentence or voice clip into a proposal: one patch or new branch, or one clarifying question. Deterministic rules come first and a bounded LLM only after them; the numbers must appear in the user's words and are range-checked. Lumi's agent calls engine tools and only narrates their results. A scope gate and an injection guard sit in front. The agent checks larger numeric claims against tool outputs or user input and falls back to a template when grounding fails; this is not a proof of every claim. A guard rewrites forecast phrasing and drops sentences that recommend. Every paid LLM call goes through a daily budget guard and falls back to a template. See [`api/README.md`](api/README.md).
+- **`api/`** is a thin FastAPI layer. `/tree/personalize` turns a sentence or voice clip into a proposal: one patch or new branch, or one clarifying question. Deterministic rules come first and a bounded LLM only after them; the numbers must appear in the user's words and are range-checked. Lumi's agent calls engine tools and only narrates their results. Its default LLM is the open-weight Qwen3.6-35B-A3B (Apache-2.0); proprietary models are only fallbacks (see *Privacy: what runs where*). A scope gate and an injection guard sit in front. The agent checks larger numeric claims against tool outputs or user input and falls back to a template when grounding fails; this is not a proof of every claim. A guard rewrites forecast phrasing and drops sentences that recommend. Every paid LLM call goes through a daily budget guard and falls back to a template. See [`api/README.md`](api/README.md).
 - **`multimodal/`** turns documents, text and voice into the shared `Profile`, with per-field provenance. See [`multimodal/README.md`](multimodal/README.md).
-- **`web/`** is the cinematic tree, Lumi, *Make it mine*, weather on the tree, comparative cards and the comparison page, the chat side panel, the visual path report and the *Verified* panel, in EN, ES, FR and DE with light and dark modes. See [`web/README.md`](web/README.md).
+- **`web/`** is the cinematic tree, Lumi (docked, with lip sync), *Make it mine*, weather on the tree, comparative cards and the comparison page, the chat side panel, the visual path report and the *Verified* panel, in EN, ES, FR and DE with light and dark modes. See [`web/README.md`](web/README.md).
 - Shared JSON shapes are in [`docs/contracts.md`](docs/contracts.md).
+
+### Privacy: what runs where
+
+Every default model we call is open-weight or runs locally (speech recognition is the browser's own). Proprietary models are used only as fallbacks, when the default fails or a check fails. Exact model ids and settings: [`api/README.md`](api/README.md), *Models & privacy*.
+
+| Step | Default | Where it runs | Fallback |
+|---|---|---|---|
+| Financial results | the deterministic engine (`core/`), no model | our own server (the demo laptop) | – |
+| Lumi's answers, report summary, unusual personal conditions | **Qwen3.6-35B-A3B, open weights (Apache-2.0)** | OpenRouter in the demo. With `LLM_BASE_URL` it can point at any OpenAI-compatible server (vLLM, Ollama, llama.cpp), for example on a bank's own premises. **We do not run it locally in the demo.** | `qwen3.7-flash` (Qwen's API-only model, not open-weight), then `claude-haiku-5.5` (proprietary); set `AGENT_FALLBACK_MODELS` empty to turn them off |
+| Common personal conditions | deterministic rules (EN/ES/FR/DE) | our server, no model | the LLM row above |
+| Documents | PDF text layer or on-device OCR (RapidOCR), then Mistral Small 24B (open weights, Apache-2.0) on the text only | OCR on the device; the text model through OpenRouter | `gemini-3.1-flash-lite` sees the image only when a check fails (27% of benchmark documents) |
+| Lumi's voice | Kokoro-82M (Apache-2.0) | locally | the browser's `speechSynthesis` |
+| Speech to text | the browser's speech recognition | the browser (Chrome may use the vendor's servers) | `gemini-3.1-flash-lite` through OpenRouter, for voice notes and Firefox only |
+
+Self-hosting the LLM moves Lumi's conversation and personal conditions off third-party APIs. Document escalation and the speech-to-text fallback still go through OpenRouter. Confirmed personal conditions and comparison pins are stored only in the browser session.
 
 ## What each challenge gets, with evidence
 
@@ -123,7 +141,7 @@ Under the starter kit's own assumptions (cash only, no tax, no inflation), the e
 | Master's degree | CHF 144,600 | CHF −18,600 | month 7 |
 | Move abroad | CHF 97,500 | CHF 2,300 | never |
 
-**3. Six live validation checks**, shown in the app's *Verified* panel and served at `GET /validation`. On Sat 21 Nov 21:55, `core.validation()` passed 6/6. They establish the numerical properties stated below (arithmetic, reproducibility, method), not that any scenario will happen:
+**3. Six live validation checks**, shown in the app's *Verified* panel and served at `GET /validation`. On Sat 21 Nov 22:06, `core.validation()` passed 6/6. They establish the numerical properties stated below (arithmetic, reproducibility, method), not that any scenario will happen:
 
 | Check | What it proves |
 |---|---|
@@ -134,7 +152,7 @@ Under the starter kit's own assumptions (cash only, no tax, no inflation), the e
 | UBS starter kit | The three scenarios above, matched exactly |
 | Search verified | The break-even salary found by the bounded monotone threshold search (CHF 4,959.51) is re-simulated: at it the master's ends level with working or ahead; CHF 1 lower, it ends behind |
 
-Test suites on Sat 21 Nov 22:00 (master `64fced9`): 154 core and 106 API tests collected; the combined run gave 253 passed, 5 skipped (they need the private UBS kit) and 2 failed. Both failures are speed limits on a busy laptop (0.21 s against 0.20 s, 0.17 s against 0.15 s), not results. Web unit tests: 71 of 71 passed. Re-run on the submission commit with `python scripts/pitch_figures.py --tests`. A calibration harness ([`core/bench/`](core/bench/)) checks the engine against the UBS synthetic ledgers (identities on 1,200 profiles × 24 months, maximum error CHF 0.00) and scores parameters against public Swiss targets only. It never tunes the engine to the synthetic data.
+Test suites on Sat 21 Nov 22:06 (master `991f129`): 154 core and 108 API tests collected. Core: 149 passed and 5 skipped (they need the private UBS kit); the first run had one failure, a speed limit on a busy laptop, which passed on re-run. API: 108 passed. Web unit tests: 73 of 73 passed. Re-run on the submission commit with `python scripts/pitch_figures.py --tests`. A calibration harness ([`core/bench/`](core/bench/)) checks the engine against the UBS synthetic ledgers (identities on 1,200 profiles × 24 months, maximum error CHF 0.00) and scores parameters against public Swiss targets only. It never tunes the engine to the synthetic data.
 
 **4. Conditional scenarios first.** We centre conditional, fully specified scenarios so attention stays on the choices; Monte Carlo is an optional simulation lens, off by default, not a forecast. For every node, the engine re-runs itself with inputs moved:
 
@@ -160,13 +178,15 @@ Alexia, default assumptions, all amounts in CHF:
 
 **5. Transparent by construction.** The 40-node Alexia tree is editable data, grounded in UBS scenario-catalog ids. Every assumption carries a source, and figures not checked against a primary source are flagged `verified: false`. Statutory payroll rates and the ESTV tables are official; insurer and plan inputs are assumptions. A source-backed figure is still an assumption over a ten-year scenario: the 4% portfolio return, for example, is a prudent team choice informed by historical Swiss returns, not an empirically verified future return. Parameters were calibrated against public Swiss targets only ([`core/bench/OPTIMISATION.md`](core/bench/OPTIMISATION.md)); the search kept the existing defaults. The visual path report states the question and scope, each decision and what it changed, the user's own conditions, the alternatives, stress scenarios, limits and breaches, validation (seed, engine version, trace id) and limitations. Financial results come only from the engine; the LLM guard above concerns Lumi's wording, not the engine.
 
+**6. Private by design.** The engine needs no model. Lumi's default LLM has open weights (Qwen3.6-35B-A3B, Apache-2.0), so a bank could host it on its own servers with a configuration change (`LLM_BASE_URL` and the model name); in the demo it is served through OpenRouter. Proprietary models are fallbacks only. See *Privacy: what runs where*.
+
 ### AXA: frugal multimodal AI
 
 Roots come from **images and PDFs** (payslip, bank statement, rental contract), **voice** and free text. Personal conditions come from **speech or text**. At every step we use the smallest thing that works:
 
-- **Documents.** The PDF text layer or on-device OCR (RapidOCR) feeds `mistral-small-24b`, which fills a fixed schema (about 800 tokens). Deterministic checks follow: every number must literally appear in the document, and gross − deductions must equal net. Only if a check fails or OCR confidence is low does that one document go to `gemini-3.1-flash-lite`.
-- **Personal conditions.** Deterministic rules in EN/ES/FR/DE parse common phrasings with no model at all: *"I'd get a CHF 600/month scholarship during the master's"* becomes one intervention in 0.02 s for USD 0. Only other phrasings go to `qwen3.7-flash` (2.5 s, USD 0.00008 measured), with a timeout and a clarifying question instead of a guess. Numbers are checked against the user's words.
-- **Lumi's answers.** A frugal default chain (`qwen3.7-flash`, about USD 0.0001 per answer), with a numeric grounding check and a template fallback. The streaming path uses `claude-haiku-5.5` for a first sentence in about 1.4 s (about USD 0.0008 per answer).
+- **Documents.** The PDF text layer or on-device OCR (RapidOCR) feeds `mistral-small-24b` (open weights), which fills a fixed schema (about 800 tokens). Deterministic checks follow: every number must literally appear in the document, and gross − deductions must equal net. Only if a check fails or OCR confidence is low does that one document go to `gemini-3.1-flash-lite`.
+- **Personal conditions.** Deterministic rules in EN/ES/FR/DE parse common phrasings with no model at all: *"I'd get a CHF 600/month scholarship during the master's"* becomes one intervention in 0.02 s for USD 0. Only other phrasings go to the open-weight default LLM (Qwen3.6-35B-A3B), with a timeout and a clarifying question instead of a guess. Numbers are checked against the user's words.
+- **Lumi's answers.** A small open-weight mixture-of-experts model by default (Qwen3.6-35B-A3B, about 3B active parameters), streamed sentence by sentence (first sentence in about 3–6 s, measured 21 Nov), with a numeric grounding check and a template fallback. Most questions need one LLM call because the current node and its neighbours are preloaded from the engine.
 - **Voice.** Speech recognition runs in the browser. TTS is Kokoro-82M running locally: cost 0, streamed sentence by sentence.
 - **Cost is visible and capped.** The session's API cost is shown in the chat panel, every paid call is logged with its cost, and a daily LLM budget guard (default USD 2) switches every route to templates when it is reached. Engine routes and TTS are never affected.
 
@@ -243,7 +263,7 @@ python -m multimodal.benchmark.run --strategies frugal ocr_llm vlm_cheap vlm_sma
   Unverified figures are flagged `verified: false`.
 - **Impact sources**: OECD PISA 2022, ESN XV ESNsurvey, the University of Zurich and ETH Zurich pages, all linked and dated in [`docs/impact/README.md`](docs/impact/README.md).
 - **Imagery**: the photoreal tree stills were generated with `google/gemini-3.1-flash-image` from our own prompts and crops; the pipeline and its cost log are in [`web/tree-pipeline/`](web/tree-pipeline/). Lumi is an original character ([`web/assets/character/STYLE.md`](web/assets/character/STYLE.md)).
-- **Third-party software and models**: FastAPI, numpy, React, Vite, GSAP, RapidOCR (ONNX), Kokoro-82M (Apache-2.0), pypdfium2, OpenCV; models through OpenRouter (mistral-small-24b, gemini-3.1-flash-lite, qwen3.7-flash, claude-haiku-5.5).
+- **Third-party software and models**: FastAPI, numpy, React, Vite, GSAP, RapidOCR (ONNX), Kokoro-82M (Apache-2.0), pypdfium2, OpenCV. Models through OpenRouter: open-weight defaults Qwen3.6-35B-A3B and Mistral Small 24B (both Apache-2.0); proprietary fallbacks gemini-3.1-flash-lite, qwen3.7-flash and claude-haiku-5.5.
 - **License**: the repository does not include an open-source license file yet.
 
 ## Limitations and responsible AI
@@ -260,7 +280,7 @@ python -m multimodal.benchmark.run --strategies frugal ocr_llm vlm_cheap vlm_sma
 - **The plan check comes first and the score second.** A funding gap means "Needs financing"; another broken hard limit or a missed goal means "Does not hold"; a buffer-only shortfall means "Holds, below the buffer target", whatever the score. The 33% debt-service limit and the 3-month buffer are editable rules of thumb. Negative cash is shown as an unfunded need, never as an automatic loan.
 - **The uncertainty lens is opt-in.** Monte Carlo is a simulation, kept secondary so attention stays on choices. Its results are shares of simulated paths under stated assumptions, labelled "not real-world probabilities". The four named stresses are selected what-ifs, not exhaustive.
 - **Synthetic data.** The extraction benchmark uses our own rendered documents, and real documents are messier.
-- **Privacy.** For most documents only text leaves the device. A personal condition's sentence goes to a small model through OpenRouter for parsing, and confirmed conditions are stored only in the browser session. Browser speech recognition may use the browser vendor's servers.
+- **Privacy.** The default LLM has open weights and could be self-hosted, but in the demo it runs through OpenRouter, so Lumi's questions and unusual personal conditions do leave the laptop (common conditions are parsed by rules and stay). For 73% of benchmark documents only text leaves the device. Confirmed conditions are stored only in the browser session. Browser speech recognition may use the browser vendor's servers. See *Privacy: what runs where*.
 
 ## What we built at LauzHack (rule 30)
 
