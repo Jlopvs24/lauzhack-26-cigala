@@ -223,13 +223,28 @@ def profiles_extract(files: list[UploadFile] | None = File(None), text: str | No
     except ImportError as e:  # multimodal deps not installed on this machine
         log.warning("multimodal unavailable, using mock: %s", e)
         out = _extract_mock([n for n, _ in docs], text, f"multimodal unavailable: {e}")
+        _set_income_basis(out.get("profile"))
         return {**out, **_meta(t0, model="mock")}
     except Exception as e:  # noqa: BLE001
         log.exception("extract failed")
         raise HTTPException(502, f"extraction failed: {type(e).__name__}: {e}") from e
+    _set_income_basis(out.get("profile"))
     _warm_profile(out.get("profile"))
     return {**out, "cost_usd": round(float(out.get("cost_usd") or 0), 6),
             "latency_ms": int((time.perf_counter() - t0) * 1000), "model": out.get("extractor")}
+
+
+def _set_income_basis(profile: dict | None) -> None:
+    """Profiles extracted from payslips/statements carry Swiss payslip net income (after social contributions,
+    before income tax), so the engine still charges income tax: income_basis = "net_before_tax" (core #49).
+    An extractor or base_profile that already states a basis wins. ("take_home" is only for profiles imported
+    from the UBS synthetic CSV rows; no api/ path builds those.)"""
+    if not isinstance(profile, dict):
+        return
+    profile.setdefault("income_basis", "net_before_tax")
+    prov = profile.setdefault("provenance", {})
+    if isinstance(prov, dict):
+        prov.setdefault("income_basis", {"source": "api default: payslip net before income tax", "confidence": 1.0})
 
 
 def _warm_profile(profile: dict | None) -> None:
