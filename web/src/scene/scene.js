@@ -6,7 +6,6 @@ import { createGeometry } from './geometry.js';
 
 const BASE = `${import.meta.env?.BASE_URL || '/'}tree/`;
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-const loadImg = (src) => new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = src; });
 
 export async function createScene({ world, labels, onTagClick }) {
   const meta = await (await fetch(`${BASE}stills.json`)).json();
@@ -17,62 +16,42 @@ export async function createScene({ world, labels, onTagClick }) {
   const look = { x: 0, y: 0, tx: 0, ty: 0 };
   let raf = 0, alive = true;
 
+  // A still = the photo + a greyscaled copy of it, masked by the union of the branches to grey.
+  // Both are plain <img>: decoding is async and greying is a GPU filter + CSS mask (no pixel loops).
   function getStill(name) {
     if (stills[name]) return stills[name];
+    const st = meta.stills[name];
     const el = document.createElement('div');
     el.className = name === 'master' ? 'still master' : 'still';
-    el.style.zIndex = name === 'master' ? 0 : name.split('_').length + (name === 'roots' ? 0 : 0);
-    const base = document.createElement('canvas'), grey = document.createElement('canvas');
+    el.style.zIndex = name === 'master' ? 0 : name.split('_').length;
+    const [pw, ph] = st.px || [2752, 1536];
+    el.style.width = `${pw}px`; el.style.height = `${ph}px`;
+    const base = new Image(), grey = new Image();
+    base.decoding = grey.decoding = 'async';
+    base.alt = grey.alt = ''; base.draggable = grey.draggable = false;
     grey.className = 'grey';
+    base.src = grey.src = BASE + st.src;
     el.append(base, grey);
     world.append(el);
-    const s = { name, el, base, grey, rect: geo.rectOf(name), on: false, greyKey: '' };
-    s.ready = Promise.all([loadImg(BASE + meta.stills[name].src), loadImg(BASE + meta.stills[name].lab)]).then(([img, lab]) => {
-      for (const c of [base, grey]) { c.width = img.naturalWidth; c.height = img.naturalHeight; }
-      base.getContext('2d').drawImage(img, 0, 0);
-      s.rgb = base.getContext('2d').getImageData(0, 0, base.width, base.height);
-      const t = document.createElement('canvas'); t.width = base.width; t.height = base.height;
-      const tc = t.getContext('2d'); tc.drawImage(lab, 0, 0, t.width, t.height);
-      s.lab = tc.getImageData(0, 0, t.width, t.height).data;
-    });
+    const s = { name, el, base, grey, pw, ph, rect: geo.rectOf(name), on: false, greyKey: '' };
+    s.ready = base.decode().catch(() => new Promise((ok) => { if (base.complete) ok(); else base.onload = base.onerror = ok; }));
     stills[name] = s;
     return s;
   }
   function paintGrey(s, set) {
-    const key = [...set].sort().join(',');
-    if (!s.rgb || s.greyKey === key) return;
+    const masks = meta.stills[s.name].masks || {};
+    const codes = [...set].filter((c) => masks[c]).sort();
+    const key = codes.join(',');
+    if (s.greyKey === key) return;
     s.greyKey = key;
-    const w = s.grey.width, h = s.grey.height;
-    if (!s.desat) { // whole frame desaturated and lifted toward the mist (the sky barely changes)
-      s.desat = document.createElement('canvas'); s.desat.width = w; s.desat.height = h;
-      const o = new ImageData(w, h), src = s.rgb.data, d = o.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const v = (0.3 * src[i] + 0.59 * src[i + 1] + 0.11 * src[i + 2]) * 0.64 + 212 * 0.36;
-        d[i] = v + 2; d[i + 1] = v + 3; d[i + 2] = v + 6; d[i + 3] = 255;
-      }
-      s.desat.getContext('2d').putImageData(o, 0, 0);
-    }
-    // region mask at 1/4 resolution, feathered with a blur so limb boundaries melt instead of cutting
-    const q = 4, mw = Math.ceil(w / q), mh = Math.ceil(h / q);
-    const m = document.createElement('canvas'); m.width = mw; m.height = mh;
-    const md = new ImageData(mw, mh), lab = s.lab;
-    for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
-      if (set.has(lab[((y * q) * w + x * q) * 4])) md.data[(y * mw + x) * 4 + 3] = 255;
-    }
-    m.getContext('2d').putImageData(md, 0, 0);
-    const ctx = s.grey.getContext('2d');
-    ctx.save();
-    ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(s.desat, 0, 0);
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.filter = `blur(${Math.round(w / 60)}px)`;
-    ctx.drawImage(m, 0, 0, w, h);
-    ctx.restore();
-    if (!reduced()) gsap.fromTo(s.grey, { opacity: 0 }, { opacity: 1, duration: 1.1, ease: 'power2.out' });
+    if (!codes.length) { s.grey.style.opacity = 0; return; }
+    const list = codes.map((c) => `url("${BASE}${masks[c]}")`).join(', ');
+    s.grey.style.webkitMaskImage = s.grey.style.maskImage = list;
+    if (!reduced()) gsap.fromTo(s.grey, { opacity: 0 }, { opacity: 1, duration: 1.1, ease: 'power2.out', overwrite: true });
     else s.grey.style.opacity = 1;
   }
   function release(s) {
-    for (const c of [s.base, s.grey, s.desat]) if (c) { c.width = 0; c.height = 0; }
+    s.base.src = s.grey.src = '';
     s.el.remove();
     delete stills[s.name];
   }
@@ -82,7 +61,7 @@ export async function createScene({ world, labels, onTagClick }) {
     s.on = on;
     s.ready.then(() => gsap.to(s.el, {
       opacity: on ? 1 : 0, duration: reduced() ? 0.01 : duration, delay, ease: 'power1.inOut', overwrite: true,
-      onComplete: () => { if (!s.on && name !== 'master' && stills[name] === s) release(s); }, // 2K canvases are heavy
+      onComplete: () => { if (!s.on && name !== 'master' && stills[name] === s) release(s); }, // free decoded 2K images
     }));
     return s;
   }
@@ -92,12 +71,17 @@ export async function createScene({ world, labels, onTagClick }) {
   }
 
   // ---------- camera ----------
-  const fitZ = (r) => Math.max(innerWidth / r.w, innerHeight / r.h);
+  let insetRight = 0, insetBottom = 0, currentId = '0';
+  const VW = () => Math.max(320, innerWidth - insetRight); // the scene: the window minus the chat panel
+  const VH = () => Math.max(320, innerHeight - insetBottom);
+  const fitZ = (r) => Math.max(VW() / r.w, VH() / r.h);
+  let flight = null; // one camera flight at a time: a new one starts from wherever the camera is now
   function camTo(r, { duration = 1.8, ease = 'power3.inOut' } = {}) {
+    flight?.kill(); flight?.vars?.onComplete?.();
     const from = { ...cam }, to = { cx: r.x + r.w / 2, cy: r.y + r.h / 2, z: fitZ(r) };
     if (reduced()) duration = 0.01;
     const o = { t: 0 };
-    return new Promise((done) => gsap.to(o, {
+    return new Promise((done) => { flight = gsap.to(o, {
       t: 1, duration, ease, overwrite: true,
       onUpdate() {
         const t = o.t;
@@ -107,21 +91,21 @@ export async function createScene({ world, labels, onTagClick }) {
         cam.cx = from.cx + (to.cx - from.cx) * k;
         cam.cy = from.cy + (to.cy - from.cy) * k;
       },
-      onComplete: done,
-    }));
+      onComplete: () => { flight = null; done(); },
+    }); });
   }
   function jumpTo(r) { cam.cx = r.x + r.w / 2; cam.cy = r.y + r.h / 2; cam.z = fitZ(r); }
   function view() {
     const t = performance.now() / 1000;
     look.x += (look.tx - look.x) * 0.04; look.y += (look.ty - look.y) * 0.04;
     const z = cam.z * (reduced() ? 1 : 1 + 0.012 * Math.sin(t * 0.32)); // slow breathing
-    const vw = innerWidth / z, vh = innerHeight / z;
+    const vw = VW() / z, vh = VH() / z;
     let cx = cam.cx + look.x * vw * 0.045, cy = cam.cy + look.y * vh * 0.035; // bounded free look
     cx = Math.min(Math.max(cx, vw / 2), geo.W - vw / 2);
     cy = Math.min(Math.max(cy, vh / 2), geo.H - vh / 2);
     return { cx, cy, z };
   }
-  const toScreen = (v, x, y) => [innerWidth / 2 + (x - v.cx) * v.z, innerHeight / 2 + (y - v.cy) * v.z];
+  const toScreen = (v, x, y) => [VW() / 2 + (x - v.cx) * v.z, VH() / 2 + (y - v.cy) * v.z];
   function frame() {
     if (!alive) return;
     const v = view();
@@ -129,19 +113,23 @@ export async function createScene({ world, labels, onTagClick }) {
       if (!s.on && !gsap.isTweening(s.el)) { s.el.style.visibility = 'hidden'; continue; }
       s.el.style.visibility = 'visible';
       const [x, y] = toScreen(v, s.rect.x, s.rect.y);
-      s.el.style.width = s.base.width + 'px'; s.el.style.height = s.base.height + 'px';
-      s.el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${(s.rect.w * v.z) / (s.base.width || 1)}, ${(s.rect.h * v.z) / (s.base.height || 1)})`;
+      s.el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${(s.rect.w * v.z) / s.pw}, ${(s.rect.h * v.z) / s.ph})`;
     }
-    const narrow = innerWidth < 720;
+    const narrow = VW() < 720, W2 = VW();
     // reads first (no layout thrash): tag sizes (re-measured every 20 frames) and obstacle rects
     frameNo++;
     for (const t of tags.values()) if (!t.w || frameNo % 20 === 0) { t.w = t.el.offsetWidth; t.h = t.el.offsetHeight; }
     const obstacles = readObstacles();
     const placed = [];
     for (const t of tags.values()) {
-      let [x, y] = toScreen(v, t.wx, t.wy);
-      const mx = narrow ? 90 : 120;
-      x = Math.min(Math.max(x, mx), innerWidth - mx); y = Math.min(Math.max(y, narrow ? 120 : 96), innerHeight - (narrow ? 260 : 150)); // keep off-screen branches reachable
+      let [x, y] = toScreen(v, t.wx, t.wy); // re-anchored to its world position every frame
+      const mx = narrow ? 90 : 120, top = narrow ? 120 : 96, bottom = VH() - (narrow ? 260 : 150);
+      if (t.clickable) { // options stay reachable: pinned to the nearest edge when off screen
+        const cx = Math.min(Math.max(x, mx), W2 - mx), cy = Math.min(Math.max(y, top), bottom);
+        t.edge = cx !== x || cy !== y; x = cx; y = cy;
+      } else { // greyed / pruned names stay at their real place; off screen = not shown
+        t.off = x < -40 || x > W2 + 40 || y < 40 || y > VH() - 40;
+      }
       placed.push({ t, x, y });
     }
     if (avoid.narration && obstacles.narration) chooseSide(placed, obstacles, narrow);
@@ -151,9 +139,11 @@ export async function createScene({ world, labels, onTagClick }) {
       for (const o of obstacles.list) {
         if (!hits(x, y, p.t, o)) continue;
         const up = o.top - p.t.h / 2 - 10;
-        if (up >= 70 && !obstacles.list.some((q) => q !== o && hits(x, up, p.t, q))) y = up; else hidden = true;
+        if (o.height < 180 && up >= 70 && !obstacles.list.some((q) => q !== o && hits(x, up, p.t, q))) y = up; else hidden = true;
       }
+      hidden = hidden || !!p.t.off;
       if (p.t.occluded !== hidden) { p.t.occluded = hidden; p.t.el.classList.toggle('occluded', hidden); }
+      if (p.t.edgeShown !== !!p.t.edge) { p.t.edgeShown = !!p.t.edge; p.t.el.classList.toggle('edge', !!p.t.edge); }
       p.t.el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
     }
     raf = requestAnimationFrame(frame);
@@ -186,9 +176,9 @@ export async function createScene({ world, labels, onTagClick }) {
     if (narrow) { if (side !== 'left') setSide('left'); return; } // full-width on phones: nudge/fade only
     const dock = avoid.others[0]?.getBoundingClientRect?.();
     const w = n.width, h = n.height, gap = 28;
-    const left = { left: gap, right: gap + w, top: innerHeight - gap - h, bottom: innerHeight - gap };
-    const rb = dock && dock.height ? dock.top - 12 : innerHeight - gap;
-    const right = { left: innerWidth - gap - w, right: innerWidth - gap, top: rb - h, bottom: rb };
+    const left = { left: gap, right: gap + w, top: VH() - gap - h, bottom: VH() - gap };
+    const rb = dock && dock.height ? dock.top - 12 : VH() - gap;
+    const right = { left: VW() - gap - w, right: VW() - gap, top: rb - h, bottom: rb };
     const cost = { left: overlapArea(placed, left), right: overlapArea(placed, right) };
     const other = side === 'left' ? 'right' : 'left';
     const now = performance.now();
@@ -259,23 +249,39 @@ export async function createScene({ world, labels, onTagClick }) {
       await camTo(geo.viewRect('0'), { duration: 2.8, ease: 'power2.inOut' });
     },
     /** Show a node: the stills on its path, greyed branches, labels; fly the camera there. */
-    async show({ pathIds, current, grey, tagItems, childIds = [], deeper }) {
+    /** Phase 1, before data: stills on the path and the camera flight start at once (optimistic). */
+    go({ pathIds, current, deeper }) {
+      currentId = current;
+      setTags([]); // old labels leave; the new ones arrive with the data
       const want = new Set(['master']);
       for (const id of pathIds) want.add(geo.stillFor(id));
+      const ready = [];
       for (const name of new Set([...want, ...Object.keys(stills)])) {
-        if (want.has(name)) { const s = showStill(name, true, { delay: deeper ? 0.7 : 0, duration: 1.1 }); await s.ready; }
+        if (want.has(name)) ready.push(showStill(name, true, { delay: deeper ? 0.7 : 0, duration: 1.1 }).ready);
         else if (stills[name]?.on) showStill(name, false, { duration: 0.8 });
       }
+      const fly = camTo(geo.viewRect(current), { duration: deeper ? 2.0 : 1.6 });
+      return Promise.all([fly, ...ready]);
+    },
+    /** Phase 2, with data: greyed branches, labels, next stills warmed in the HTTP cache. */
+    async dress({ grey, tagItems, childIds = [] }) {
+      await Promise.all(Object.values(stills).filter((s) => s.on).map((s) => s.ready));
       prefetch(childIds.map((id) => geo.ownStill(id)));
       for (const s of Object.values(stills)) if (s.on) paintGrey(s, grey);
       setTags(tagItems);
-      await camTo(geo.viewRect(current), { duration: deeper ? 2.0 : 1.6 });
     },
     setTags,
     /** Elements cards must not hide behind: the narration (Lumi + bubble, moved to the freer side) and others (the dock). */
     setAvoid(getter) { getAvoid = getter; },
     get side() { return side; },
     refit(current) { jumpTo(geo.viewRect(current)); },
+    /** Chat panel open/closed: the scene keeps the remaining area and the camera re-frames the current node. */
+    setInsets({ right = 0, bottom = 0 } = {}) {
+      insetRight = Math.max(0, right); insetBottom = Math.max(0, bottom);
+      const stage = world.parentElement;
+      if (stage) { stage.style.right = `${insetRight}px`; stage.style.bottom = `${insetBottom}px`; }
+      camTo(geo.viewRect(currentId), { duration: 0.6, ease: 'power2.out' });
+    },
     destroy() {
       alive = false; cancelAnimationFrame(raf); removeEventListener('pointermove', onMove);
       for (const s of Object.values(stills)) release(s);

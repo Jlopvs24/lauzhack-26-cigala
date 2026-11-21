@@ -23,7 +23,7 @@ export function summary(r) {
 
 const delta = (a, b, k) => (a?.metrics?.[k] != null && b?.metrics?.[k] != null ? Math.round((a.metrics[k] - b.metrics[k]) * 100) / 100 : null);
 
-export async function buildFromExpand({ profile, path, assumptions = [], uncertainty = false, expand }) {
+export async function buildFromExpand({ profile, path, assumptions = [], uncertainty = false, expand, startProfile = profile }) {
   const call = expand || ((p) => apiRequest('/tree/expand', { body: { path: p, assumptions, uncertainty, ...(profile ? { profile } : {}) } }));
   const levels = [];
   for (let i = 0; i <= path.length; i++) levels.push(await call(path.slice(0, i)));
@@ -49,7 +49,7 @@ export async function buildFromExpand({ profile, path, assumptions = [], uncerta
     question: { tree_id: last.tree_id, profile_id: last.profile_id, as_of: leafRes?.as_of, horizon_months: leafRes?.horizon_months, currency: leafRes?.currency || 'CHF',
       jurisdiction: 'Switzerland (Lausanne, Vaud): illustrative tax table', values: "nominal CHF; '_real' fields are in today's prices",
       path: ['0', ...path], question: [root, ...steps].map((s) => s.label).join(' -> ') },
-    starting_state: Object.entries(profile?.provenance || {}).map(([field, p]) => ({ field, value: profile[field], label: p.source === 'questionnaire' ? 'user-entered' : p.source?.startsWith('ubs') ? 'synthetic' : p.source || 'synthetic', source: p.source, confidence: p.confidence })),
+    starting_state: Object.entries(startProfile?.provenance || {}).map(([field, p]) => ({ field, value: startProfile[field], label: p.source === 'questionnaire' ? 'user-entered' : p.source?.startsWith('ubs') ? 'synthetic' : p.source || 'synthetic', source: p.source, confidence: p.confidence })),
     baseline: { node_id: root.node_id, label: root.label, summary: summary(root.result), headline: root.result?.headline || null },
     steps,
     leaf: { node_id: steps.at(-1)?.node_id ?? '0', constraints: leafRes?.constraints || [], plan_check: leafRes?.plan_check || null, weather_resilience: wr || null,
@@ -66,12 +66,12 @@ export async function buildFromExpand({ profile, path, assumptions = [], uncerta
   };
 }
 
-export async function fetchPathReport({ profile, path, assumptions = [], uncertainty = false }) {
+export async function fetchPathReport({ profile, path, assumptions = [], uncertainty = false, startProfile = profile }) {
   try {
     const data = await apiRequest('/report', { body: { path, assumptions, uncertainty, ...(profile ? { profile } : {}) } });
     if (data?.steps && data?.leaf) return { ...data, source: 'report' };
   } catch (e) {
     if (!/ 40[45]\b|returned 40[45]/.test(e.message)) throw e; // only "route not there yet" falls back
   }
-  return buildFromExpand({ profile, path, assumptions, uncertainty });
+  return buildFromExpand({ profile, path, assumptions, uncertainty, startProfile });
 }

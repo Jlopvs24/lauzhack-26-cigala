@@ -83,7 +83,11 @@ function App() {
     apiRequest('/profiles/demo', { method: 'GET' }).then((d) => setDemoProfile(d?.profile || null)).catch(() => {});
     const onResize = () => { const s = state.current; if (s.tree) scene.current?.refit(s.tree.current); };
     addEventListener('resize', onResize);
-    return () => { disposed = true; removeEventListener('resize', onResize); scene.current?.destroy(); voice.current?.stop(); lumi.current?.destroy?.(); };
+    // Lluc's chat panel (#34): 'panel:open' {side: 'right'|'bottom', width, height} on open/resize, 'panel:close'
+    const onPanel = (e) => { const d = e.detail || {}; scene.current?.setInsets(d.side === 'bottom' ? { bottom: d.height || 0 } : { right: d.width || 0 }); };
+    const onPanelClose = () => scene.current?.setInsets({});
+    addEventListener('panel:open', onPanel); addEventListener('panel:close', onPanelClose);
+    return () => { disposed = true; removeEventListener('resize', onResize); removeEventListener('panel:open', onPanel); removeEventListener('panel:close', onPanelClose); scene.current?.destroy(); voice.current?.stop(); lumi.current?.destroy?.(); };
   }, []);
 
   useEffect(() => { document.documentElement.lang = lang; store.set('cigala.lang', lang); }, [lang]);
@@ -110,44 +114,49 @@ function App() {
       .filter((n) => n.node_id !== data.current && n.status !== 'chosen')
       .map((n) => ({ id: n.node_id, status: n.status, name: translateNode(n, l).label, meta: tagMeta(n, l), clickable: n.status === 'child' || n.status === 'sibling' }));
   }
-  async function fetchTree(p, opts = {}) {
+  // One expand in flight: a new navigation aborts the stale one. Tree growth asks for no exploration
+  // (fast path, #33); the report loads it lazily for the current node only.
+  const inflight = useRef(null);
+  const target = useRef([]); // the path being navigated to (Back and clicks act on it, not on stale data)
+  async function fetchTree(p, opts = {}, signal) {
     const s = state.current;
-    const body = { path: p, assumptions: opts.assumptions ?? s.overrides, uncertainty: opts.lens ?? s.lens };
+    const body = { path: p, assumptions: opts.assumptions ?? s.overrides, uncertainty: opts.lens ?? s.lens, exploration: !!opts.exploration };
     const prof = opts.profile !== undefined ? opts.profile : s.profile;
     if (prof) body.profile = prof;
-    const data = validateTree(await apiRequest('/tree/expand', { body }));
+    const data = validateTree(await apiRequest('/tree/expand', { body, signal }));
     addCost(data.cost_usd);
     return data;
   }
   async function go(p, opts = {}) {
-    if (state.current.busy && !opts.force) return;
+    inflight.current?.abort();
+    const ctl = new AbortController(); inflight.current = ctl;
+    target.current = p;
     setBusy(true); setError('');
     voice.current?.unlock();
     voice.current?.stop();
-    const deeper = p.length > (state.current.tree ? pathToNode(state.current.tree.nodes, state.current.tree.current).length : -1);
+    const prev = state.current.tree ? pathToNode(state.current.tree.nodes, state.current.tree.current).length : -1;
+    const deeper = p.length > prev;
+    scene.current?.go({ pathIds: ['0', ...p], current: p.at(-1) || '0', deeper }); // camera moves now
     try {
-      const data = await fetchTree(p, opts);
+      const data = await fetchTree(p, opts, ctl.signal);
+      if (ctl.signal.aborted) return;
       if (opts.assumptions) setOverrides(opts.assumptions);
       setTree(data);
       const vis = visibleNodes(data, seen.current);
       const l = state.current.lang;
-      setTimeout(() => narrateNode(data, l), deeper ? 900 : 600);
-      await scene.current?.show({
-        pathIds: data.path, current: data.current, grey: greyCodes(vis), deeper,
-        tagItems: tagItems(data, l), childIds: data.nodes.filter((n) => n.status === 'child').map((n) => n.node_id),
-      });
+      narrateNode(data, l); // labels and narration arrive with the data; the flight continues underneath
+      await scene.current?.dress({ grey: greyCodes(vis), tagItems: tagItems(data, l), childIds: data.nodes.filter((n) => n.status === 'child').map((n) => n.node_id) });
     } catch (e) {
-      setError(e instanceof TypeError ? t(state.current.lang, 'noEngine') : /timed? ?out|TimeoutError|AbortError/i.test(`${e.name} ${e.message}`) ? t(state.current.lang, 'slow') : e.message);
-    } finally { setBusy(false); }
+      if (ctl.signal.aborted || e.name === 'AbortError') return;
+      setError(e instanceof TypeError ? t(state.current.lang, 'noEngine') : /timed? ?out|TimeoutError/i.test(`${e.name} ${e.message}`) ? t(state.current.lang, 'slow') : e.message);
+    } finally { if (inflight.current === ctl) setBusy(false); } // busy = data only: clicks and Back can interrupt a flight
   }
   function onTag(id, status) {
-    const s = state.current;
-    if (!s.tree || s.busy) return;
-    const p = pathToNode(s.tree.nodes, s.tree.current);
+    const p = target.current;
     if (status === 'child') go([...p, id]);
     else if (status === 'sibling') go([...p.slice(0, -1), id]); // switch sideways, same level
   }
-  function back() { const s = state.current; if (s.tree && !s.busy) { const p = pathToNode(s.tree.nodes, s.tree.current); if (p.length) go(p.slice(0, -1)); } }
+  function back() { const p = target.current; if (state.current.tree && p.length) go(p.slice(0, -1)); }
 
   async function begin(prof) {
     if (started) return;
@@ -171,8 +180,23 @@ function App() {
     const cur = tree?.nodes.find((n) => n.node_id === tree.current);
     if (!on || cur?.result?.metrics?.final_net_worth_p50 != null) return;
     setLensPending(true);
-    try { setTree(await fetchTree(path, { lens: true })); } catch (e) { setError(e.message); } finally { setLensPending(false); }
+    try { setTree(await fetchTree(path, { lens: true, exploration: true })); } catch (e) { setError(e.message); } finally { setLensPending(false); }
   }
+
+  // exploration only when the report is open, for the current node, cancelled when it changes
+  const [explored, setExplored] = useState(null);
+  useEffect(() => {
+    if (panel !== 'report' || !tree || busy) return;
+    const cur = tree.nodes.find((n) => n.node_id === tree.current);
+    if (cur?.result?.exploration) return; // already there (API without the fast path)
+    const key = JSON.stringify([path, overrides, lens]);
+    if (explored?.key === key) return;
+    const ctl = new AbortController();
+    fetchTree(path, { exploration: true }, ctl.signal).then((d) => setExplored({ key, data: d })).catch(() => {});
+    return () => ctl.abort();
+  }, [panel, tree, busy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const exploredKey = JSON.stringify([path, overrides, lens]);
+  const reportTree = explored?.key === exploredKey ? explored.data : tree;
 
   // a lever's "try" button: recompute the whole visible tree with that one assumption overridden
   function applyLever(id, value) {
@@ -197,7 +221,7 @@ function App() {
 
   const cur = tree?.nodes.find((n) => n.node_id === tree.current);
   const crumbs = tree ? tree.path.map((id) => tree.nodes.find((n) => n.node_id === id)).filter(Boolean) : [];
-  const reportHTML = tree ? renderReport({ data: tree, lang, ui: UI[lang], tr: (n) => translateNode(n, lang), lens, lensPending, applied: overrides.length > 0 }) : '';
+  const reportHTML = reportTree ? renderReport({ data: reportTree, lang, ui: UI[lang], tr: (n) => translateNode(n, lang), lens, lensPending, applied: overrides.length > 0 }) : '';
 
   return <>
     <main id="stage" aria-label="Financial tree">
@@ -220,7 +244,7 @@ function App() {
       </div>
     </header>
 
-    {started && path.length > 0 && <button className="nav-back" onClick={back} disabled={busy}>
+    {started && path.length > 0 && <button className="nav-back" onClick={back}>
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
       <span>{t(lang, 'back')}</span></button>}
 
@@ -265,7 +289,7 @@ function App() {
     {started && cur && !busy && !tree.nodes.some((n) => n.status === 'child') && path.length > 0 && !pathReport &&
       <button className="leaf-cta" onClick={() => { setPanel(null); setPathReport(true); }}>
         <span className="leaf-cta-kicker">{t(lang, 'leafEnd')}</span><span>{t(lang, 'openReport')}</span></button>}
-    {pathReport && <PathReport lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} path={path} assumptions={overrides} onClose={() => setPathReport(false)} />}
+    {pathReport && <PathReport lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} startProfile={profile || demoProfile} path={path} assumptions={overrides} onClose={() => setPathReport(false)} />}
 
     {busy && started && <div className="loading" role="status">{t(lang, 'loading')}</div>}
     {error && <div className="error-toast" role="alert">{error}<button onClick={() => { setError(''); go(path, { force: true }); }}>{t(lang, 'retry')}</button></div>}

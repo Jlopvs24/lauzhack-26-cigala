@@ -7,6 +7,7 @@ const API = (import.meta.env?.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {}) {
   let unlocked = false, muted = false, audio = null, seq = 0, serverLangs = [];
+  const cache = new Map(); // `${lang}|${text}` -> object URL: the same sentence is synthesised once
   fetch(`${API}/health`).then((r) => r.json())
     .then((h) => { if (h.voice?.kokoro?.available) serverLangs = h.voice.kokoro.languages || []; })
     .catch(() => {});
@@ -28,14 +29,20 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
     const my = seq;
     try {
       if (!serverLangs.includes(lang)) throw new Error(`no server voice for ${lang}`);
-      const r = await fetch(`${API}/voice/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, language: lang }), signal: AbortSignal.timeout(12000) });
-      if (!r.ok) throw new Error(`tts ${r.status}`);
-      const url = URL.createObjectURL(await r.blob());
+      const key = `${lang}|${text}`;
+      let url = cache.get(key);
+      if (!url) {
+        const r = await fetch(`${API}/voice/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, language: lang }), signal: AbortSignal.timeout(12000) });
+        if (!r.ok) throw new Error(`tts ${r.status}`);
+        url = URL.createObjectURL(await r.blob());
+        if (cache.size > 40) { const [k, u] = cache.entries().next().value; URL.revokeObjectURL(u); cache.delete(k); }
+        cache.set(key, url);
+      }
       if (my !== seq) return;
       audio = new Audio(url);
       audio.onplay = () => onTalking(true);
-      audio.onended = audio.onpause = () => { onTalking(false); URL.revokeObjectURL(url); };
+      audio.onended = audio.onpause = () => onTalking(false);
       await audio.play();
     } catch {
       if (my !== seq) return;

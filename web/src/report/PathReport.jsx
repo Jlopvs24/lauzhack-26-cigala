@@ -57,12 +57,12 @@ function Spark({ values }) {
   </svg>;
 }
 
-export default function PathReport({ lang, tr, profile, path, assumptions, onClose }) {
+export default function PathReport({ lang, tr, profile, startProfile = profile, path, assumptions, onClose }) {
   const L = R[lang] || R.en, H = H_I18N[lang] || H_I18N.en;
   const [data, setData] = useState(null), [error, setError] = useState(''), [lens, setLens] = useState(false);
   useEffect(() => {
     let live = true; setData(null); setError('');
-    fetchPathReport({ profile, path, assumptions, uncertainty: lens }).then((d) => live && setData(d)).catch((e) => live && setError(e.message));
+    fetchPathReport({ profile, path, assumptions, uncertainty: lens, startProfile }).then((d) => live && setData(d)).catch((e) => live && setError(e.message));
     return () => { live = false; };
   }, [JSON.stringify(path), JSON.stringify(assumptions), lens, profile]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [onClose]);
