@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1 --port 5175 --strictPort",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test src/*.test.js src/scene/*.test.js src/report/*.test.js src/weather/*.test.js"
+    "test": "node --test src/*.test.js src/scene/*.test.js src/report/*.test.js src/weather/*.test.js src/compare/*.test.js"
   },
   "dependencies": {
     "gsap": "^3.12.5",

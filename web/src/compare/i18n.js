@@ -1,0 +1,159 @@
+// Strings of the comparison (EN default, ES, FR, DE). Wording rule of the app: "if… then… under these
+// assumptions", never a forecast, never advice, and never "best": we mark the highest and lowest value of
+// each row, the reader decides what matters.
+const chfFmt = (n) => (Number.isFinite(n) ? (n < 0 ? '−' : '') + 'CHF ' + Math.abs(Math.round(n)).toLocaleString('en-US').replace(/,/g, '’') : '–');
+// compact money for tight places (cards): CHF 12k, −CHF 3.8k
+export function chfK(n) {
+  if (!Number.isFinite(n)) return '–';
+  const a = Math.abs(n), s = n < 0 ? '−' : '';
+  if (a >= 1e6) return `${s}CHF ${Math.round(a / 1e5) / 10}M`;
+  if (a >= 1e4) return `${s}CHF ${Math.round(a / 1e3)}k`;
+  if (a >= 1e3) return `${s}CHF ${Math.round(a / 100) / 10}k`;
+  return `${s}CHF ${Math.round(a)}`;
+}
+export const chf = chfFmt;
+export const signed = (n, f = chfFmt) => (Number.isFinite(n) ? (n > 0.5 ? '+' : n < -0.5 ? '−' : '±') + f(Math.abs(n)) : '–');
+
+export const CI = {
+  en: {
+    // card strip
+    nOf: (r, n) => `${r} of ${n}`, scaleLabel: (m, v, r, n) => `${m}: ${v}, position ${r} of ${n} options (1 = highest)`,
+    vs: (d, who) => `${d} vs ${who}`, gapVsNone: (k) => `funding gap · ${k === 1 ? '1 other has none' : `${k} others have none`}`,
+    noGapVs: (k) => `no funding gap · ${k === 1 ? '1 other has one' : `${k} others have one`}`, sameAs: (who) => `same as ${who}`,
+    metric: { final_net_worth_real: 'Net worth in 10 years', min_cash: 'Lowest cash', liquidity_months: 'Tightest buffer', final_debt: 'Debt in 10 years' },
+    // buttons and bar
+    add: 'Add to comparison', added: 'In comparison', remove: (l) => `Remove “${l}” from the comparison`, full: 'Comparison is full (4)',
+    pin: (l) => `Add “${l}” to the comparison`, unpin: (l) => `Remove “${l}” from the comparison`,
+    compareOptions: 'Compare these options', barCount: (k, max) => `${k} of ${max} selected`, compare: 'Compare', clear: 'Clear',
+    needTwo: 'Add one more to compare',
+    // page
+    title: 'Comparison', titleOptions: 'Comparing the options here', close: 'Close', loading: 'Putting the options side by side…',
+    retry: 'Try again', error: 'The engine did not answer. Check the backend and try again.',
+    lede: 'Each column is one path through your tree, computed by the same engine under the same assumptions. Highest and lowest values of each row are marked; which matters more is yours to weigh.',
+    onlyDiff: 'Show only differences', overTime: 'Over time', nwReal: 'Net worth (today’s prices)', cash: 'Cash',
+    gapZone: 'Funding gap', years: 'years', today: 'Today', monthN: (m) => `Month ${m}`, yearN: (y) => `year ${y}`, asTable: 'Show as table', year: 'Year',
+    highest: 'highest', lowest: 'lowest', none: 'none', na: '–',
+    sec: { outcome: 'Outcome', impact: 'What this choice alone changes', truth: 'What would have to be true', stress: 'Stress', assumptions: 'Assumptions that differ', personal: 'Your conditions' },
+    r: {
+      plan: 'Plan check', nw: 'Net worth in 10 years (today’s prices)', low: 'Lowest cash', gap: 'Funding gap', goals: 'Goals met', liq: 'Tightest buffer', debt: 'Debt in 10 years',
+      vsParent: 'Net worth vs before this choice', lowVsParent: 'Lowest cash vs before this choice', goalsVsParent: 'Goals vs before this choice', vsToday: 'Net worth vs changing nothing',
+      fix: 'Smallest change to close the gap', cashNow: 'Or cash today', timing: 'If started later', breakEven: 'Break-even vs another column',
+      stress: 'Holds in stress scenarios', breaks: 'Breaks under',
+    },
+    lowAt: (v, m) => `${v} · month ${m}`, gapFrom: (v, m) => `${v} from month ${m}`, goalsOf: (a, b) => `${a} of ${b}`, months: (v) => `${v} months`,
+    perMonth: (v) => `+${v}/month income`, alreadyHolds: 'already no gap', notWithin: 'not within the search range',
+    cashNowV: (v) => `${v} now`,
+    timingAll: (m) => `holds if started within ${m} months`, timingNone: 'does not hold at any start (0–36 months)', timingFrom: (m) => `holds from a start in month ${m}`, timingNA: 'no own decision',
+    beAhead: (d, who) => `${d} vs ${who}`, beSalary: (v) => `even at a salary of ${v}/month`,
+    holdsIn: (h, o) => `${h} of ${o}`, rootDelta: 'starting point', noParent: 'starting point',
+    yours: 'yours', patched: 'your condition', custom: 'your option', noConditions: 'none of yours',
+    condition: 'Under these assumptions; not a forecast and not advice.',
+    weatherOn: (w) => `With weather: ${w}`,
+    goalsDelta: (d) => (d === 0 ? 'same' : `${d > 0 ? '+' : '−'}${Math.abs(d)} goal${Math.abs(d) === 1 ? '' : 's'}`),
+    colRemove: (l) => `Remove “${l}”`, pinnedHint: 'Use + on any card or report to add paths from other branches (up to 4).',
+  },
+  es: {
+    nOf: (r, n) => `${r} de ${n}`, scaleLabel: (m, v, r, n) => `${m}: ${v}, posición ${r} de ${n} opciones (1 = la más alta)`,
+    vs: (d, who) => `${d} vs ${who}`, gapVsNone: (k) => `falta financiación · ${k === 1 ? 'otra opción no' : `otras ${k} no`}`,
+    noGapVs: (k) => `sin falta de financiación · ${k === 1 ? 'otra opción sí' : `otras ${k} sí`}`, sameAs: (who) => `igual que ${who}`,
+    metric: { final_net_worth_real: 'Patrimonio a 10 años', min_cash: 'Liquidez mínima', liquidity_months: 'Colchón mínimo', final_debt: 'Deuda a 10 años' },
+    add: 'Añadir a la comparación', added: 'En la comparación', remove: (l) => `Quitar «${l}» de la comparación`, full: 'Comparación llena (4)',
+    pin: (l) => `Añadir «${l}» a la comparación`, unpin: (l) => `Quitar «${l}» de la comparación`,
+    compareOptions: 'Comparar estas opciones', barCount: (k, max) => `${k} de ${max} seleccionadas`, compare: 'Comparar', clear: 'Vaciar',
+    needTwo: 'Añade una más para comparar',
+    title: 'Comparación', titleOptions: 'Comparando las opciones de aquí', close: 'Cerrar', loading: 'Poniendo las opciones lado a lado…',
+    retry: 'Reintentar', error: 'El motor no respondió. Revisa el backend y vuelve a intentarlo.',
+    lede: 'Cada columna es un camino de tu árbol, calculado por el mismo motor con los mismos supuestos. Se marcan el valor más alto y el más bajo de cada fila; qué pesa más lo decides tú.',
+    onlyDiff: 'Solo diferencias', overTime: 'En el tiempo', nwReal: 'Patrimonio (precios de hoy)', cash: 'Liquidez',
+    gapZone: 'Falta de financiación', years: 'años', today: 'Hoy', monthN: (m) => `Mes ${m}`, yearN: (y) => `año ${y}`, asTable: 'Ver como tabla', year: 'Año',
+    highest: 'más alto', lowest: 'más bajo', none: 'ninguna', na: '–',
+    sec: { outcome: 'Resultado', impact: 'Lo que cambia esta decisión por sí sola', truth: 'Qué tendría que cumplirse', stress: 'Estrés', assumptions: 'Supuestos que difieren', personal: 'Tus condiciones' },
+    r: {
+      plan: 'Revisión del plan', nw: 'Patrimonio a 10 años (precios de hoy)', low: 'Liquidez mínima', gap: 'Falta de financiación', goals: 'Objetivos cumplidos', liq: 'Colchón mínimo', debt: 'Deuda a 10 años',
+      vsParent: 'Patrimonio vs antes de esta decisión', lowVsParent: 'Liquidez mínima vs antes de esta decisión', goalsVsParent: 'Objetivos vs antes de esta decisión', vsToday: 'Patrimonio vs no cambiar nada',
+      fix: 'Cambio mínimo para cerrar el hueco', cashNow: 'O liquidez hoy', timing: 'Si empieza más tarde', breakEven: 'Punto de equilibrio vs otra columna',
+      stress: 'Se sostiene en escenarios de estrés', breaks: 'Se rompe con',
+    },
+    lowAt: (v, m) => `${v} · mes ${m}`, gapFrom: (v, m) => `${v} desde el mes ${m}`, goalsOf: (a, b) => `${a} de ${b}`, months: (v) => `${v} meses`,
+    perMonth: (v) => `+${v}/mes de ingresos`, alreadyHolds: 'ya sin hueco', notWithin: 'fuera del rango de búsqueda',
+    cashNowV: (v) => `${v} ahora`,
+    timingAll: (m) => `se sostiene si empieza en los próximos ${m} meses`, timingNone: 'no se sostiene en ningún inicio (0–36 meses)', timingFrom: (m) => `se sostiene si empieza desde el mes ${m}`, timingNA: 'sin decisión propia',
+    beAhead: (d, who) => `${d} vs ${who}`, beSalary: (v) => `igual con un salario de ${v}/mes`,
+    holdsIn: (h, o) => `${h} de ${o}`, rootDelta: 'punto de partida', noParent: 'punto de partida',
+    yours: 'tuyo', patched: 'tu condición', custom: 'tu opción', noConditions: 'ninguna tuya',
+    condition: 'Con estos supuestos; no es una previsión ni un consejo.',
+    weatherOn: (w) => `Con clima: ${w}`,
+    goalsDelta: (d) => (d === 0 ? 'igual' : `${d > 0 ? '+' : '−'}${Math.abs(d)} objetivo${Math.abs(d) === 1 ? '' : 's'}`),
+    colRemove: (l) => `Quitar «${l}»`, pinnedHint: 'Usa + en cualquier tarjeta o informe para añadir caminos de otras ramas (hasta 4).',
+  },
+  fr: {
+    nOf: (r, n) => `${r} sur ${n}`, scaleLabel: (m, v, r, n) => `${m} : ${v}, position ${r} sur ${n} options (1 = la plus haute)`,
+    vs: (d, who) => `${d} vs ${who}`, gapVsNone: (k) => `besoin de financement · ${k === 1 ? '1 autre n’en a pas' : `${k} autres n’en ont pas`}`,
+    noGapVs: (k) => `sans besoin de financement · ${k === 1 ? '1 autre en a un' : `${k} autres en ont un`}`, sameAs: (who) => `comme ${who}`,
+    metric: { final_net_worth_real: 'Patrimoine dans 10 ans', min_cash: 'Trésorerie minimale', liquidity_months: 'Coussin le plus bas', final_debt: 'Dette dans 10 ans' },
+    add: 'Ajouter à la comparaison', added: 'Dans la comparaison', remove: (l) => `Retirer « ${l} » de la comparaison`, full: 'Comparaison pleine (4)',
+    pin: (l) => `Ajouter « ${l} » à la comparaison`, unpin: (l) => `Retirer « ${l} » de la comparaison`,
+    compareOptions: 'Comparer ces options', barCount: (k, max) => `${k} sur ${max} sélectionnés`, compare: 'Comparer', clear: 'Vider',
+    needTwo: 'Ajoutez-en un de plus pour comparer',
+    title: 'Comparaison', titleOptions: 'Les options d’ici, côte à côte', close: 'Fermer', loading: 'Mise côte à côte des options…',
+    retry: 'Réessayer', error: 'Le moteur n’a pas répondu. Vérifiez le backend et réessayez.',
+    lede: 'Chaque colonne est un chemin de votre arbre, calculé par le même moteur avec les mêmes hypothèses. La valeur la plus haute et la plus basse de chaque ligne sont marquées ; à vous de peser ce qui compte.',
+    onlyDiff: 'Seulement les différences', overTime: 'Dans le temps', nwReal: 'Patrimoine (prix d’aujourd’hui)', cash: 'Trésorerie',
+    gapZone: 'Besoin de financement', years: 'ans', today: 'Aujourd’hui', monthN: (m) => `Mois ${m}`, yearN: (y) => `année ${y}`, asTable: 'Voir en tableau', year: 'Année',
+    highest: 'le plus haut', lowest: 'le plus bas', none: 'aucun', na: '–',
+    sec: { outcome: 'Résultat', impact: 'Ce que ce choix change à lui seul', truth: 'Ce qui devrait être vrai', stress: 'Stress', assumptions: 'Hypothèses qui diffèrent', personal: 'Vos conditions' },
+    r: {
+      plan: 'Contrôle du plan', nw: 'Patrimoine dans 10 ans (prix d’aujourd’hui)', low: 'Trésorerie minimale', gap: 'Besoin de financement', goals: 'Objectifs atteints', liq: 'Coussin le plus bas', debt: 'Dette dans 10 ans',
+      vsParent: 'Patrimoine vs avant ce choix', lowVsParent: 'Trésorerie minimale vs avant ce choix', goalsVsParent: 'Objectifs vs avant ce choix', vsToday: 'Patrimoine vs ne rien changer',
+      fix: 'Plus petit changement pour combler le besoin', cashNow: 'Ou liquidités aujourd’hui', timing: 'Si commencé plus tard', breakEven: 'Équilibre vs une autre colonne',
+      stress: 'Tient dans les scénarios de stress', breaks: 'Casse avec',
+    },
+    lowAt: (v, m) => `${v} · mois ${m}`, gapFrom: (v, m) => `${v} dès le mois ${m}`, goalsOf: (a, b) => `${a} sur ${b}`, months: (v) => `${v} mois`,
+    perMonth: (v) => `+${v}/mois de revenu`, alreadyHolds: 'déjà sans besoin', notWithin: 'hors de la plage de recherche',
+    cashNowV: (v) => `${v} maintenant`,
+    timingAll: (m) => `tient si commencé dans les ${m} mois`, timingNone: 'ne tient à aucun départ (0–36 mois)', timingFrom: (m) => `tient dès un départ au mois ${m}`, timingNA: 'pas de décision propre',
+    beAhead: (d, who) => `${d} vs ${who}`, beSalary: (v) => `même avec un salaire de ${v}/mois`,
+    holdsIn: (h, o) => `${h} sur ${o}`, rootDelta: 'point de départ', noParent: 'point de départ',
+    yours: 'à vous', patched: 'votre condition', custom: 'votre option', noConditions: 'aucune de vous',
+    condition: 'Selon ces hypothèses ; ni une prévision ni un conseil.',
+    weatherOn: (w) => `Avec météo : ${w}`,
+    goalsDelta: (d) => (d === 0 ? 'pareil' : `${d > 0 ? '+' : '−'}${Math.abs(d)} objectif${Math.abs(d) === 1 ? '' : 's'}`),
+    colRemove: (l) => `Retirer « ${l} »`, pinnedHint: 'Utilisez + sur une carte ou un rapport pour ajouter des chemins d’autres branches (jusqu’à 4).',
+  },
+  de: {
+    nOf: (r, n) => `${r} von ${n}`, scaleLabel: (m, v, r, n) => `${m}: ${v}, Rang ${r} von ${n} Optionen (1 = höchster Wert)`,
+    vs: (d, who) => `${d} ggü. ${who}`, gapVsNone: (k) => `Finanzierungslücke · ${k === 1 ? '1 andere hat keine' : `${k} andere haben keine`}`,
+    noGapVs: (k) => `keine Finanzierungslücke · ${k === 1 ? '1 andere hat eine' : `${k} andere haben eine`}`, sameAs: (who) => `gleich wie ${who}`,
+    metric: { final_net_worth_real: 'Vermögen in 10 Jahren', min_cash: 'Tiefste Liquidität', liquidity_months: 'Knappster Puffer', final_debt: 'Schulden in 10 Jahren' },
+    add: 'Zum Vergleich hinzufügen', added: 'Im Vergleich', remove: (l) => `„${l}“ aus dem Vergleich entfernen`, full: 'Vergleich voll (4)',
+    pin: (l) => `„${l}“ zum Vergleich hinzufügen`, unpin: (l) => `„${l}“ aus dem Vergleich entfernen`,
+    compareOptions: 'Diese Optionen vergleichen', barCount: (k, max) => `${k} von ${max} ausgewählt`, compare: 'Vergleichen', clear: 'Leeren',
+    needTwo: 'Noch eine hinzufügen, um zu vergleichen',
+    title: 'Vergleich', titleOptions: 'Die Optionen hier im Vergleich', close: 'Schliessen', loading: 'Die Optionen werden nebeneinandergestellt…',
+    retry: 'Erneut versuchen', error: 'Die Engine hat nicht geantwortet. Backend prüfen und erneut versuchen.',
+    lede: 'Jede Spalte ist ein Pfad durch Ihren Baum, von derselben Engine mit denselben Annahmen berechnet. Höchster und tiefster Wert jeder Zeile sind markiert; was mehr zählt, wägen Sie ab.',
+    onlyDiff: 'Nur Unterschiede', overTime: 'Im Zeitverlauf', nwReal: 'Vermögen (heutige Preise)', cash: 'Liquidität',
+    gapZone: 'Finanzierungslücke', years: 'Jahre', today: 'Heute', monthN: (m) => `Monat ${m}`, yearN: (y) => `Jahr ${y}`, asTable: 'Als Tabelle', year: 'Jahr',
+    highest: 'höchster', lowest: 'tiefster', none: 'keine', na: '–',
+    sec: { outcome: 'Ergebnis', impact: 'Was diese Entscheidung allein ändert', truth: 'Was zutreffen müsste', stress: 'Stress', assumptions: 'Abweichende Annahmen', personal: 'Ihre Bedingungen' },
+    r: {
+      plan: 'Plan-Check', nw: 'Vermögen in 10 Jahren (heutige Preise)', low: 'Tiefste Liquidität', gap: 'Finanzierungslücke', goals: 'Erreichte Ziele', liq: 'Knappster Puffer', debt: 'Schulden in 10 Jahren',
+      vsParent: 'Vermögen ggü. vor dieser Entscheidung', lowVsParent: 'Tiefste Liquidität ggü. vor dieser Entscheidung', goalsVsParent: 'Ziele ggü. vor dieser Entscheidung', vsToday: 'Vermögen ggü. nichts ändern',
+      fix: 'Kleinste Änderung, die die Lücke schliesst', cashNow: 'Oder Geld heute', timing: 'Bei späterem Start', breakEven: 'Break-even ggü. anderer Spalte',
+      stress: 'Hält in Stressszenarien', breaks: 'Bricht bei',
+    },
+    lowAt: (v, m) => `${v} · Monat ${m}`, gapFrom: (v, m) => `${v} ab Monat ${m}`, goalsOf: (a, b) => `${a} von ${b}`, months: (v) => `${v} Monate`,
+    perMonth: (v) => `+${v}/Monat Einkommen`, alreadyHolds: 'schon ohne Lücke', notWithin: 'ausserhalb des Suchbereichs',
+    cashNowV: (v) => `${v} jetzt`,
+    timingAll: (m) => `hält bei Start innerhalb von ${m} Monaten`, timingNone: 'hält bei keinem Start (0–36 Monate)', timingFrom: (m) => `hält ab Start in Monat ${m}`, timingNA: 'keine eigene Entscheidung',
+    beAhead: (d, who) => `${d} ggü. ${who}`, beSalary: (v) => `gleichauf bei ${v}/Monat Lohn`,
+    holdsIn: (h, o) => `${h} von ${o}`, rootDelta: 'Ausgangspunkt', noParent: 'Ausgangspunkt',
+    yours: 'Ihre', patched: 'Ihre Bedingung', custom: 'Ihre Option', noConditions: 'keine eigenen',
+    condition: 'Unter diesen Annahmen; keine Prognose und keine Beratung.',
+    weatherOn: (w) => `Mit Wetter: ${w}`,
+    goalsDelta: (d) => (d === 0 ? 'gleich' : `${d > 0 ? '+' : '−'}${Math.abs(d)} Ziel${Math.abs(d) === 1 ? '' : 'e'}`),
+    colRemove: (l) => `„${l}“ entfernen`, pinnedHint: 'Mit + auf jeder Karte oder jedem Bericht Pfade aus anderen Ästen hinzufügen (bis zu 4).',
+  },
+};
+
+export const ci = (lang) => CI[lang] || CI.en;
