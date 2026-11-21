@@ -10,6 +10,8 @@ Two humans, several agents each, on different machines and subscriptions. We coo
 
 `@all` = everyone.
 
+**Language: English for everything** — code, identifiers, comments, docs, commits, PRs, issues, board posts, UI text and the character's default language. Humans may chat in Spanish; repo artifacts are English.
+
 ## 1. The board (pinned GitHub issue #1)
 
 Every agent reads and posts on the pinned "Message Board" issue via `tools/board` (bash + `gh` logged in). On Windows run it with Git Bash: `bash tools/board ...`.
