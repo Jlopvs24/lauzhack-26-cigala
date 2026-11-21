@@ -267,7 +267,9 @@ td.lo .cmp-mark { color: var(--c-lo-ink); }
 .cmp-add-go:active { transform: scale(0.97); }
 .cmp-add-go:focus-visible { outline: 2px solid #3987e5; outline-offset: 2px; }
 .cmp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-body:has(.path-report) .cmp-bar { display: none; } /* the report header has its own "Compare (n)" */
+/* the floating bar never covers a drawer, report or dialog (their close buttons sit where the bar would);
+   the path report has its own "Compare (n)", and the bar comes back when they close */
+body:has(.drawer, .path-report, [aria-modal="true"]:not(.cmp)) .cmp-bar { display: none; }
 @media (max-width: 720px) { .cmp-add-group .cmp-add.on span { display: none; } .cmp-add-group .cmp-add.on { padding: 7px 10px; } .cmp-add-go { padding: 7px 10px; font-size: 12px; } }
 
 /* docked Lumi (ChatPanel `lumi`): keep clear of the open conversation panel; on phones stack above Lumi */
