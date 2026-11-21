@@ -22,19 +22,20 @@ TODO (team): pick the product name. The README hero uses option 1; change it the
 | 2 | `Explore, don't predict: a verified financial twin that shows where each student life choice breaks.` | 99 | Echoes the UBS feedback. |
 | 3 | `A cinematic tree of your financial future: each branch a decision, each number from a tested engine.` | 100 | Leads with the experience. |
 
-## Long description (max 1000 characters): 956 characters
+## Long description (max 1000 characters): 992 characters
 
 ```text
-Cigala is a financial twin for students, drawn as a tree of life. Branches are decisions you explore with a deterministic monthly engine: Swiss payroll, official ESTV 2026 income tax by city, pillar 3a, editable sourced assumptions, plan check, break-even, reverse stress tests and four stress scenarios. It reproduces the UBS starter kit exactly, and six live checks pass. Make it mine: say your own situation ("I'd get a CHF 600/month scholarship"); a small model turns it into one change using only your numbers, you confirm, and that branch re-grows. Roots come from a questionnaire, voice, or a payslip photo read by a frugal chain (local OCR, a small model, checks; a vision model only if a check fails): 97.7% accuracy at 154x lower cost than a frontier model. Lumi explains in four languages with a local voice and never recommends; every number is checked against the engine. Free, so a student network could offer it before students sign a lease.
+Cigala is a financial twin for students, drawn as a tree of life. Branches are decisions you explore with a deterministic monthly engine: official ESTV 2026 income tax by city, pillar 3a, payroll for gross salaries, editable sourced assumptions, plan check, break-even, what would fix it, stress what-ifs and side-by-side comparison. Under the UBS starter kit's own assumptions it reproduces the kit exactly; six live checks pass. Make it mine: say your own situation ("I'd get a CHF 600/month scholarship"); rules or a small model turn it into one change using only your numbers, you confirm, and that branch re-grows. Roots come from a questionnaire, voice, or a payslip photo read by a frugal chain (local OCR, a small model, checks; a vision model only if a check fails): 97.7% accuracy at 154x lower cost than a frontier model. Lumi explains engine results in four languages with a local voice and never recommends. Free, so a student network could offer it before students sign a lease.
 ```
 
 Every claim traces to the repo:
 
 - personal conditions: `api/README.md` (`/tree/personalize`) and `docs/contracts.md`;
-- payroll, tax and pillar 3a: `core/README.md`;
+- payroll (statutory rates plus explicitly assumed insurer and plan inputs), tax and pillar 3a: `core/README.md`;
 - the starter-kit reproduction and the six checks: `core/validation.py`;
 - the benchmark: `multimodal/benchmark/RESULTS.md`;
-- number grounding and the advice guard: `api/README.md`.
+- the agent's numeric grounding guard (larger numbers only, not a proof of every claim) and the advice guard: `api/README.md`;
+- comparison, weather on the tree and what would fix it: `web/src/compare/`, `web/src/weather/`, `web/src/report/`.
 
 ## Public link
 

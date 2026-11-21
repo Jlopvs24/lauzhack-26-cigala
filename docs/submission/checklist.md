@@ -69,7 +69,7 @@ gh repo view Jlopvs24/lauzhack-26-cigala --json visibility -q .visibility    # e
   curl -s -X POST http://127.0.0.1:8000/tree/personalize -H "Content-Type: application/json" \
     -d '{"path":["2"],"node_id":"2","text":"I would get a CHF 600/month scholarship during the master","language":"en"}'
   ```
-  It must return a `proposal` with `monthly_net_income` `add` `600`, months `0`–`24`, and `numbers_not_in_your_words: []`. On Sat 20:45 it did: 2.5 s, USD 0.00008. Then do it in the UI: **Make it mine** is on the current branch (#67). After **Confirm**, the master's card must show the new gap, and the branch must be marked as yours.
+  It must return a `proposal` with `monthly_net_income` `add` `600`, months `0`–`24`, and `numbers_not_in_your_words: []`. Since #75 the rules parser answers it in about 0.02 s with no LLM (`parser: rules`, `cost_usd: 0`). Then do it in the UI: **Make it mine** is on the current branch (#67). After **Confirm**, the master's card must show the new gap, and the branch must be marked as yours.
 - [ ] **Document extraction:** run this three times and expect HTTP 200 each time, at 10 s or less:
   ```bash
   curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" -X POST http://127.0.0.1:8000/profiles/extract -F "files=@data/synthetic/docs/P00001-payslip.jpg"
@@ -101,7 +101,7 @@ gh repo view Jlopvs24/lauzhack-26-cigala --json visibility -q .visibility    # e
 
 | What fails | What still works | What to do |
 |---|---|---|
-| No internet | Engine, tree, levers, report, *Verified*, Kokoro TTS | Lumi's answers use engine templates. **Make it mine needs the LLM**: without it, `/tree/personalize` answers with a clarifying question and no proposal, so play the climax from the backup video. Skip document extraction. Fonts fall back from Google Fonts. |
+| No internet | Engine, tree, levers, report, *Verified*, Kokoro TTS | Lumi's answers use engine templates. **Make it mine** still parses the demo sentence with its deterministic rules; unusual phrasings that need the LLM get a clarifying question instead of a proposal. Skip document extraction. Fonts fall back from Google Fonts. |
 | OpenRouter out of credit, or the daily budget reached | Same as above | Same as above. Raise `LLM_DAILY_BUDGET_USD` before judging, not during. |
 | Kokoro does not load | Browser `speechSynthesis` | Check a matching voice exists, or click **Sound off** and read the bubbles. |
 | Microphone does not work | Typed chat and typed conditions | Type. |

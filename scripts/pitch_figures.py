@@ -24,8 +24,8 @@ sys.path.insert(0, str(ROOT))
 
 import core  # noqa: E402
 
-# The demo's personal condition: what /tree/personalize returned on Sat 21 Nov for
-# "I would get a CHF 600/month scholarship during the master" on node 2 (qwen3.7-flash, 2.5 s, USD 0.00008).
+# The demo's personal condition: what /tree/personalize returns for "I'd get a CHF 600/month scholarship
+# during the master's" on node 2. Since #75 the deterministic rules parser handles it (0.02 s, USD 0, no LLM).
 SCHOLARSHIP = {"param": "monthly_net_income", "op": "add", "value": 600, "from_month": 0, "to_month": 24,
                "label": "Scholarship", "source": "user"}
 PATCH = {"2": [SCHOLARSHIP]}
