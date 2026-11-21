@@ -70,6 +70,16 @@ TOOLS = [
             "kind": {"type": "string", "description": "levers | break_even | goal_seek | reverse_stress | timing"}},
             "required": ["node_id"]}}},
     {"type": "function", "function": {
+        "name": "what_would_fix_it",
+        "description": "For a branch that does not hold (funding gap, failed constraint): the smallest single change "
+                       "per lever (more income, lower rent, lower living costs, cash now) that would make it reach "
+                       "the target, computed by the engine to the cent. target: no_funding_gap (default), feasible "
+                       "or holds.",
+        "parameters": {"type": "object", "properties": {
+            "node_id": {"type": "string"},
+            "target": {"type": "string", "enum": ["no_funding_gap", "feasible", "holds"]}},
+            "required": ["node_id"]}}},
+    {"type": "function", "function": {
         "name": "propose_personalization",
         "description": "When the user describes THEIR OWN situation on a branch (a scholarship, help from family, a "
                        "cheaper flat, a part-time job, a gift, a loan...), call this with their exact words. It returns "
@@ -246,6 +256,50 @@ def exploration_facts(expl: dict | None, label: str | None = None) -> list[dict]
             txt += " Part of its effect would fall past the 10-year horizon."
         facts.append({"kind": "timing", "status": "evaluated", "text": txt})
     return facts
+
+
+_TARGET_WORDS = {
+    "no_funding_gap": ("this branch would have no funding gap", "this branch already has no funding gap"),
+    "feasible": ("this branch would be feasible (no funding gap, debt within the limit, goals met)",
+                 "this branch is already feasible"),
+    "holds": ("this branch would fully hold (including the liquidity buffer)", "this branch already fully holds"),
+}
+_LEVER_PHRASE = {  # (param, direction) -> sentence start with {amt}
+    ("monthly_net_income", "increase"): "If you had {amt} more net income every month",
+    ("monthly_gross_income", "increase"): "If you had {amt} more gross salary every month",
+    ("monthly_rent", "decrease"): "If your rent were {amt} lower every month",
+    ("monthly_other_expenses", "decrease"): "If your other living costs were {amt} lower every month",
+    ("one_off_income", "increase"): "If you had {amt} more cash now",
+}
+
+
+def smallest_change_facts(res: dict | None) -> list[str]:
+    """core.smallest_change -> if-then sentences, one per lever. Null values give words, never a number."""
+    if not isinstance(res, dict):
+        return []
+    would, already = _TARGET_WORDS.get(res.get("target"), ("this branch would reach the target",
+                                                           "this branch already reaches the target"))
+    if res.get("already_holds"):
+        return [f"Under these assumptions {already}; no change is needed."]
+    out = []
+    for ch in res.get("changes") or []:
+        s, v, lab = ch.get("status"), ch.get("value"), (ch.get("label") or ch.get("lever") or "This lever")
+        if s == "threshold_found" and v is not None:
+            amt = _chf(abs(v))
+            start = _LEVER_PHRASE.get((ch.get("param"), ch.get("direction")))
+            if not start:
+                monthly = "month" in str(ch.get("unit") or "").lower()
+                start = f"If {lab[0].lower() + lab[1:]} changed by {{amt}}" + (" a month" if monthly else "")
+            out.append(start.format(amt=amt) + f", then {would}.")
+        elif s == "already_satisfied":
+            out.append(f"{lab}: {already}.")
+        elif s == "not_reached_within_bounds":
+            out.append(f"{lab}: no change within the tested range would be enough on its own.")
+        elif s == "lever_has_no_effect":
+            out.append(f"{lab}: this lever does not change the outcome here.")
+        elif s == "non_monotone":
+            out.append(f"{lab}: there is no single amount that works (not monotone).")
+    return out
 
 
 def _det(res: dict) -> dict:
@@ -572,6 +626,24 @@ class Toolbox:
                 "facts": [f["text"] for f in facts],
                 "exploration": _trim(expl, 6000)}
 
+    def what_would_fix_it(self, node_id: str, target: str = "no_funding_gap") -> dict:
+        fn = engine.core_fn("smallest_change")
+        if fn is None:
+            return {"available": False, "hint": "use what_would_have_to_be_true"}
+        if target not in ("no_funding_gap", "feasible", "holds"):
+            target = "no_funding_gap"
+        try:
+            path = engine.path_to(str(node_id))
+        except (KeyError, ValueError):
+            path = self.path
+        res = fn(self.profile, path, target, assumptions=self.overrides, weather=self.weather,
+                 **{k: v for k, v in engine.extras().items()})
+        return {"node_id": res.get("node_id"), "target": res.get("target"), "already_holds": res.get("already_holds"),
+                "now": res.get("now"), "facts": smallest_change_facts(res),
+                "changes": [{k: c.get(k) for k in ("lever", "label", "unit", "direction", "status", "value")}
+                            for c in res.get("changes") or []],
+                "reading": "one lever at a time, everything else unchanged; an exploration, not advice"}
+
     def propose_personalization(self, node_id: str, text: str, mode: str = "auto") -> dict:
         from api.personalize import personalize
         out = personalize(self.profile, self.path, str(node_id), text, self.language, mode, self.overrides)
@@ -759,6 +831,8 @@ Hard rules:
 3. Cite where numbers come from: the node (e.g. "option 1.2") and the key assumptions (levers) involved.
 4. Talk in if-then terms: "if you take X, then under these assumptions Y would…". NEVER say "you will", "expected",
    "likely", "chance" or "probability" about the future. {lens_rule}
+4c. For "what would fix this branch?" / "what would it take to avoid the funding gap?", call what_would_fix_it and
+   report the facts as possibilities (one lever at a time), never as advice.
 4a. If the user describes their OWN situation on this branch (a scholarship, help from family, a cheaper flat, a
    part-time job, a gift, a loan...), call propose_personalization with their exact words. Then say in one sentence
    what would change IF they confirm it in the app; it is not applied yet. If it returns a clarifying question,

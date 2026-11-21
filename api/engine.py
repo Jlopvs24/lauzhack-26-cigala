@@ -191,3 +191,9 @@ def validation_fn():
     """core.validation() (PR #40) if available: live accounting/reproducibility/monotonicity/isolation checks."""
     fn = getattr(_CORE, "validation", None) if _CORE else None
     return fn if callable(fn) else None
+
+
+def core_fn(name: str):
+    """A core analysis function (combine, surface, smallest_change, timing_scan...) or None (mock / older core)."""
+    fn = getattr(_CORE, name, None) if _CORE else None
+    return fn if callable(fn) else None

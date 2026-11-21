@@ -620,6 +620,10 @@ All deterministic, judged with the same constraints and `plan_check.level` as a 
 | POST | `/report` | `{profile?, path, assumptions?, uncertainty?, language?}` → path report (12 sections, below); no LLM in the request path, ~1 s cold, ~10 ms cached |
 | POST | `/report/summary` | same body → `{text, mode: llm\|template, template, language, model, cost_usd, cached, latency_ms, rejected_llm_numbers?}`: grounded LLM rewording of the report summary, to swap in when it arrives |
 | POST | `/tree/personalize` | `{profile?, path, node_id?, text? or audio_b64?, language?, mode?}` → proposal to confirm (patch or new branch), never applied; see "Personal conditions" below |
+| POST | `/tree/combine` | `{profile?, a, b, assumptions?, weather?, custom_nodes?, node_patches?}` → `core.combine` (path to `a` plus `b`'s own decisions, `conflicts`, combined / A / B `compare`) |
+| POST | `/tree/surface` | `{profile?, path, x, y, n? (2..11, default 7), compare_to?, ...}` → `core.surface` (heatmap `cells[y][x]`); a lever may also be given as a bare assumption id |
+| POST | `/tree/smallest_change` | `{profile?, path, target? (no_funding_gap / feasible / holds), levers?, ...}` → `core.smallest_change` plus `facts[]` (if-then sentences, null statuses in words) |
+| POST | `/tree/timing_scan` | `{profile?, path, delays?, ...}` → `core.timing_scan` (decision started 0-36 months later) |
 
 Engine functions for `api/engine.py`: `core.expand(profile, path, assumptions, weather)`, `core.simulate(profile, node, assumptions, weather)`, `core.node_info(node_id)`, `core.assumptions_list(overrides)`, `core.weather_catalog()`.
 
@@ -716,6 +720,15 @@ See docs/plan.md "Personal conditions → the tree re-grows". The API proposes, 
 **2. Apply (client):** merge `proposal.apply` into the request's `node_patches` (append to that node's list) or `custom_nodes`, and send it on `POST /tree/expand`, `/tree/explore`, `/simulate`, `/report`, `/report/summary` and in `context` of `/agent/ask` and `/agent/ask/stream`. The API forwards both fields to core and includes them in cache keys. `/tree/expand` echoes `personal_conditions: {custom_nodes: n, patched_nodes: [ids]}`. Until core supports them (`GET /health` → `personal_conditions_supported`), a request that uses them gets **501**; requests without them are unchanged.
 
 **3. Agent:** when a chat message describes the user's own situation, the agent calls the tool `propose_personalization` and its response carries `personalize` (the same object as `/tree/personalize`, or `null`) for the UI's confirm chip. The answer says what would change *if* they confirm, or asks the clarifying question.
+
+### Combined decisions, surfaces, smallest change, timing scan (API routes, additive)
+
+The four routes wrap the core functions of "Combined decisions, 2-lever surfaces…" with no change to their output.
+They add `cached`, `cost_usd` (always 0), `latency_ms` and `model` (engine). They all accept `profile`, `assumptions`,
+`weather`, `custom_nodes` and `node_patches`. Responses are cached by request. A `ValueError` from core (unknown node,
+bad lever, bad target) returns 422; no core function (mock engine) returns 501. `/tree/smallest_change` also returns
+`facts`, for example "If you had CHF 762 more net income every month, then this branch would have no funding gap."
+The agent has the tool `what_would_fix_it` (core.smallest_change) for "what would fix this branch?" questions.
 
 ## Env vars
 

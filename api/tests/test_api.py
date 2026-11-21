@@ -728,3 +728,73 @@ def test_llm_daily_budget_guard(monkeypatch):
     j = agent.ask("Why does the master's run out of cash?", {"profile": None, "path": ["2"]})
     assert j["mode"] == "template" and j["cost_usd"] == 0  # falls back, no paid call
     assert c.get("/usage").json()["budget"]["exceeded"] is True
+
+
+# ------------------------------------------------------------------ combine / surface / smallest_change / timing_scan
+def _core_only(route, body):
+    r = c.post(route, json=body)
+    if engine.core_fn("smallest_change") is None:
+        assert r.status_code == 501
+        return None
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_tree_combine():
+    j = _core_only("/tree/combine", {"a": "3.2", "b": "3.3"})
+    if j:
+        assert j["node_a"] == "3.2" and j["node_b"] == "3.3" and "conflicts" in j and j["result"]["trace_id"]
+        assert c.post("/tree/combine", json={"a": "3.2", "b": "9.9"}).status_code == 422
+
+
+def test_tree_surface_with_assumption_id_lever_and_cache():
+    body = {"path": ["2"], "x": "AS-alexia-master-salary",
+            "y": {"param": "monthly_rent", "op": "add", "range": [-400, 400]}, "n": 3, "compare_to": "1"}
+    j = _core_only("/tree/surface", body)
+    if j:
+        assert len(j["cells"]) == 3 and len(j["cells"][0]) == 3
+        assert "delta_vs_peer" in j["cells"][0][0] and "level" in j["cells"][0][0]
+        assert c.post("/tree/surface", json=body).json()["cached"] is True
+        assert c.post("/tree/surface", json={**body, "n": 50}).status_code == 422  # n out of 2..11
+
+
+def test_tree_smallest_change_and_facts():
+    j = _core_only("/tree/smallest_change", {"path": ["2"]})
+    if j:
+        assert j["target"] == "no_funding_gap" and j["changes"] and j["facts"]
+        assert all(f.startswith("If ") for f in j["facts"]) and "None" not in " ".join(j["facts"])
+        assert c.post("/tree/smallest_change", json={"path": ["2"], "target": "rich"}).status_code == 422
+        ok = c.post("/tree/smallest_change", json={"path": ["1"]}).json()
+        if ok.get("already_holds"):
+            assert "already" in ok["facts"][0]
+
+
+def test_smallest_change_facts_statuses():
+    from api.agent import smallest_change_facts
+    res = {"target": "feasible", "already_holds": False, "changes": [
+        {"label": "More net income every month", "param": "monthly_net_income", "direction": "increase",
+         "unit": "CHF/month", "status": "threshold_found", "value": 761.93},
+        {"label": "Extra cash now", "param": "one_off_income", "direction": "increase", "unit": "CHF",
+         "status": "not_reached_within_bounds", "value": None},
+        {"label": "Lower rent", "param": "monthly_rent", "direction": "decrease", "unit": "CHF/month",
+         "status": "lever_has_no_effect", "value": None}]}
+    f = smallest_change_facts(res)
+    assert f[0] == "If you had CHF 762 more net income every month, then this branch would be feasible " \
+                   "(no funding gap, debt within the limit, goals met)."
+    assert "tested range" in f[1] and "does not change" in f[2] and "None" not in " ".join(f)
+
+
+def test_tree_timing_scan():
+    j = _core_only("/tree/timing_scan", {"path": ["2"]})
+    if j:
+        assert j["rows"] and "latest_start_that_holds" in j and j["rows"][0]["delay_months"] == 0
+
+
+def test_agent_tool_what_would_fix_it():
+    from api import agent
+    box = agent.Toolbox({"profile": engine.default_profile(), "path": ["2"]})
+    out = box.what_would_fix_it("2")
+    if engine.core_fn("smallest_change") is None:
+        assert out["available"] is False
+    else:
+        assert out["facts"] and out["changes"][0]["value"] is not None
