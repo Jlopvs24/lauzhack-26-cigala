@@ -40,4 +40,14 @@ Below the tree, the current node has an SVG p10/p50/p90 net-worth chart, final p
 
 Open the assumption panel, edit a value, and apply. The API recalculates every visible node at the current path. Overrides survive navigation; reset reverts to engine defaults. A failed recalculation preserves the last successful results and retry retains the attempted overrides. Units/rates remain exactly those supplied by the API. The shaded uncertainty range is pointwise, conditional on the model, not a guaranteed future.
 
-Roots intake and chat/voice remain issue #4. The guide panel leaves space for the character assets owned by the art thread.
+## Roots, chat and voice
+
+Open "Your roots" to review the fictional starting profile or extract text/documents into a review form. Each field shows its provenance and extraction confidence when supplied. Manual changes are marked as questionnaire edits. Applying the profile restarts the tree and clears assumption overrides; all subsequent requests carry that profile. Assets, debts, goals and demonstration decision options remain attached to the seed profile. Amounts are CHF. The form labels income according to core v1 (after social contributions, before income tax).
+
+`POST /profiles/extract` accepts multipart `files` and `text`. The UI clearly labels the current mock extractor: it returns sample values rather than reading the input. Real extraction is owned by the multimodal/API threads. Review and fill missing values before applying; no extracted profile silently replaces a working simulation. Files are limited to 10 MB each in the UI.
+
+The guide chat uses `POST /agent/ask` with the active profile, path, node, assumptions, weather and recent conversation. Template versus AI mode, calculation sources, latency, cost per reply and total session API cost are shown. An explicitly ungrounded response is rejected. Changing branch/assumptions resets chat context. Nothing is persisted in browser storage.
+
+Voice is optional: browser `SpeechRecognition` fills editable text (English, Spanish, French or German); review it before sending. The browser provider may process the audio. Reply text is read verbatim through `speechSynthesis`, with a "Read new replies aloud" toggle and stop control. No audio plays before the user asks a question. Recording is started explicitly with "Record voice note"; stop sends it, or it stops/sends at 60 seconds. Native browser recordings are decoded locally and encoded as mono PCM WAV for `/voice/ask`; tracks stop on completion, errors or navigation. WAV/MP3 upload remains available. Server speech requires backend provider configuration; a 503 points the user back to text. Real-time call provider and endpoint are still OPEN in the plan and belong to the API/design handoff, not this initial chat/voice slice.
+
+Browser checks cover intake/review, profile propagation, chat context/history, service failure and mobile layout. Real microphone permissions, speech recognition and audio output must be checked on the demo device. The guide panel leaves space for the character assets owned by the art thread.

@@ -629,8 +629,15 @@ textarea { resize: vertical; }
 .chat-message small, .chat-message details { display: block; font-size: 11px; margin: 10px 0; color: #657461; }
 .chat-message summary { cursor: pointer; }
 .audio-upload { max-width: 300px; }
+.voice-note { display: flex; flex-direction: column; gap: 6px; max-width: 280px; }
+.voice-note small { font-size: 11px; color: #657461; }
+.chat-panel .read-toggle { flex-direction: row; align-items: center; }
+.read-toggle input { width: 18px; height: 18px; accent-color: #305a3a; }
 button:not(:disabled):active { transform: scale(.98); }
-button { touch-action: manipulation; }
+button { touch-action: manipulation; min-height: 44px; }
+@media(prefers-reduced-motion:reduce) {
+  button:not(:disabled):active { transform: none; }
+}
 @media(max-width:650px) {
   .roots-panel, .chat-panel { padding: 22px 15px; border-radius: 18px; }
   .roots-grid, .profile-fields { grid-template-columns: 1fr; }

@@ -15,6 +15,7 @@ test('reviewed fields preserve extracted provenance; edits get their own provena
   assert.equal(profile.cash, 8000);
 });
 test('reject empty, non-finite and invalid fields before simulation', () => {
+  assert.throws(() => profileFromForm({ ...profile, currency: 'EUR' }, profile), /CHF/);
   for (const change of [{ age: 2.5 }, { age: 121 }, { monthly_rent: -1 }, { cash: 'Infinity' }, { cash: '' }, { display_name: ' ' }]) {
     assert.throws(() => profileFromForm(profile, { ...profile, ...change }));
   }

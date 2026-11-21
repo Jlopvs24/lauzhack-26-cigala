@@ -48,7 +48,7 @@ export default function Roots({ profile, busy, onApply, onCost }) {
     <p>Use fictional information only. These fields update the starting point; the demo's decision options, assets, debts and goals remain attached to this profile.</p>
     <div className="roots-grid"><form onSubmit={apply}><fieldset disabled={busy || extracting}><legend>1. Review the starting point</legend>
       <div className="profile-fields">{profileFields.map(field => <label key={field.key}>{field.label}
-        <input {...{ type: field.type, min: field.min, step: field.step }} max={field.key === 'age' ? 120 : undefined} required value={draft?.[field.key] ?? ''}
+        <input aria-label={field.label} {...{ type: field.type, min: field.min, step: field.step }} max={field.key === 'age' ? 120 : undefined} required value={draft?.[field.key] ?? ''}
           onChange={event => { setDraft({ ...draft, [field.key]: event.target.value }); setEdited([...new Set([...edited, field.key])]); }} />
         <small>{edited.includes(field.key) ? 'Source: questionnaire edit' : `Source: ${draft?.provenance?.[field.key]?.source || 'demo profile or not supplied'}`}
           {!edited.includes(field.key) && Number.isFinite(draft?.provenance?.[field.key]?.confidence) && ` · extraction confidence ${percent(draft.provenance[field.key].confidence)}`}</small>
