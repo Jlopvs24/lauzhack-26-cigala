@@ -62,7 +62,7 @@ export function CompareBar({ lang = 'en', tr, hidden = false }) {
       <button type="button" aria-label={L.remove(label(i.path.at(-1), i.label))} onClick={() => compareStore.remove(i.key)}>×</button></li>)}</ul>
     <div className="cmp-bar-actions">
       <button type="button" className="cmp-bar-clear" onClick={() => compareStore.clear()}>{L.clear}</button>
-      <button type="button" className="cmp-bar-go" disabled={items.length < 2} title={items.length < 2 ? L.needTwo : ''} onClick={() => openCompare()}>{items.length < 2 ? L.needTwo : L.compare}</button>
+      <button type="button" className="cmp-bar-go" disabled={items.length < 2} title={items.length < 2 ? L.needTwo : ''} onClick={() => openCompare()}>{items.length < 2 ? L.needTwo : L.compare}<i className="cmp-bar-n" aria-hidden="true">{items.length}</i></button>
     </div>
   </div>;
 }
