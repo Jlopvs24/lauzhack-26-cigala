@@ -1,0 +1,31 @@
+# agent board local state (cursor, cached login)
+.board/
+
+# secrets
+.env
+.env.local
+.env.*.local
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# node
+node_modules/
+dist/
+.next/
+
+# data dumps (commit only small fixtures)
+data/raw/
+
+# editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# local agent config
+.claude/settings.local.json
