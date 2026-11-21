@@ -1,3 +1,36 @@
+# QA report: final pass (thread 9)
+
+Date: Sat 21 Nov 2026, about 21:45–22:05 (wall clock; the API restart was logged as 22:40). Tested the **running** app on master **57bd3fa** (#97–#101): web http://127.0.0.1:5175 (auto-pull now off) and API http://127.0.0.1:8000.
+Browser: headless Edge (Playwright), muted. Desktop 1440×900 light EN; phone 390×844 dark ES.
+**LLM:** my pages made 0 LLM requests (only tree/expand, voice/tts, personalize via the rules path, live/status; `/live/token` was intercepted). `/usage` nevertheless shows 3 qwen calls since the API restart, from another client.
+
+## Summary (final pass)
+
+| ID | Sev | Area | Finding | Owner | Status |
+|---|---|---|---|---|---|
+| P1-10 | P1 | Desktop / weather rail | The new left rail (x 18–72, y 349–551) covers the left half of the Back button (`.nav-back-wide` at 28,429, 84 px wide). Only "ack" shows; elementFromPoint at its left edge and centre returns `wx-icon` / `wx-perspectives`, and only the right ~30 px is clickable | thread 6 / Lluc | **New** |
+| P1-8 | P1 | Phone | Cards still overlap each other. Root: "Irse al extranjero" covers the right side of "Empezar a trabajar". Level 2: "Préstamo de estudios" and "Máster a tiempo parcial" both cover "Solo el trabajo de estudiante" | thread 6 | **Still open** |
+| P1-7 | P1 | Compare / drawer | The compare bar hides while the drawer is open; × closes the drawer and the bar comes back | thread 10 | **Fixed (#99), verified** |
+| P1-9 | P1 | Phone Back | `.nav-back-phone` (16,723) sits next to "Hazlo tuyo", is hit-testable and goes up a level | thread 6 | **Fixed (#98), verified** |
+| P2-15 | P2 | Weather | "Start working" shows identical numbers under Pessimistic, Optimistic and Neutral (its headline metrics don't move), so it looks immune | Lluc | Note |
+| P2-16 | P2 | Phone weather | The "More factors" sheet is see-through: card text shows through it, and cards jump up under the header while it is open | Lluc | Open |
+| P2-17 | P2 | Lumi Live | Pressing the call button connects straight away. The privacy note ("your voice goes to Google (Gemini)") only shows while connecting; there is no consent step before | thread 11 | Note |
+
+## Results
+- **Weather rail (desktop):** Pessimistic / Neutral / Optimistic plus "More factors" (inflation, franc, markets, job market, rates).
+  - Do a master's gap: 18,553 → **19,852** (Pessimistic) / **18,021** (Optimistic). Move abroad's headline changes: Emergency savings missed by 122 (Pessimistic) and buffer 0.6 months (Optimistic). "Weak job market" gives gap 18,830 and abroad missed by 6,076.
+  - Neutral and "Reset to neutral" restore every card exactly.
+  - No rail–card or rail–Lumi overlap. While the factors popover is open, the nearest card shrinks to a pill, as designed.
+- **Weather rail (phone ES):** Pesimista / Neutro / Optimista / Más factores. Same numbers; "Volver a neutro" restores. No horizontal scroll (scrollWidth 390). See P2-16.
+- **Lumi Live:** `/live/status` reports available (gemini-3.1-flash-live-preview). I held `/live/token`, so there was no real session (`active_sessions` 0).
+  - The call button opens a "Live with Lumi" card: "Connecting…", an End button and the privacy note.
+  - When the token request fails (503): "The Live call stopped · Call again".
+  - I didn't test the microphone permission prompt, because no session was opened.
+- **Main path (no regression):** demo → Do a master's → Make it mine "I'd get a CHF 600/month scholarship" → Apply. Student job only 3,914 from m13; Study loan buffer 3.8 (m25). Same as the earlier passes. No page errors. Compare pins, bar and drawer all OK.
+- **npm test** (57bd3fa): **86/86 pass**.
+
+---
+
 # QA report: third pass (thread 9)
 
 Date: Sat 21 Nov 2026, 21:00–21:30. Tested the **running** app: web http://127.0.0.1:5175 (main checkout, master **991f129**, then a89c34e after the auto-pull) and API http://127.0.0.1:8000 (restarted 22:08 from master).
