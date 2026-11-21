@@ -455,3 +455,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .narration.docked .say-col { flex-direction: row; align-items: center; }
   .narration.docked { z-index: 41; } /* above the dock's (empty) wrap, which otherwise swallows taps on that row */
 }
+
+/* plain-words cards: title + two bullets; the plan check is a small dot in the corner */
+.tag .card { position: relative; }
+.tag .pc-dot { position: absolute; top: 9px; left: 9px; width: 8px; height: 8px; border-radius: 50%; background: #8fbf6a; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15); }
+.tag .pc-dot.holds_below_target { background: #d9a03a; }
+.tag .pc-dot.needs_financing, .tag .pc-dot.infeasible { background: #d0654a; }
+.tag ul.plain { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; text-align: left; }
+.tag ul.plain li { position: relative; padding-left: 12px; font-size: 12.5px; line-height: 1.35; color: var(--ink-soft); }
+.tag ul.plain li::before { content: ""; position: absolute; left: 2px; top: 0.55em; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+.tag.child ul.plain li:first-child { color: var(--ink); }
