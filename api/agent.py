@@ -82,9 +82,10 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "propose_personalization",
         "description": "When the user describes THEIR OWN situation on a branch (a scholarship, help from family, a "
-                       "cheaper flat, a part-time job, a gift, a loan...), call this with their exact words. It returns "
-                       "a proposal the user must confirm in the app (nothing changes until they confirm), or a "
-                       "clarifying question if an amount is missing. Never invent the amounts.",
+                       "cheaper flat, a part-time job, a gift, a loan...) or asks to add a branch, call this with "
+                       "their exact words. The app applies the result to the tree at once (a new branch, or this "
+                       "branch changed) and if_applied has the engine's numbers; or it returns a clarifying question "
+                       "if an amount is missing. Never invent the amounts.",
         "parameters": {"type": "object", "properties": {
             "node_id": {"type": "string"},
             "text": {"type": "string", "description": "the user's own words, unchanged"},
@@ -659,7 +660,7 @@ class Toolbox:
                                                      ("mode", "node_id", "parent_id", "label", "interventions")},
                 "explanation": out.get("explanation"), "clarifying_question": out.get("clarifying_question"),
                 "if_applied": sim,
-                "note": "nothing is applied until the user confirms the proposal in the app"}
+                "note": "the app applies this to the tree as soon as you answer"}
 
     def get_assumptions(self) -> dict:
         return {"assumptions": engine.assumptions(self.overrides)}
@@ -851,9 +852,9 @@ Hard rules:
 4c. For "what would fix this branch?" / "what would it take to avoid the funding gap?", call what_would_fix_it and
    report the facts as possibilities (one lever at a time), never as advice.
 4a. If the user describes their OWN situation on this branch (a scholarship, help from family, a cheaper flat, a
-   part-time job, a gift, a loan...), call propose_personalization with their exact words. Then say in one sentence
-   what would change IF they confirm it in the app; it is not applied yet. If it returns a clarifying question,
-   ask exactly that question.
+   part-time job, a gift, a loan...) or asks for a new branch, call propose_personalization with their exact words.
+   The app adds it to the tree as soon as you answer: say in one sentence what changes, with the numbers in
+   if_applied. If it returns a clarifying question, ask exactly that question.
 4b. To say whether a plan holds, use plan_check (holds / holds below target / infeasible / needs financing) and
    its label; the health score is secondary: do not lead with it or call a plan good or bad by it.
 5. For "what would have to be true" questions (break-even, what salary or saving would be needed, what breaks the
@@ -1113,14 +1114,15 @@ def ask(question: str, ctx: dict) -> dict:
         "error": error,
         "history_used": len(history),
         "history_dropped": dropped,
-        "personalize": box.proposal,  # a proposal for the UI's confirm chip, or None
+        "personalize": box.proposal,  # a change the app applies to the tree at once, or None
         **_answered_by(used_model, llm.models()[0]),
     }
 
 
 # ------------------------------------------------------------------ what-ifs said in the chat (#117)
 # "What if I invest 300 instead of 500?" goes through the Make-it-mine rules (no LLM, ~ms), is simulated on the
-# current branch by the engine and answered with its numbers, plus the proposal for the confirm chip.
+# current branch by the engine and answered with its numbers. The proposal goes back with the answer and the
+# app applies it to the tree at once (a question grows a new branch; a statement changes this branch).
 AGENT_LLM_DEADLINE_S = float(os.environ.get("AGENT_LLM_DEADLINE_S", "8"))
 
 _WI = {
@@ -1132,7 +1134,8 @@ _WI = {
            "cash_ok": "Cash never runs short", "cash_neg": "Cash would run short from month {m}",
            "was_ok": " (now it never does). ", "was_neg": " (now from month {m}). ", "end": ". ",
            "goals": "Goals reached: {k} of {n} (now {k0}). ",
-           "chip": "Nothing is changed yet: confirm “Make it mine” to put it on the tree."},
+           "branch": "I've added it to the tree as a new option under “{node}”.",
+           "patched": "I've applied it to “{node}”: the branch is recomputed."},
     "es": {"with": "Con «{change}» en «{node}», con estos supuestos tendrías unos CHF {nw} en {y} años "
                    "(en dinero de hoy): CHF {d} {dir} que en esta rama tal como está. ",
            "same": "Con «{change}» en «{node}», con estos supuestos seguirías teniendo unos CHF {nw} en {y} años "
@@ -1141,7 +1144,8 @@ _WI = {
            "cash_ok": "La caja nunca se queda corta", "cash_neg": "La caja se quedaría corta desde el mes {m}",
            "was_ok": " (ahora nunca). ", "was_neg": " (ahora desde el mes {m}). ", "end": ". ",
            "goals": "Metas alcanzadas: {k} de {n} (ahora {k0}). ",
-           "chip": "Aún no se cambia nada: confirma «Hazlo mío» para ponerlo en el árbol."},
+           "branch": "Lo he añadido al árbol como una opción nueva bajo «{node}».",
+           "patched": "Lo he aplicado a «{node}»: la rama se ha recalculado."},
     "fr": {"with": "Avec « {change} » sur « {node} », avec ces hypothèses tu aurais environ CHF {nw} dans {y} ans "
                    "(en argent d'aujourd'hui) : CHF {d} de {dir} que sur cette branche telle qu'elle est. ",
            "same": "Avec « {change} » sur « {node} », avec ces hypothèses tu aurais toujours environ CHF {nw} dans "
@@ -1150,7 +1154,8 @@ _WI = {
            "cash_ok": "La trésorerie ne manque jamais", "cash_neg": "La trésorerie manquerait dès le mois {m}",
            "was_ok": " (maintenant jamais). ", "was_neg": " (maintenant dès le mois {m}). ", "end": ". ",
            "goals": "Objectifs atteints : {k} sur {n} (maintenant {k0}). ",
-           "chip": "Rien n'est encore changé : confirme « Faire mien » pour l'ajouter à l'arbre."},
+           "branch": "Je l'ai ajouté à l'arbre comme nouvelle option sous « {node} ».",
+           "patched": "Je l'ai appliqué à « {node} » : la branche est recalculée."},
     "de": {"with": "Mit „{change}“ auf „{node}“ hättest du unter diesen Annahmen in {y} Jahren etwa CHF {nw} "
                    "(in heutigem Geld): CHF {d} {dir} als auf diesem Zweig, so wie er jetzt ist. ",
            "same": "Mit „{change}“ auf „{node}“ hättest du unter diesen Annahmen in {y} Jahren weiterhin etwa "
@@ -1159,7 +1164,8 @@ _WI = {
            "cash_ok": "Das Geld reicht immer", "cash_neg": "Ab Monat {m} würde das Geld knapp",
            "was_ok": " (jetzt reicht es immer). ", "was_neg": " (jetzt ab Monat {m}). ", "end": ". ",
            "goals": "Erreichte Ziele: {k} von {n} (jetzt {k0}). ",
-           "chip": "Noch ist nichts geändert: bestätige „Mach es zu meinem“, um es in den Baum zu übernehmen."},
+           "branch": "Ich habe es als neue Option unter „{node}“ in den Baum eingefügt.",
+           "patched": "Ich habe es auf „{node}“ angewendet: der Zweig ist neu berechnet."},
 }
 
 _CHANGE = {  # the change in the user's language, from the intervention (the rules' labels are English)
@@ -1218,7 +1224,7 @@ def simulate_patch(box: "Toolbox", node_id: str, ivs: list[dict]) -> dict:
             "delta_final_net_worth_real": d, "horizon_months": after.get("horizon_months") or 120}
 
 
-def whatif_answer(sim: dict, change: str, node_label: str, lang: str) -> str:
+def whatif_answer(sim: dict, change: str, node_label: str, lang: str, mode: str = "new_branch") -> str:
     t = _WI.get(lang, _WI["en"])
     a, b, d = sim["after"], sim["before"], sim["delta_final_net_worth_real"] or 0.0
     y = int(sim["horizon_months"]) // 12
@@ -1235,7 +1241,7 @@ def whatif_answer(sim: dict, change: str, node_label: str, lang: str) -> str:
     txt += cash
     if a["goals"]:
         txt += t["goals"].format(k=a["goals_reached"], n=a["goals"], k0=b["goals_reached"])
-    return txt + t["chip"]
+    return txt + (t["patched"] if mode == "patch" else t["branch"]).format(node=node_label)
 
 
 def whatif_fast(question: str, ctx: dict, lang: str, box: "Toolbox") -> str | None:
@@ -1261,9 +1267,10 @@ def whatif_fast(question: str, ctx: dict, lang: str, box: "Toolbox") -> str | No
         return None
     node_label = translate_label(node_label, lang)
     box.calls.append({"tool": "what_if_condition", "args": {"node_id": node_id, "interventions": ivs},
-                      "result": {**sim, "node_id": node_id}})
+                      "result": {**sim, "node_id": node_id, "node_label": node_label}})
     box.proposal = out
-    return whatif_answer(sim, _change_text(ivs, prop.get("label") or "", lang), node_label, lang)
+    return whatif_answer(sim, _change_text(ivs, prop.get("label") or "", lang), node_label, lang,
+                         "patch" if prop.get("mode") == "patch" else "new_branch")
 
 
 def translate_label(label: str, lang: str) -> str:

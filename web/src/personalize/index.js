@@ -4,3 +4,4 @@ export { default as YourConditions, usePersonalItems } from './YourConditions.js
 export { personalStore, personalFields, createPersonalStore, requestFieldsOf, validPath, CHANGE_EVENT, STORE_KEY } from './store.js';
 export { describe, normalizeProposal, buildItem } from './model.js';
 export { requestPersonalization } from './api.js';
+export { applyFromChat } from './fromChat.js';

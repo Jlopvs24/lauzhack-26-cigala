@@ -17,7 +17,7 @@ import { renderReport } from './scene/report.js';
 import { cardBullets } from './scene/headline.js';
 import PathReport from './report/PathReport.jsx';
 import Verified from './Verified.jsx';
-import { MakeItMine, YourConditions, personalFields, personalStore, PROPOSAL_EVENT, CHANGE_EVENT } from './personalize/index.js';
+import { MakeItMine, YourConditions, personalFields, personalStore, CHANGE_EVENT, applyFromChat } from './personalize/index.js';
 import WeatherControl from './weather/WeatherControl.jsx';
 import { CompareRoot, CompareOptionsButton, cardCompareHTML, cardStripEnabled, compareSiblings, compareStore, pinHTML } from './compare/index.js';
 import { eventDetail, stormLine, stormSummary } from './weather/weatherModel.js';
@@ -371,7 +371,7 @@ function App() {
     {/* the chat stays mounted (its history survives) but never floats over a report */}
     {started && <div className="chat-host" hidden={pathReport || panel === 'report'}><ChatPanel lumi lang={lang} disabled={!tree} callUrl={CALL_URL} onOpenChange={setConvOpen}
       context={{ profile, path, node_id: tree?.current, assumptions: overrides, weather: tree?.weather || [], ...engineFields() }}
-      onAnswer={(text, d) => { say(text); if (d?.personalize) dispatchEvent(new CustomEvent(PROPOSAL_EVENT, { detail: { node_id: tree?.current, ...d.personalize } })); }} onCost={addCost} onUnlock={() => voice.current?.unlock()}
+      onAnswer={(text, d) => { say(text); if (d?.personalize) applyFromChat(d.personalize, { node_id: tree?.current, nodeLabel: cur ? translateNode(cur, lang).label : '' }); }} onCost={addCost} onUnlock={() => voice.current?.unlock()}
       replay={(text, l) => voice.current?.speak(text, l)} /></div>}
 
     {panel === 'report' && cur && <aside className="report drawer" aria-label="Report">
