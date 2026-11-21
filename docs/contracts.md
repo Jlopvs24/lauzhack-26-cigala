@@ -530,6 +530,19 @@ Engine side of `POST /report` (thread 2 aggregates and words it; every sentence 
 - `core.warm(profile=None, explore_nodes=False)` precomputes every node into the engine's LRU cache (40 nodes in ~1 s); call it in a background thread at start-up. The cache is thread-safe.
 - `run_batch` accepts one weather or one per case, so the four named weathers of `weather_resilience` run in one pass; threshold searches evaluate 16 probes per engine pass.
 
+### Live validation — `core.validation()`
+
+Runs the engine's self-checks on demand (~1 s) and returns `{engine_version, passed, total, all_passed, duration_ms, how, checks[]}`; each check is `{id, label, passed, detail, evidence, ms}` (a crash counts as a failed check):
+
+| id | what it shows |
+|---|---|
+| `accounting_identities` | every node of the tree passes the 8 accounting checks; largest identity error in CHF |
+| `reproducibility` | same inputs + seed -> identical result and trace id; another seed changes only the uncertainty bands |
+| `monotonicity` | a higher master's tuition never raises cash, in any month (5 levels across its range) |
+| `isolation` | an assumption of another branch leaves a node untouched; a decision's own assumption does not leak into its sibling |
+| `ubs_starter_kit` | the three starter-kit scenarios reproduced exactly under its cash-only assumptions |
+| `search_verified` | the break-even salary found by exploration is re-simulated (level or ahead at it, behind CHF 1 below) |
+
 ## API (thread 2) — routes
 
 | Method | Route | Purpose |
