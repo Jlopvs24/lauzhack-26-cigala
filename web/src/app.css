@@ -448,3 +448,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* docked Lumi (thread 10's dock, bottom-right): the flying Lumi and her bubble step aside */
 .narration.docked #lumi, .narration.docked .say-card { display: none; }
+
+/* Back (QA P1-C): beside the scene on wide screens; on phones it rides in the narration column, above
+   the bubble, so the bubble never covers it */
+.nav-back-phone { display: none; }
+@media (max-width: 720px) {
+  .nav-back-wide { display: none; }
+  .nav-back.nav-back-phone { display: flex; position: static; transform: none; pointer-events: auto; padding: 8px 14px 8px 10px; }
+  .nav-back.nav-back-phone:active { transform: scale(0.97); }
+  /* docked Lumi: her bubble keeps one free row above the chat line ("Make it mine"); Back shares it */
+  .narration.docked .say-col { flex-direction: row; align-items: center; }
+  .narration.docked { z-index: 41; } /* above the dock's (empty) wrap, which otherwise swallows taps on that row */
+}
