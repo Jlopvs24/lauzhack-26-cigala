@@ -46,6 +46,48 @@ def version() -> str:
     return "mock"
 
 
+# ------------------------------------------------------------------ personal conditions (custom_nodes / node_patches)
+# Set once per request by the route (contextvar), forwarded by every engine call below, so the agent, the report
+# and exploration all see the same personalised tree. Core support: thread 1's `custom-nodes` branch.
+import contextlib
+import contextvars
+
+_EXTRAS: contextvars.ContextVar[dict] = contextvars.ContextVar("tree_extras", default={})
+
+
+class ExtrasNotSupported(RuntimeError):
+    """custom_nodes / node_patches were sent but this core does not accept them yet."""
+
+
+@contextlib.contextmanager
+def using_extras(custom_nodes: list | None = None, node_patches: dict | None = None):
+    extras = {k: v for k, v in (("custom_nodes", custom_nodes), ("node_patches", node_patches)) if v}
+    token = _EXTRAS.set(extras)
+    try:
+        yield extras
+    finally:
+        _EXTRAS.reset(token)
+
+
+def extras() -> dict:
+    return dict(_EXTRAS.get())
+
+
+def _extras_kw(fn) -> dict:
+    ex = _EXTRAS.get()
+    if not ex:
+        return {}
+    missing = [k for k in ex if not _accepts(fn, k)]
+    if missing or not _CORE:
+        raise ExtrasNotSupported(f"this engine does not support {', '.join(missing or list(ex))} yet "
+                                 "(core custom-nodes branch)")
+    return dict(ex)
+
+
+def supports_extras() -> bool:
+    return bool(_CORE) and all(_accepts(_CORE.expand, k) for k in ("custom_nodes", "node_patches"))
+
+
 def expand(profile: dict | None, path: list[str], assumptions=None, weather=None, uncertainty: bool = False,
            exploration: bool = True, sensitivity: bool = True) -> dict:
     """exploration=False skips the current node's what-would-have-to-be-true analyses (~7x faster)."""
@@ -55,7 +97,8 @@ def expand(profile: dict | None, path: list[str], assumptions=None, weather=None
             kw["exploration"] = exploration
         if _accepts(_CORE.expand, "sensitivity"):
             kw["sensitivity"] = sensitivity
-        return _CORE.expand(profile, path, assumptions, weather, **kw)
+        return _CORE.expand(profile, path, assumptions, weather, **kw, **_extras_kw(_CORE.expand))
+    _extras_kw(None)  # mock: raises if extras were sent
     return mock_engine.expand(profile or default_profile(), path, assumptions, weather, uncertainty=uncertainty)
 
 
@@ -63,9 +106,10 @@ def simulate(profile: dict | None, node: dict, assumptions=None, weather=None, u
              fast: bool = False) -> dict:
     """fast=True: deterministic path only, as cheap as the engine allows (for goal-seek searches)."""
     if _CORE:
-        if node.get("interventions") is None:
+        ekw = _extras_kw(_CORE.simulate)
+        if node.get("interventions") is None and not ekw:
             _CORE.node_info(str(node.get("node_id")))  # unknown id -> ValueError (422), not a blank node
-        kw = {}
+        kw = dict(ekw)
         if _accepts(_CORE.simulate, "uncertainty"):
             kw["uncertainty"] = uncertainty and not fast
         if fast:
@@ -76,6 +120,7 @@ def simulate(profile: dict | None, node: dict, assumptions=None, weather=None, u
             if _accepts(_CORE.simulate, "exploration"):
                 kw["exploration"] = False
         return _CORE.simulate(profile, node, assumptions, weather, **kw)
+    _extras_kw(None)
     profile = profile or default_profile()
     node_id = node.get("node_id", "x")
     if node.get("interventions") is not None and node_id not in mock_engine.TREE:
@@ -122,9 +167,15 @@ def default_profile() -> dict:
 
 
 def explore_fn():
-    """core.explore(profile, path, assumptions, weather) once core ships it (issue #33), else None."""
+    """core.explore(profile, path, assumptions, weather) once core ships it (issue #33), else None.
+    Personal conditions (using_extras) are forwarded."""
     fn = getattr(_CORE, "explore", None) if _CORE else None
-    return fn if callable(fn) else None  # older core has a `core.explore` submodule, not the function
+    if not callable(fn):  # older core has a `core.explore` submodule, not the function
+        return None
+
+    def call(profile, path, assumptions=None, weather=None):
+        return fn(profile, path, assumptions, weather, **_extras_kw(fn))
+    return call
 
 
 def warm(profile: dict | None = None) -> None:
