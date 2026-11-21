@@ -108,7 +108,7 @@ export function useLumiLive({ context = {}, lang = 'en', history, onUnlock } = {
         if (t.user) h?.append('user', t.typed ? t.user : `🎙 ${t.user}`);
         if (t.model) h?.append('assistant', t.interrupted ? `${t.model} …` : t.model, {
           mode: 'live', node_id: cx.node_id, latency_ms: t.first_audio_ms ?? undefined,
-          sources: t.tools.map((x) => [x.name, x.args?.node_id && `node ${x.args.node_id}`, `${x.ms} ms`].filter(Boolean).join(' · ')),
+          sources: t.tools.map((x) => [x.name.replace(/_/g, ' '), `${x.ms} ms`].join(' · ')), // no node ids in front of the user
         });
         say({ text: t.model, lang: latest.current.lang, speaking: false });
       },

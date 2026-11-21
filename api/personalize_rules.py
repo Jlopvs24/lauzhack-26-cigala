@@ -78,6 +78,16 @@ SAVE_MORE = re.compile(r"\b(?:save|saving)\b.{0,40}\bmore\b|\bmore\b.{0,20}\bsav
                        r"\bmehr\b.{0,30}\bspar(?:en|e)\b|\bspar(?:en|e)\b.{0,30}\bmehr\b", re.I)
 INSTEAD_OF = re.compile(r"\b(?:instead\s+of|rather\s+than|en\s+vez\s+de|en\s+lugar\s+de|au\s+lieu\s+de|plut[oô]t\s+que|"
                         r"(?:an)?statt)\b", re.I)
+WORK_PCT = re.compile(r"(?:\b(?:work(?:ing)?|job|trabaj\w*|jornada|travaill?\w*|emploi|arbeit\w*|pensum)\b.{0,25}?"
+                      r"(\d{1,3})\s*%|(\d{1,3})\s*%\s*(?:\w+\s+){0,2}?(?:job|work|jornada|emploi|travail|pensum|arbeiten|arbeite|stelle))",
+                      re.I)
+PCT_CHANGE = re.compile(r"(\d{1,3})\s*%\s*(more|higher|up|m[aá]s|plus|mehr|h[öo]her|less|lower|down|menos|moins|"
+                        r"weniger|tiefer|niedriger)\b|\b(more|higher|up|m[aá]s|plus|mehr|h[öo]her|less|lower|down|menos|"
+                        r"moins|weniger|tiefer|niedriger)\b\s*(?:by\s+|de\s+|un\s+|um\s+)?(\d{1,3})\s*%", re.I)
+_DOWN = re.compile(r"less|lower|down|menos|moins|weniger|tiefer|niedriger", re.I)
+# two changes in one sentence: "save 200 more and invest 300"
+SPLIT = re.compile(r"\s*(?:;|,\s*and\b|\band also\b|\band\b|\by adem[aá]s\b|\by\b|\be\b|\bet aussi\b|\bet\b|"
+                   r"\bund auch\b|\bund\b)\s*", re.I)
 SALARY = re.compile(r"\b(?:salary|wage|sueldo|salario|salaire|gehalt|lohn)\b", re.I)
 _WORDNUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "un": 1, "una": 1, "uno": 1, "dos": 2, "tres": 3,
             "cuatro": 4, "cinco": 5, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5, "ein": 1, "eins": 1, "zwei": 2,
@@ -177,7 +187,23 @@ def _place(text: str) -> dict | None:
 
 def parse(text: str, ctx: dict) -> dict | None:
     """Return {"interventions", "label", "mode"} for a recognised shape, {"missing": "amount", "kind"} for a
-    money condition without an amount, or None (not recognised: use the LLM)."""
+    money condition without an amount, or None (not recognised: use the LLM). Two or more changes joined by
+    "and / y / et / und / ;" are parsed clause by clause and combined when every clause is understood."""
+    whole = _parse_one(text, ctx)
+    if whole and whole.get("interventions"):
+        return whole
+    clauses = [c for c in SPLIT.split(text or "") if c and re.search(r"[^\W\d_]", c)]  # words, not "¿"
+    if len(clauses) >= 2:
+        parts = [_parse_one(c, ctx) for c in clauses]
+        if all(p and p.get("interventions") for p in parts):
+            t = " " + (text or "") + " "
+            mode = "new_branch" if INSTEAD.search(t) or (WHATIF_Q.search(t) and not THIS_BRANCH.search(t)) else "patch"
+            return {"interventions": [iv for p in parts for iv in p["interventions"]],
+                    "label": " + ".join(p["label"] for p in parts)[:60], "mode": mode}
+    return whole
+
+
+def _parse_one(text: str, ctx: dict) -> dict | None:
     t = " " + (text or "").strip() + " "
     H = ctx["horizon_months"]
     mode = "new_branch" if INSTEAD.search(t) or (WHATIF_Q.search(t) and not THIS_BRANCH.search(t)) else "patch"
@@ -206,10 +232,12 @@ def parse(text: str, ctx: dict) -> dict | None:
         per_month = round(v / 12, 2) if PER_YEAR.search(t) and not PER_MONTH.search(t) else v
         own = [iv for iv in ctx["node"]["interventions"] + [iv for c in ctx.get("path_above", []) for iv in
                c["interventions"]] if iv.get("param") == "monthly_investment_contribution" and iv.get("op") == "set"]
-        fm = int(own[0].get("from_month") or 0) if own else first_month
+        fm, tm = (int(own[0].get("from_month") or 0) if own else first_month), H
+        if FOR_N.search(t) or AFTER.search(t) or DURING.search(t) or NEXT_YEAR.search(t):
+            fm, tm = _window(t, ctx, "invest")
         label = f"Invest CHF {per_month:,.0f} a month".replace(",", "'")
         return {"interventions": [{"param": "monthly_investment_contribution", "op": "set", "value": per_month,
-                                   "from_month": fm, "to_month": H, "label": label}], "label": label, "mode": mode}
+                                   "from_month": fm, "to_month": tm, "label": label}], "label": label, "mode": mode}
     # 1c. "save 200 more a month": spending down by that amount on this branch (#117)
     if SAVE_MORE.search(t) and len(amounts) == 1:
         v = amounts[0]
@@ -218,6 +246,31 @@ def parse(text: str, ctx: dict) -> dict | None:
         label = f"Save CHF {per_month:,.0f} more a month".replace(",", "'")
         return {"interventions": [{"param": "monthly_other_expenses", "op": "add", "value": -per_month,
                                    "from_month": fm, "to_month": tm, "label": label}], "label": label, "mode": mode}
+
+    # 1e. percentages: "work at 80%" scales the net income; "rent 10% higher" / "salary 5% lower" scale that item
+    pc = PCT_CHANGE.search(t)
+    if pc and not amounts:
+        n = int(pc.group(1) or pc.group(4))
+        word = pc.group(2) or pc.group(3)
+        factor = round(1 - n / 100 if _DOWN.fullmatch(word) else 1 + n / 100, 4)
+        if RENT.search(t):
+            fm, tm = _window(t, ctx, "rent")
+            return {"interventions": [{"param": "monthly_rent", "op": "mul", "value": factor, "from_month": fm,
+                                       "to_month": tm, "label": f"Rent {'-' if factor < 1 else '+'}{n}%"}],
+                    "label": f"Rent {'-' if factor < 1 else '+'}{n}%", "mode": mode}
+        if SALARY.search(t) or re.search(rf"\b(?:{INCOME['job'][0]})\b", t, re.I):
+            fm, tm = _window(t, ctx, "job")
+            return {"interventions": [{"param": "monthly_net_income", "op": "mul", "value": factor, "from_month": fm,
+                                       "to_month": tm, "label": f"Income {'-' if factor < 1 else '+'}{n}%"}],
+                    "label": f"Income {'-' if factor < 1 else '+'}{n}%", "mode": mode}
+    wp = WORK_PCT.search(t)
+    if wp and not amounts:
+        n = int(wp.group(1) or wp.group(2))
+        if 10 <= n <= 100:
+            fm, tm = _window(t, ctx, "job")
+            return {"interventions": [{"param": "monthly_net_income", "op": "mul", "value": round(n / 100, 4),
+                                       "from_month": fm, "to_month": tm, "label": f"Work at {n}%"}],
+                    "label": f"Work at {n}%", "mode": mode}
 
     # 1d. "what if my salary is 4800": the branch's own salary assumption, when it has one (#117)
     if SALARY.search(t) and len(amounts) == 1 and not GROSS.search(t) and not (PER_YEAR.search(t) and

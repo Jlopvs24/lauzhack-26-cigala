@@ -675,6 +675,70 @@ class Toolbox:
         return out
 
 
+# ------------------------------------------------------------------ no internal references (Juan)
+# The user never sees node ids ("2.1.3", "node 2.c1"), assumption ids (AS-...), field names (snake_case) or trace
+# ids: they become the branch's / assumption's plain label, or words. Decimals ("3.2 months") are left alone.
+_REF_WORD = r"(?:nodes?|options?|branch(?:es)?|nodos?|opci[oó]n(?:es)?|ramas?|n(?:œ|oe)uds?|branches?|knoten|optionen?|zweige?)"
+_NODE_REF = re.compile(rf"\b{_REF_WORD}\s+(\d+(?:\.c?\d+)*)(?![\w%]|\.\w)", re.I)  # "node 3." ends a sentence
+_DOTTED = re.compile(r"(?<![\w.'’])(\d+(?:\.c?\d+)+)(?![\w%'’]|\.\w)")
+_UNIT_AFTER = re.compile(r"\s*(?:months?|meses?|mois|monate?n?|years?|años?|ans?|jahre?n?|%|chf|x\b)", re.I)
+_AS_ID = re.compile(r"\bAS-[A-Za-z0-9-]+")
+_TRACE = re.compile(r"\s*\((?:[^()]*\b(?:trace|traza|node|nodo|n(?:œ|oe)ud|knoten)\b[^()]*)\)|\s*\b(?:trace|traza)\s+sim-[0-9a-f]+|"
+                    r"\bsim-[0-9a-f]{6,}\b", re.I)
+_SNAKE = re.compile(r"\b[a-z]+(?:_[a-z0-9]+)+\b")
+
+
+def _label_of(node_id: str) -> str | None:
+    try:
+        from api.personalize import _node as pnode
+        return pnode(node_id).get("label")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+_BRANCH_WORD = {"node": "branch", "nodes": "branches", "nodo": "rama", "nodos": "ramas", "nœud": "branche",
+                "noeud": "branche", "nœuds": "branches", "noeuds": "branches", "knoten": "Zweig"}
+_THIS_OPTION = {"en": "this option", "es": "esta opción", "fr": "cette option", "de": "diese Option"}
+
+
+def scrub_ids(text: str, overrides: list | None = None, lang: str = "en") -> str:
+    if not text:
+        return text
+    out = _TRACE.sub("", text)
+    # French: "le / du / au nœud" -> "la / de la / à la branche" before the word itself is swapped
+    out = re.sub(r"\b(?:([Ll])e|([Dd])u|([Aa])u) (n(?:œ|oe)ud\b)",
+                 lambda m: ("La " if m.group(1) == "L" else "la " if m.group(1) else "De la " if m.group(2) == "D" else
+                            "de la " if m.group(2) else "À la " if m.group(3) == "A" else "à la ") + m.group(4), out)
+
+    def node_ref(m):
+        word = m.group(0).split()[0]
+        word = _BRANCH_WORD.get(word.lower(), word)
+        lab = _label_of(m.group(1))
+        return f"{word} “{lab}”" if lab else _THIS_OPTION.get(lang, _THIS_OPTION["en"])
+    out = _NODE_REF.sub(node_ref, out)
+
+    def dotted(m):
+        tok = m.group(1)
+        if _UNIT_AFTER.match(out_ref[0], m.end()):
+            return tok  # a decimal with a unit: "3.2 months"
+        lab = _label_of(tok)
+        if lab:
+            return f"“{lab}”"
+        return tok if (tok.count(".") == 1 and ".c" not in tok) else _THIS_OPTION.get(lang, _THIS_OPTION["en"])
+    out_ref = [out]
+    out = _DOTTED.sub(dotted, out)
+    if _AS_ID.search(out):
+        try:
+            labels = {a["id"]: a.get("label") for a in engine.assumptions(overrides or [])}
+        except Exception:  # noqa: BLE001
+            labels = {}
+        out = _AS_ID.sub(lambda m: (labels.get(m.group(0)) or "this assumption").lower(), out)
+    out = _SNAKE.sub(lambda m: m.group(0).replace("_", " "), out)
+    out = re.sub(r"“\s*”", "", out)
+    out = re.sub(r"\s+([.,;:!?])", r"\1", re.sub(r"[ \t]{2,}", " ", out)).strip()
+    return out
+
+
 # ------------------------------------------------------------------ language + grounding
 _LANG_HINTS = {
     "es": r"\b(qué|que|cómo|como|cuánto|dinero|ahorro|máster|puedo|quiero|pasa|si|mi|el|la|los|me|iría|vivir|"
@@ -765,7 +829,7 @@ _T = {
         "noneg": "On this path cash would never drop below zero (lowest CHF {min}). ",
         "lever": "The lever that changes this most is {a}: across its range, final net worth moves by CHF {d}. ",
         "lens": "With the uncertainty lens on, simulated paths end between CHF {p10} and CHF {p90}. ",
-        "end": "This is an if-then exploration, not a prediction; change any assumption to see another world. (node {node}, trace {trace})",
+        "end": "This is an if-then exploration, not a prediction.",
     },
     "es": {
         "main": "Si eliges «{label}», con estos supuestos tu patrimonio a {years} años sería CHF {nw}. ",
@@ -773,7 +837,7 @@ _T = {
         "noneg": "En este camino la caja nunca bajaría de cero (mínimo CHF {min}). ",
         "lever": "La palanca que más lo cambia es {a}: en su rango, el patrimonio final se mueve CHF {d}. ",
         "lens": "Con la lente de incertidumbre, los caminos simulados terminan entre CHF {p10} y CHF {p90}. ",
-        "end": "Es una exploración si-entonces, no una predicción; cambia cualquier supuesto para ver otro mundo. (nodo {node}, traza {trace})",
+        "end": "Es una exploración si-entonces, no una predicción.",
     },
     "fr": {
         "main": "Si tu choisis « {label} », alors avec ces hypothèses ton patrimoine après {years} ans serait de CHF {nw}. ",
@@ -781,7 +845,7 @@ _T = {
         "noneg": "Sur ce chemin la trésorerie ne passerait jamais sous zéro (minimum CHF {min}). ",
         "lever": "Le levier qui change le plus le résultat est {a} : sur sa plage, le patrimoine final varie de CHF {d}. ",
         "lens": "Avec la lentille d'incertitude, les chemins simulés finissent entre CHF {p10} et CHF {p90}. ",
-        "end": "C'est une exploration si-alors, pas une prédiction ; change une hypothèse pour voir un autre monde. (nœud {node}, trace {trace})",
+        "end": "C'est une exploration si-alors, pas une prédiction.",
     },
 }
 
@@ -797,12 +861,7 @@ def template_answer(ctx: dict, lang: str, box: Toolbox) -> str:
     txt = t["main"].format(label=s["label"], years=(s.get("horizon_months") or 120) // 12, nw=_fmt(s["final_net_worth"]))
     txt += t["neg"].format(m=s["first_negative_month"], min=_fmt(s["min_cash"])) if s["first_negative_month"] else \
         t["noneg"].format(min=_fmt(s["min_cash"]))
-    top = (s.get("levers") or [{}])[0]
-    if top.get("delta_final_net_worth") is not None:
-        txt += t["lever"].format(a=top.get("label") or top["assumption_id"], d=_fmt(abs(top["delta_final_net_worth"])))
-    pc = s.get("plan_check") or {}
-    if pc.get("label") and lang == "en":
-        txt += f"Plan check: {pc['label']}. "
+    # short (Juan): the main figure (already an if-then), the cash, one what-would-have-to-be-true fact; no ids
     res_, node_ = box._node(str(node_id))
     facts = exploration_facts(box._exploration_for(str(node_id)), node_.get("label"))
     pick = next((f for f in facts if f["kind"] == "break_even" and f["status"] == "threshold_found"), None) or         next((f for f in facts if f["kind"] == "reverse_stress"), None)
@@ -811,7 +870,8 @@ def template_answer(ctx: dict, lang: str, box: Toolbox) -> str:
     lens = s.get("uncertainty_lens")
     if lens:
         txt += t["lens"].format(p10=_fmt(lens["final_net_worth_p10"]), p90=_fmt(lens["final_net_worth_p90"]))
-    txt += t["end"].format(node=s["node_id"], trace=s["trace_id"])
+    if not pick or lang != "en":
+        txt += t["end"]
     return txt
 
 
@@ -846,7 +906,9 @@ Hard rules:
    If you need a number, call a tool. If no tool gives it, say you don't have it.
 2. NEVER recommend, advise or decide ("you should", "the best option"). Explain possibilities and trade-offs;
    the user decides.
-3. Cite where numbers come from: the node (e.g. "option 1.2") and the key assumptions (levers) involved.
+3. Say where numbers come from in plain words: the branch's own name (e.g. "the part-time master's") and the
+   assumption's plain description. NEVER say node ids ("1.2", "node 2.c1"), assumption ids ("AS-..."), field names
+   (snake_case) or trace ids: the user never sees them. Keep it short: 2-3 sentences.
 4. Talk in if-then terms: "if you take X, then under these assumptions Y would…". NEVER say "you will", "expected",
    "likely", "chance" or "probability" about the future. {lens_rule}
 4c. For "what would fix this branch?" / "what would it take to avoid the funding gap?", call what_would_fix_it and
@@ -1025,8 +1087,11 @@ def ask(question: str, ctx: dict) -> dict:
     answer, mode, error = None, "llm", None
 
     t_start = time.perf_counter()
-    fast = whatif_fast(question, ctx, lang, box)
-    if fast:
+    edit = chat_edit(question, ctx, lang, box)
+    fast = None if edit else whatif_fast(question, ctx, lang, box)
+    if edit:
+        answer, mode = edit["answer"], "edit"
+    elif fast:
         answer, mode = fast, "whatif"
     elif llm.available():
         preloaded = box.preload(node_id)
@@ -1079,7 +1144,7 @@ def ask(question: str, ctx: dict) -> dict:
     grounding = {"grounded": None, "ungrounded_numbers": []}
     removed: list[str] = []
     softened = 0
-    if answer and mode != "whatif":
+    if answer and mode not in ("whatif", "edit"):
         answer, removed = strip_advice(answer)
         answer, softened = soften_forecasts(answer)
         if ctx.get("mode") == "call":
@@ -1097,6 +1162,7 @@ def ask(question: str, ctx: dict) -> dict:
         grounding = {"grounded": True, "ungrounded_numbers": [],
                      "llm_ungrounded_numbers": grounding.get("ungrounded_numbers") or []}
 
+    answer = scrub_ids(answer, box.overrides, lang)  # never an internal reference (ids, field names) to the user
     return {
         "answer": answer,
         "language": lang,
@@ -1106,7 +1172,8 @@ def ask(question: str, ctx: dict) -> dict:
         "forecast_phrases_softened": softened,  # "you will" -> "you would" etc.
         "tool_traces": [{"tool": c["tool"], "args": c["args"],
                          "trace_id": c["result"].get("trace_id") or c["result"].get("after", {}).get("trace_id"),
-                         "node_id": c["result"].get("node_id")} for c in box.calls],
+                         "node_id": c["result"].get("node_id"),
+                            "node_label": c["result"].get("node_label") or (c["result"].get("node_id") and _label_of(str(c["result"]["node_id"])))} for c in box.calls],
         "cited_nodes": sorted({c["result"].get("node_id") for c in box.calls if c["result"].get("node_id")}),
         "cost_usd": round(cost + box.cost, 6),
         "tokens": tokens,
@@ -1115,6 +1182,7 @@ def ask(question: str, ctx: dict) -> dict:
         "history_used": len(history),
         "history_dropped": dropped,
         "personalize": box.proposal,  # a change the app applies to the tree at once, or None
+        "tree_action": edit["tree_action"] if edit else None,  # undo / replace the last chat change
         **_answered_by(used_model, llm.models()[0]),
     }
 
@@ -1132,8 +1200,8 @@ _WI = {
                    "years (today's money), the same as now. ",
            "more": "more", "less": "less",
            "cash_ok": "Cash never runs short", "cash_neg": "Cash would run short from month {m}",
-           "was_ok": " (now it never does). ", "was_neg": " (now from month {m}). ", "end": ". ",
-           "goals": "Goals reached: {k} of {n} (now {k0}). ",
+           "was_ok": " (now it never does)", "was_neg": " (now from month {m})", "end": "",
+           "goals": "; goals reached: {k} of {n} (now {k0}). ",
            "branch": "I've added it to the tree as a new option under “{node}”.",
            "patched": "I've applied it to “{node}”: the branch is recomputed."},
     "es": {"with": "Con «{change}» en «{node}», con estos supuestos tendrías unos CHF {nw} en {y} años "
@@ -1142,8 +1210,8 @@ _WI = {
                    "(en dinero de hoy), lo mismo que ahora. ",
            "more": "más", "less": "menos",
            "cash_ok": "La caja nunca se queda corta", "cash_neg": "La caja se quedaría corta desde el mes {m}",
-           "was_ok": " (ahora nunca). ", "was_neg": " (ahora desde el mes {m}). ", "end": ". ",
-           "goals": "Metas alcanzadas: {k} de {n} (ahora {k0}). ",
+           "was_ok": " (ahora nunca)", "was_neg": " (ahora desde el mes {m})", "end": "",
+           "goals": "; metas alcanzadas: {k} de {n} (ahora {k0}). ",
            "branch": "Lo he añadido al árbol como una opción nueva bajo «{node}».",
            "patched": "Lo he aplicado a «{node}»: la rama se ha recalculado."},
     "fr": {"with": "Avec « {change} » sur « {node} », avec ces hypothèses tu aurais environ CHF {nw} dans {y} ans "
@@ -1152,8 +1220,8 @@ _WI = {
                    "{y} ans (en argent d'aujourd'hui), comme maintenant. ",
            "more": "plus", "less": "moins",
            "cash_ok": "La trésorerie ne manque jamais", "cash_neg": "La trésorerie manquerait dès le mois {m}",
-           "was_ok": " (maintenant jamais). ", "was_neg": " (maintenant dès le mois {m}). ", "end": ". ",
-           "goals": "Objectifs atteints : {k} sur {n} (maintenant {k0}). ",
+           "was_ok": " (maintenant jamais)", "was_neg": " (maintenant dès le mois {m})", "end": "",
+           "goals": " ; objectifs atteints : {k} sur {n} (maintenant {k0}). ",
            "branch": "Je l'ai ajouté à l'arbre comme nouvelle option sous « {node} ».",
            "patched": "Je l'ai appliqué à « {node} » : la branche est recalculée."},
     "de": {"with": "Mit „{change}“ auf „{node}“ hättest du unter diesen Annahmen in {y} Jahren etwa CHF {nw} "
@@ -1162,8 +1230,8 @@ _WI = {
                    "CHF {nw} (in heutigem Geld), gleich wie jetzt. ",
            "more": "mehr", "less": "weniger",
            "cash_ok": "Das Geld reicht immer", "cash_neg": "Ab Monat {m} würde das Geld knapp",
-           "was_ok": " (jetzt reicht es immer). ", "was_neg": " (jetzt ab Monat {m}). ", "end": ". ",
-           "goals": "Erreichte Ziele: {k} von {n} (jetzt {k0}). ",
+           "was_ok": " (jetzt reicht es immer)", "was_neg": " (jetzt ab Monat {m})", "end": "",
+           "goals": "; erreichte Ziele: {k} von {n} (jetzt {k0}). ",
            "branch": "Ich habe es als neue Option unter „{node}“ in den Baum eingefügt.",
            "patched": "Ich habe es auf „{node}“ angewendet: der Zweig ist neu berechnet."},
 }
@@ -1180,7 +1248,22 @@ _CHANGE = {  # the change in the user's language, from the intervention (the rul
 }
 
 
+_PCT = {"work": {"en": "work at {n}%", "es": "trabajar al {n}%", "fr": "travailler à {n}%", "de": "zu {n}% arbeiten"},
+        "monthly_rent": {"en": "rent {s}{n}%", "es": "alquiler {s}{n}%", "fr": "loyer {s}{n}%", "de": "Miete {s}{n}%"},
+        "monthly_net_income": {"en": "income {s}{n}%", "es": "ingresos {s}{n}%", "fr": "revenu {s}{n}%",
+                               "de": "Einkommen {s}{n}%"}}
+
+
 def _change_text(ivs: list[dict], label: str, lang: str) -> str:
+    if len(ivs) > 1:
+        return " + ".join(_change_text([iv], iv.get("label") or label, lang) for iv in ivs)
+    if len(ivs) == 1 and ivs[0].get("op") == "mul" and isinstance(ivs[0].get("value"), (int, float)):
+        iv, f = ivs[0], ivs[0]["value"]
+        if str(iv.get("label", "")).startswith("Work at"):
+            return _PCT["work"].get(lang, _PCT["work"]["en"]).format(n=round(f * 100))
+        if iv.get("param") in _PCT:
+            n = round(abs(f - 1) * 100)
+            return _PCT[iv["param"]].get(lang, _PCT[iv["param"]]["en"]).format(s="+" if f > 1 else "−", n=n)
     if len(ivs) == 1:
         iv, kind = ivs[0], None
         p, v = iv.get("param"), iv.get("value")
@@ -1239,8 +1322,7 @@ def whatif_answer(sim: dict, change: str, node_label: str, lang: str, mode: str 
     else:
         cash += t["end"]
     txt += cash
-    if a["goals"]:
-        txt += t["goals"].format(k=a["goals_reached"], n=a["goals"], k0=b["goals_reached"])
+    txt += t["goals"].format(k=a["goals_reached"], n=a["goals"], k0=b["goals_reached"]) if a["goals"] else ". "
     return txt + (t["patched"] if mode == "patch" else t["branch"]).format(node=node_label)
 
 
@@ -1271,6 +1353,107 @@ def whatif_fast(question: str, ctx: dict, lang: str, box: "Toolbox") -> str | No
     box.proposal = out
     return whatif_answer(sim, _change_text(ivs, prop.get("label") or "", lang), node_label, lang,
                          "patch" if prop.get("mode") == "patch" else "new_branch")
+
+
+# ------------------------------------------------------------------ undo / change what the chat just did (#117)
+# The app sends the last change made from the chat as ctx["last_change"] = {id, mode ("branch"|"patch"), label,
+# node_id (the node it hangs from / changes), custom_id?, interventions}. "undo" removes it; "make it 400 instead"
+# re-simulates it with the new amount. The app applies `tree_action`: {"type": "undo"|"replace", "id", ...}.
+UNDO = re.compile(r"\b(?:undo|revert|remove (?:that|it|this|the (?:last|new) (?:change|branch|option))|delete (?:that|it|"
+                  r"this|the (?:last|new) (?:change|branch|option))|take (?:that|it) (?:back|out)|go back to how it was|"
+                  r"deshaz(?:lo)?|deshacer|quita(?:lo)?|qu[ií]talo|elim[ií]na(?:lo)?|b[oó]rra(?:lo)?|"
+                  r"annule[rz]?|supprime[rz]?(?:-la|-le)?|enl[eè]ve[rz]?(?:-la|-le)?|retire[rz]?(?:-la|-le)?|"
+                  r"r[üu]ckg[äa]ngig|entfern(?:e|en)|l[öo]sch(?:e|en))\b", re.I)
+EDIT_LAST = re.compile(r"\b(?:make it|change it to|set it to|instead make it|change the (?:branch|option|change) "
+                       r"(?:i|you) just (?:created|made|added)|the (?:new|last) (?:branch|option|one)|"
+                       r"hazlo|ponlo (?:en|a)|que sea(?:n)?|c[aá]mbialo|mejor|fais-en|mets(?:-le|-la)?|plut[oô]t|"
+                       r"change-le|mach es|setz(?:e)? es|lieber|stattdessen|[äa]ndere? (?:es|ihn|sie))\b", re.I)
+_UNDO_T = {"en": ("I've removed “{label}” from the tree.", "There's no change of mine to undo yet."),
+           "es": ("He quitado «{label}» del árbol.", "Todavía no he hecho ningún cambio que deshacer."),
+           "fr": ("J'ai retiré « {label} » de l'arbre.", "Je n'ai encore fait aucun changement à annuler."),
+           "de": ("Ich habe „{label}“ aus dem Baum entfernt.", "Es gibt noch keine Änderung von mir zum Rückgängigmachen.")}
+_EDIT_T = {"en": "I've updated “{label}”: {change} instead.", "es": "He actualizado «{label}»: ahora {change}.",
+           "fr": "J'ai mis à jour « {label} » : maintenant {change}.", "de": "Ich habe „{label}“ geändert: jetzt {change}."}
+
+
+def _without(ex: dict, last: dict) -> tuple[list | None, dict | None]:
+    """The user's custom nodes / patches without the last chat change (to compare against what was before it)."""
+    customs = [c for c in (ex.get("custom_nodes") or []) if str(c.get("node_id")) != str(last.get("custom_id"))]
+    patches = {k: list(v) for k, v in (ex.get("node_patches") or {}).items()}
+    if last.get("mode") == "patch":
+        drop = [json.dumps({k: v for k, v in iv.items() if k != "source"}, sort_keys=True)
+                for iv in last.get("interventions") or []]
+        keep = [iv for iv in patches.get(str(last.get("node_id")), [])
+                if json.dumps({k: v for k, v in iv.items() if k != "source"}, sort_keys=True) not in drop]
+        patches[str(last.get("node_id"))] = keep
+    return customs or None, {k: v for k, v in patches.items() if v} or None
+
+
+def _swap_amount(label: str, old: float, new: float) -> str:
+    """The old amount -> the new one, at its LAST place in the label ("Invest CHF 500 a month: Invest CHF 300 ...")."""
+    old = abs(old)
+    forms = {_fmt(old), f"{old:g}", f"{old:,.0f}", f"{old:.0f}"}
+    hits = [m for f in forms for m in re.finditer(rf"(?<![\d'’,.]){re.escape(f)}(?![\d])", label or "")]
+    if not hits:
+        return label
+    m = max(hits, key=lambda x: x.start())
+    return label[:m.start()] + _fmt(abs(new)) + label[m.end():]
+
+
+def _new_amount(ivs: list[dict], v: float) -> list[dict] | None:
+    """The last change with one new amount: its single money intervention gets v (a saving stays negative)."""
+    money = [i for i, iv in enumerate(ivs) if isinstance(iv.get("value"), (int, float)) and iv.get("op") != "mul"]
+    if len(money) != 1:
+        return None
+    out = [dict(iv) for iv in ivs]
+    old = out[money[0]]["value"]
+    out[money[0]]["value"] = -abs(v) if old < 0 else v
+    out[money[0]]["label"] = _swap_amount(out[money[0]].get("label") or "", old, v)
+    return out
+
+
+def chat_edit(question: str, ctx: dict, lang: str, box: "Toolbox") -> dict | None:
+    """'undo' / 'make it 400 instead' on the last change the chat made. None if the sentence is not one."""
+    last = ctx.get("last_change") if isinstance(ctx.get("last_change"), dict) else None
+    q = " " + question + " "
+    if UNDO.search(q):
+        if not last:
+            return {"answer": _UNDO_T.get(lang, _UNDO_T["en"])[1], "tree_action": None}
+        box.calls.append({"tool": "undo_last_change", "args": {"id": last.get("id")},
+                          "result": {"label": last.get("label"), "interventions": last.get("interventions")}})
+        return {"answer": _UNDO_T.get(lang, _UNDO_T["en"])[0].format(label=last.get("label") or ""),
+                "tree_action": {"type": "undo", "id": last.get("id")}}
+    if not last or not EDIT_LAST.search(q):
+        return None
+    from api import personalize_rules as R
+    amounts = R._amounts(q)
+    if len(amounts) != 1:
+        return None
+    ivs = _new_amount(last.get("interventions") or [], amounts[0])
+    if not ivs:
+        return None
+    base = str(last.get("node_id"))
+    customs, patches = _without(engine.extras(), last)
+    with engine.using_extras(customs, patches):
+        try:
+            sim = simulate_patch(box, base, ivs)
+        except Exception as e:  # noqa: BLE001
+            log.warning("edit simulation failed: %s", e)
+            return None
+    from api.personalize import _node as pnode
+    node_label = pnode(base).get("label") or base
+    box.calls.append({"tool": "edit_last_change", "args": {"id": last.get("id"), "interventions": ivs},
+                      "result": {**sim, "node_id": base, "node_label": node_label, "label": last.get("label")}})
+    change = _change_text(ivs, last.get("label") or "", lang)
+    text = whatif_answer(sim, change, node_label, lang, "patch" if last.get("mode") == "patch" else "new_branch")
+    # the closing line: an update, not a new branch
+    t = _WI.get(lang, _WI["en"])
+    tail = (t["patched"] if last.get("mode") == "patch" else t["branch"]).format(node=node_label)
+    text = text[: len(text) - len(tail)] + _EDIT_T.get(lang, _EDIT_T["en"]).format(label=last.get("label") or "", change=change)
+    old = next((iv["value"] for iv in last.get("interventions") or []
+                if isinstance(iv.get("value"), (int, float)) and iv.get("op") != "mul"), amounts[0])
+    return {"answer": text, "tree_action": {"type": "replace", "id": last.get("id"), "interventions": ivs,
+                                            "label": _swap_amount(last.get("label") or "", old, amounts[0])}}
 
 
 def translate_label(label: str, lang: str) -> str:
@@ -1338,6 +1521,7 @@ def ask_stream(question: str, ctx: dict):
         nonlocal first_ms
         text, why = _clean_sentence(part, box, question, user_ctx)
         if text:
+            text = scrub_ids(text, box.overrides, lang)
             sent_out.append(text)
             if first_ms is None:
                 first_ms = int((time.perf_counter() - t0) * 1000)
@@ -1346,15 +1530,19 @@ def ask_stream(question: str, ctx: dict):
             dropped_sents.append(f"{why}: {part}")
         return None
 
-    fast = whatif_fast(question, ctx, lang, box)  # #117: a what-if the rules know -> engine numbers, no LLM
+    edit = chat_edit(question, ctx, lang, box)  # "undo" / "make it 400 instead" on the last chat change
+    fast = edit["answer"] if edit else whatif_fast(question, ctx, lang, box)  # #117: rules -> engine, no LLM
     if fast:
+        fast = scrub_ids(fast, box.overrides, lang)
         for i, sent in enumerate(split_sentences(fast)):
             yield {"type": "sentence", "index": i, "text": sent}
-        yield {"type": "done", "answer": fast, "language": lang, "mode": "whatif",
+        yield {"type": "done", "answer": fast, "language": lang, "mode": "edit" if edit else "whatif",
+               "tree_action": edit["tree_action"] if edit else None,
                "grounding": {"grounded": True, "ungrounded_numbers": [], "checked": "engine numbers only"},
                "dropped_sentences": [], "tool_traces": [{"tool": c["tool"], "args": c["args"],
                                                          "trace_id": c["result"].get("after", {}).get("trace_id"),
-                                                         "node_id": c["result"].get("node_id")} for c in box.calls],
+                                                         "node_id": c["result"].get("node_id"),
+                            "node_label": c["result"].get("node_label") or (c["result"].get("node_id") and _label_of(str(c["result"]["node_id"])))} for c in box.calls],
                "cited_nodes": [str(node_id)], "cost_usd": 0.0, "tokens": {"prompt": 0, "completion": 0},
                "model": "rules", "error": None, "history_used": len(history), "history_dropped": dropped,
                "personalize": box.proposal, "first_sentence_ms": int((time.perf_counter() - t0) * 1000),
@@ -1438,14 +1626,15 @@ def ask_stream(question: str, ctx: dict):
     answer = " ".join(sent_out)
     if not sent_out:
         mode = "template"
-        answer = template_answer(ctx, lang, box)
+        answer = scrub_ids(template_answer(ctx, lang, box), box.overrides, lang)
         yield {"type": "replace", "text": answer, "mode": "template"}
     yield {"type": "done", "answer": answer, "language": lang, "mode": mode,
            "grounding": {"grounded": True, "ungrounded_numbers": [], "checked": "per sentence before sending"},
            "dropped_sentences": dropped_sents,
            "tool_traces": [{"tool": c["tool"], "args": c["args"],
                             "trace_id": c["result"].get("trace_id") or c["result"].get("after", {}).get("trace_id"),
-                            "node_id": c["result"].get("node_id")} for c in box.calls],
+                            "node_id": c["result"].get("node_id"),
+                            "node_label": c["result"].get("node_label") or (c["result"].get("node_id") and _label_of(str(c["result"]["node_id"])))} for c in box.calls],
            "cited_nodes": sorted({c["result"].get("node_id") for c in box.calls if c["result"].get("node_id")}),
            "cost_usd": round(cost + box.cost, 6), "tokens": tokens, "model": used_model or "template", "error": error,
            "history_used": len(history), "history_dropped": dropped, "personalize": box.proposal,

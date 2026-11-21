@@ -181,7 +181,7 @@ def _user_numbers(text: str) -> list[float]:
 def _amount_ok(x: float, user: list[float]) -> bool:
     cands = set()
     for u in user:
-        cands |= {u, u / 100, u * 12, u / 12, u * 1000}
+        cands |= {u, u / 100, u * 12, u / 12, u * 1000, 1 + u / 100, 1 - u / 100}  # "10% higher" -> x1.1
     # the sign is the operation's ("save 200 more" = spending -200), the amount must be the user's
     return any(abs(abs(x) - c) <= max(0.005 * abs(c), 0.01) for c in cands)
 

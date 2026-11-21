@@ -155,3 +155,24 @@ test('a change asked in the chat goes straight onto the tree (no confirm step)',
   assert.equal(applyFromChat({ clarifying_question: 'How much?' }, { node_id: '2', store }), null);
   assert.equal(store.list().length, 2);
 });
+
+test('"undo" and "make it 400 instead" act on the last change the chat made', async () => {
+  const { applyFromChat, applyTreeAction, lastChatChange } = await import('./fromChat.js');
+  const { createPersonalStore } = await import('./store.js');
+  const mem = new Map(); const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  const store = createPersonalStore({ storage, target: null });
+  assert.equal(lastChatChange(store), null);
+  const iv = { param: 'monthly_investment_contribution', op: 'set', value: 300, from_month: 0, to_month: 120, label: 'Invest CHF 300 a month' };
+  const it = applyFromChat({ proposal: { mode: 'new_branch', parent_id: '1.2', node_id: '1.2.c1', label: 'Invest CHF 300 a month', interventions: [iv] } },
+    { node_id: '1.2', store });
+  const last = lastChatChange(store);
+  assert.deepEqual({ ...last, interventions: undefined }, { id: it.id, mode: 'branch', label: 'Invest CHF 300 a month', node_id: '1.2', custom_id: '1.2.c1', interventions: undefined });
+  assert.equal(last.interventions[0].value, 300);
+  applyTreeAction({ type: 'replace', id: it.id, label: 'Invest CHF 400 a month', interventions: [{ ...iv, value: 400 }] }, store);
+  assert.equal(store.get(it.id).custom_node.interventions[0].value, 400);
+  assert.equal(store.get(it.id).custom_node.label, 'Invest CHF 400 a month');
+  assert.equal(store.list().length, 1);
+  applyTreeAction({ type: 'undo', id: it.id }, store);
+  assert.equal(store.list().length, 0);
+  assert.equal(applyTreeAction({ type: 'undo', id: 'nope' }, store), null);
+});

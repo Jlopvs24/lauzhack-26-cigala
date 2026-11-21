@@ -13,25 +13,25 @@ const TEXT = {
   en: { ask: 'Ask Lumi about this branch', send: 'Send', open: 'Open conversation', close: 'Close conversation',
     call: 'Call Lumi', title: 'Conversation with Lumi', empty: 'Ask anything about this branch: why it needs financing, what would have to be true, what changes if you wait a year.',
     you: 'You', lumi: 'Lumi', thinking: 'Lumi is checking the engine…', preparing: 'Preparing the voice note…', clear: 'Clear',
-    sources: 'Calculation sources', template: 'Engine template', ai: 'AI explanation', node: 'node', replay: 'Read aloud',
+    sources: 'Calculation sources', template: 'Engine template', ai: 'AI explanation', tools: { get_node: 'Branch results', preload: 'Branch results', compare_nodes: 'Comparison', what_if: 'What-if', what_would_have_to_be_true: 'What would have to be true', what_would_fix_it: 'What would fix it', get_exploration: 'What would have to be true', propose_personalization: 'Your change', what_if_condition: 'Your change, simulated', edit_last_change: 'Your change, simulated again', undo_last_change: 'Undo', get_assumptions: 'Assumptions' }, replay: 'Read aloud',
     record: 'Record a voice note (sent when you stop)', stop: 'Stop and send', recording: 'Recording… press stop to send',
     noEngine: 'The engine is not reachable. Check that the API is running.' },
   es: { ask: 'Pregunta a Lumi sobre esta rama', send: 'Enviar', open: 'Abrir conversación', close: 'Cerrar conversación',
     call: 'Llamar a Lumi', title: 'Conversación con Lumi', empty: 'Pregunta lo que quieras sobre esta rama: por qué necesita financiación, qué tendría que cumplirse, qué cambia si esperas un año.',
     you: 'Tú', lumi: 'Lumi', thinking: 'Lumi está consultando el motor…', preparing: 'Preparando la nota de voz…', clear: 'Borrar',
-    sources: 'Fuentes del cálculo', template: 'Plantilla del motor', ai: 'Explicación con IA', node: 'nodo', replay: 'Leer en voz alta',
+    sources: 'Fuentes del cálculo', template: 'Plantilla del motor', ai: 'Explicación con IA', tools: { get_node: 'Resultados de la rama', preload: 'Resultados de la rama', compare_nodes: 'Comparación', what_if: 'Hipótesis', what_would_have_to_be_true: 'Qué tendría que cumplirse', what_would_fix_it: 'Qué lo arreglaría', get_exploration: 'Qué tendría que cumplirse', propose_personalization: 'Tu cambio', what_if_condition: 'Tu cambio, simulado', edit_last_change: 'Tu cambio, simulado de nuevo', undo_last_change: 'Deshacer', get_assumptions: 'Supuestos' }, replay: 'Leer en voz alta',
     record: 'Grabar una nota de voz (se envía al parar)', stop: 'Parar y enviar', recording: 'Grabando… pulsa parar para enviar',
     noEngine: 'No se puede contactar con el motor. Comprueba que la API está en marcha.' },
   fr: { ask: 'Demande à Lumi à propos de cette branche', send: 'Envoyer', open: 'Ouvrir la conversation', close: 'Fermer la conversation',
     call: 'Appeler Lumi', title: 'Conversation avec Lumi', empty: 'Pose une question sur cette branche : pourquoi elle demande un financement, ce qui devrait être vrai, ce qui change si tu attends un an.',
     you: 'Toi', lumi: 'Lumi', thinking: 'Lumi consulte le moteur…', preparing: 'Préparation de la note vocale…', clear: 'Effacer',
-    sources: 'Sources du calcul', template: 'Modèle du moteur', ai: 'Explication IA', node: 'nœud', replay: 'Lire à voix haute',
+    sources: 'Sources du calcul', template: 'Modèle du moteur', ai: 'Explication IA', tools: { get_node: 'Résultats de la branche', preload: 'Résultats de la branche', compare_nodes: 'Comparaison', what_if: 'Hypothèse', what_would_have_to_be_true: 'Ce qui devrait être vrai', what_would_fix_it: 'Ce qui arrangerait', get_exploration: 'Ce qui devrait être vrai', propose_personalization: 'Ton changement', what_if_condition: 'Ton changement, simulé', edit_last_change: 'Ton changement, simulé à nouveau', undo_last_change: 'Annuler', get_assumptions: 'Hypothèses' }, replay: 'Lire à voix haute',
     record: 'Enregistrer une note vocale (envoyée à l’arrêt)', stop: 'Arrêter et envoyer', recording: 'Enregistrement… arrête pour envoyer',
     noEngine: 'Le moteur est injoignable. Vérifie que l’API tourne.' },
   de: { ask: 'Frag Lumi zu diesem Zweig', send: 'Senden', open: 'Gespräch öffnen', close: 'Gespräch schließen',
     call: 'Lumi anrufen', title: 'Gespräch mit Lumi', empty: 'Frag alles zu diesem Zweig: warum er eine Finanzierung braucht, was wahr sein müsste, was sich ändert, wenn du ein Jahr wartest.',
     you: 'Du', lumi: 'Lumi', thinking: 'Lumi prüft die Engine…', preparing: 'Sprachnachricht wird vorbereitet…', clear: 'Löschen',
-    sources: 'Quellen der Berechnung', template: 'Engine-Vorlage', ai: 'KI-Erklärung', node: 'Knoten', replay: 'Vorlesen',
+    sources: 'Quellen der Berechnung', template: 'Engine-Vorlage', ai: 'KI-Erklärung', tools: { get_node: 'Ergebnisse des Zweigs', preload: 'Ergebnisse des Zweigs', compare_nodes: 'Vergleich', what_if: 'Was-wäre-wenn', what_would_have_to_be_true: 'Was wahr sein müsste', what_would_fix_it: 'Was es lösen würde', get_exploration: 'Was wahr sein müsste', propose_personalization: 'Deine Änderung', what_if_condition: 'Deine Änderung, simuliert', edit_last_change: 'Deine Änderung, neu simuliert', undo_last_change: 'Rückgängig', get_assumptions: 'Annahmen' }, replay: 'Vorlesen',
     record: 'Sprachnachricht aufnehmen (wird beim Stoppen gesendet)', stop: 'Stoppen und senden', recording: 'Aufnahme… stoppen zum Senden',
     noEngine: 'Die Engine ist nicht erreichbar. Läuft die API?' },
 };
@@ -158,7 +158,8 @@ export default function ChatPanel({ context = {}, lang = 'en', disabled = false,
       history.append('user', audio ? `🎙 ${user.content}` : user.content);
       history.append('assistant', assistant.content, {
         mode: d.mode, cost_usd: d.cost_usd, latency_ms: d.latency_ms, node_id: ctx.node_id,
-        sources: (d.tool_traces || []).map((tr) => [tr.tool, tr.node_id && `${T.node} ${tr.node_id}`, tr.trace_id].filter(Boolean).join(' · ')),
+        // plain words and the branch's own name: never ids (node, assumption, trace) in front of the user
+        sources: [...new Set((d.tool_traces || []).map((tr) => [T.tools[tr.tool] || T.tools.get_node, tr.node_label && `“${tr.node_label}”`].filter(Boolean).join(' · ')))],
       });
       latest.current.onAnswer?.(assistant.content, d);
     } catch (e) {
@@ -223,7 +224,7 @@ export default function ChatPanel({ context = {}, lang = 'en', disabled = false,
           <strong>{m.role === 'user' ? T.you : T.lumi}</strong>
           <p>{m.content}</p>
           {m.meta && <footer>
-            <small>{m.meta.mode === 'template' ? T.template : T.ai}{m.meta.node_id && ` · ${T.node} ${m.meta.node_id}`}{m.meta.latency_ms != null && ` · ${m.meta.latency_ms} ms`}</small>
+            <small>{m.meta.mode === 'template' ? T.template : T.ai}{m.meta.latency_ms != null && ` · ${m.meta.latency_ms} ms`}</small>
             {m.meta.sources?.length > 0 && <details><summary>{T.sources}</summary><ul>{m.meta.sources.map((s, j) => <li key={j}>{s}</li>)}</ul></details>}
             {replay && <button type="button" className="chatp-link" onClick={() => replay(m.content, lang)} aria-label={T.replay} title={T.replay}><Icon d={PLAY} fill /></button>}
           </footer>}
