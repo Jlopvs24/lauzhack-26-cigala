@@ -25,7 +25,7 @@ export function AddToCompare({ path, label, crumbs, lang = 'en', variant = 'pill
   const items = useCompareItems();
   const on = items.some((i) => i.key === pathKey(path || []));
   const full = !on && items.length >= compareStore.max;
-  return <button type="button" className={`cmp-add ${variant} ${on ? 'on' : ''}`} aria-pressed={on} disabled={full}
+  const btn = <button type="button" className={`cmp-add ${variant} ${on ? 'on' : ''}`} aria-pressed={on} disabled={full}
     title={full ? L.full : on ? L.unpin(label) : L.pin(label)} aria-label={full ? L.full : on ? L.unpin(label) : L.pin(label)}
     onClick={(e) => { e.stopPropagation(); compareStore.toggle({ path, label, crumbs }); }}>
     <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">{on
@@ -33,6 +33,12 @@ export function AddToCompare({ path, label, crumbs, lang = 'en', variant = 'pill
       : <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />}</svg>
     {variant !== 'icon' && <span>{on ? L.added : L.add}</span>}
   </button>;
+  if (variant === 'icon' || !on) return btn;
+  // added: say so, and offer the comparison right here (it opens over the report)
+  return <span className="cmp-add-group" role="group">{btn}
+    <button type="button" className="cmp-add-go" onClick={(e) => { e.stopPropagation(); openCompare(); }}>
+      {items.length < 2 ? L.withAlternatives : L.compareN(items.length)}<span aria-hidden="true"> →</span></button>
+    <span className="cmp-sr" aria-live="polite">{L.addedLive(items.length, compareStore.max)}</span></span>;
 }
 
 /** The same "+" as an HTML string for the scene's cards (handled by <CompareRoot/>'s click delegate). */
@@ -62,7 +68,7 @@ export function CompareBar({ lang = 'en', tr, hidden = false }) {
       <button type="button" aria-label={L.remove(label(i.path.at(-1), i.label))} onClick={() => compareStore.remove(i.key)}>×</button></li>)}</ul>
     <div className="cmp-bar-actions">
       <button type="button" className="cmp-bar-clear" onClick={() => compareStore.clear()}>{L.clear}</button>
-      <button type="button" className="cmp-bar-go" disabled={items.length < 2} title={items.length < 2 ? L.needTwo : ''} onClick={() => openCompare()}>{items.length < 2 ? L.needTwo : L.compare}<i className="cmp-bar-n" aria-hidden="true">{items.length}</i></button>
+      <button type="button" className="cmp-bar-go" onClick={() => openCompare()}>{items.length < 2 ? L.withAlternatives : L.compare}<i className="cmp-bar-n" aria-hidden="true">{items.length}</i></button>
     </div>
   </div>;
 }

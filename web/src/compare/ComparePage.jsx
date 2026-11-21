@@ -126,7 +126,9 @@ export default function ComparePage({ lang = 'en', tr, paths = [], source = 'pin
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // keep columns in the order of `paths` (removals apply at once, before any refetch)
-  const shown = useMemo(() => (cols || []).filter((c) => paths.some((p) => pathKey(p) === c.key)).map((c) => ({ ...c, label: label(c.node_id, c.label) })), [cols, keys, lang]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [removed, setRemoved] = useState(() => new Set());
+  const shown = useMemo(() => (cols || []).filter((c) => !removed.has(c.key) && (paths.length === 1 || paths.some((p) => pathKey(p) === c.key)))
+    .map((c) => ({ ...c, label: label(c.node_id, c.label) })), [cols, keys, lang, removed]); // eslint-disable-line react-hooks/exhaustive-deps
   const cmp = useMemo(() => buildComparison(shown, { lang, label, weatherLabel: (t) => W.names?.[t] || t.replace(/_/g, ' ') }), [shown, lang]); // eslint-disable-line react-hooks/exhaustive-deps
   const sections = diffOnly ? onlyDifferences(cmp.sections) : cmp.sections;
   const series = seriesOf(shown, metric);
@@ -139,7 +141,7 @@ export default function ComparePage({ lang = 'en', tr, paths = [], source = 'pin
       <header className="cmp-top">
         <span className="cmp-grab" aria-hidden="true" />
         <div className="cmp-top-text">
-          <h2 id="cmp-title">{source === 'options' ? L.titleOptions : L.title}</h2>
+          <h2 id="cmp-title">{source === 'options' ? L.titleOptions : paths.length === 1 ? L.titleAlternatives : L.title}</h2>
           <p className="cmp-lede">{L.lede}</p>
         </div>
         <div className="cmp-top-actions">
@@ -170,8 +172,8 @@ export default function ComparePage({ lang = 'en', tr, paths = [], source = 'pin
                   <span className="cmp-col-name">{c.label}</span>
                   <span className={`cmp-badge ${c.tone}`}><b aria-hidden="true">{ICON[c.tone]}</b>{levelText(c.level)}</span>
                   <span className="cmp-col-actions">
-                    {source === 'options' && <AddToCompare path={shown[i].path} label={c.label} lang={lang} variant="icon" />}
-                    {cmp.columns.length > 1 && <button type="button" className="cmp-x" aria-label={L.colRemove(c.label)} onClick={() => onRemove?.(c.key)}>×</button>}
+                    {(source === 'options' || paths.length === 1) && <AddToCompare path={shown[i].path} label={c.label} lang={lang} variant="icon" />}
+                    {cmp.columns.length > 1 && <button type="button" className="cmp-x" aria-label={L.colRemove(c.label)} onClick={() => { setRemoved((r) => new Set(r).add(c.key)); if (paths.length > 1 || source !== 'pinned') onRemove?.(c.key); }}>×</button>}
                   </span>
                 </th>)}
               </tr></thead>
