@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="200" height="240" role="img" aria-label="Tilo — regular, explicando">
+<title>Tilo — regular, explicando</title>
+<g id="character" stroke="#2B3A33" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+<g id="feet"><ellipse cx="82" cy="216" rx="13" ry="6" fill="#C06E59"/><ellipse cx="118" cy="216" rx="13" ry="6" fill="#C06E59"/></g><g id="arm-left"><path d="M64,150 Q47.0,167.0 42,176" fill="none" stroke="#2B3A33" stroke-width="6"/><circle cx="42" cy="176" r="5.5" fill="#D98A73" stroke-width="3"/></g><g id="arm-right"><path d="M136,142 Q159.0,132.0 170,114" fill="none" stroke="#2B3A33" stroke-width="6"/><circle cx="170" cy="114" r="5.5" fill="#D98A73" stroke-width="3"/></g><g id="body"><path d="M60,120 L140,120 L131,206 Q130,214 122,214 L78,214 Q70,214 69,206 Z" fill="#D98A73"/><rect x="50" y="104" width="100" height="22" rx="8" fill="#C06E59"/><ellipse cx="100" cy="108" rx="42" ry="5" fill="#7D5C44" stroke="none"/></g><g id="leaves" transform="rotate(18 100 108)"><path d="M100,108 C96,88 104,70 100,40" fill="none" stroke-width="5"/><path d="M100,108 C96,88 104,70 100,40" fill="none" stroke="#8C9632" stroke-width="2"/><path d="M100,86 C88,70 68,70 62,80 C72,94 90,94 100,86 Z" fill="#B9C24F"/><path d="M98,86 Q80,80 66,80" fill="none" stroke="#8C9632" stroke-width="2.5"/><path d="M101,70 C112,54 132,54 138,64 C128,78 110,78 101,70 Z" fill="#B9C24F"/><path d="M103,70 Q120,64 134,64" fill="none" stroke="#8C9632" stroke-width="2.5"/><circle cx="100" cy="40" r="5" fill="#8C9632" stroke-width="3"/></g><g id="face"><ellipse cx="76" cy="170" rx="7" ry="4.5" fill="#EDB7A8" stroke="none" opacity=".9"/><ellipse cx="124" cy="170" rx="7" ry="4.5" fill="#EDB7A8" stroke="none" opacity=".9"/><g id="eyes">
+<ellipse cx="87" cy="154" rx="5" ry="7" fill="#2B3A33" stroke="none"/>
+<circle cx="88.8" cy="151.5" r="1.8" fill="#fff" stroke="none"/>
+<ellipse cx="113" cy="154" rx="5" ry="7" fill="#2B3A33" stroke="none"/>
+<circle cx="114.8" cy="151.5" r="1.8" fill="#fff" stroke="none"/>
+<path d="M81,141 Q87,137 93,141" fill="none" stroke-width="3"/>
+<path d="M107,141 Q113,137 119,141" fill="none" stroke-width="3"/>
+</g><path id="mouth" d="M91,170 Q100,184.4 109,170 Z" fill="#8E3B3B" stroke-width="3"/></g><g id="extras"></g>
+</g>
+</svg>

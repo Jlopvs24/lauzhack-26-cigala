@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="200" height="240" role="img" aria-label="Tilo — debil, reposo">
+<title>Tilo — debil, reposo</title>
+<g id="character" stroke="#2B3A33" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+<g id="feet"><ellipse cx="82" cy="216" rx="13" ry="6" fill="#B08473"/><ellipse cx="118" cy="216" rx="13" ry="6" fill="#B08473"/></g><g id="arm-left"><path d="M64,150 Q47.0,167.0 42,176" fill="none" stroke="#2B3A33" stroke-width="6"/><circle cx="42" cy="176" r="5.5" fill="#C99A88" stroke-width="3"/></g><g id="arm-right"><path d="M136,150 Q153.0,167.0 158,176" fill="none" stroke="#2B3A33" stroke-width="6"/><circle cx="158" cy="176" r="5.5" fill="#C99A88" stroke-width="3"/></g><g id="body"><path d="M60,120 L140,120 L131,206 Q130,214 122,214 L78,214 Q70,214 69,206 Z" fill="#C99A88"/><rect x="50" y="104" width="100" height="22" rx="8" fill="#B08473"/><ellipse cx="100" cy="108" rx="42" ry="5" fill="#9C8268" stroke="none"/><path d="M122,150 L128,162 L123,170" fill="none" stroke-width="2.5"/></g><g id="leaves" transform="rotate(48 100 108)"><path d="M100,108 C96,88 104,70 100,40" fill="none" stroke-width="5"/><path d="M100,108 C96,88 104,70 100,40" fill="none" stroke="#94703F" stroke-width="2"/><path d="M100,86 C88,70 68,70 62,80 C72,94 90,94 100,86 Z" fill="#C9A26B"/><path d="M98,86 Q80,80 66,80" fill="none" stroke="#94703F" stroke-width="2.5"/><circle cx="100" cy="40" r="5" fill="#94703F" stroke-width="3"/></g><g id="face"><ellipse cx="76" cy="170" rx="7" ry="4.5" fill="#E6C8BE" stroke="none" opacity=".9"/><ellipse cx="124" cy="170" rx="7" ry="4.5" fill="#E6C8BE" stroke="none" opacity=".9"/><g id="eyes">
+<ellipse cx="87" cy="154" rx="5" ry="6" fill="#2B3A33" stroke="none"/>
+<circle cx="88.8" cy="151.5" r="1.8" fill="#fff" stroke="none"/>
+<ellipse cx="113" cy="154" rx="5" ry="6" fill="#2B3A33" stroke="none"/>
+<circle cx="114.8" cy="151.5" r="1.8" fill="#fff" stroke="none"/>
+<path d="M80,143 L91,140" fill="none" stroke-width="3"/>
+<path d="M120,143 L109,140" fill="none" stroke-width="3"/>
+</g><path id="mouth" d="M92,176 Q100,170 108,176" fill="none" stroke-width="3"/></g><g id="extras"><g transform="translate(146,228) rotate(-15)"><path d="M0,0 C6,-9 18,-9 22,0 C16,7 6,7 0,0 Z" fill="#C9A26B" stroke-width="2.5"/></g></g>
+</g>
+</svg>
