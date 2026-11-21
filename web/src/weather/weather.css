@@ -20,7 +20,7 @@
   white-space: nowrap; padding: 7px 10px; border-radius: 8px; background: var(--card-bg); color: var(--card-ink);
   box-shadow: 0 4px 12px rgba(0,0,0,.14); opacity: 0; visibility: hidden; transition: opacity 120ms ease-out; }
 .wx-custom { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; background: var(--wx-on); border-radius: 50%; }
-.wx-factors { position: absolute; left: calc(100% + 14px); bottom: 0; width: min(330px, calc(100vw - 100px));
+.wx-factors { position: absolute; left: calc(100% + 14px); top: 50%; transform: translateY(-50%); width: min(330px, calc(100vw - 100px));
   max-height: calc(100dvh - 160px); overflow-y: auto; overscroll-behavior: contain;
   padding: 18px; border-radius: 16px; background: var(--card-bg); box-shadow: 0 8px 28px rgba(0,0,0,.2); }
 .wx-factors header { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
@@ -41,7 +41,7 @@
 @media (max-width: 720px) {
   .wx-rail { top: auto; bottom: max(var(--wx-phone-bottom, 96px), calc(env(safe-area-inset-bottom) + 84px)); left: max(10px, env(safe-area-inset-left)); transform: none; gap: 6px; }
   .wx-perspectives { padding: 3px; gap: 0; border-radius: 13px; }
-  .wx-factors { position: fixed; top: calc(var(--top-h, 76px) + 12px); bottom: var(--wx-phone-bottom, 96px); left: 68px; width: calc(100vw - 86px); padding: 14px; max-height: none; }
+  .wx-factors { position: fixed; transform: none; top: calc(var(--top-h, 76px) + 12px); bottom: var(--wx-phone-bottom, 96px); left: 68px; width: calc(100vw - 86px); padding: 14px; max-height: none; }
   .wx-tip { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .wx-icon, .wx-pair button, .wx-reset, .wx-tip { transition: none; } }

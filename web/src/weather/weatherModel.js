@@ -127,9 +127,13 @@ export function visualWeather(weather) {
     'inflation:high': ['inflation'], 'inflation:low': [], 'fx:chf_strong': ['chf_strengthens'], 'fx:chf_weak': ['chf_weakens'],
     'markets:crash': ['market_crash'], 'markets:boom': [], 'jobs:weak': ['recession'], 'jobs:strong': [], 'rates:up': [], 'rates:down': [] };
   const out = [];
+  const lowInflation = weather.some((w) => w.type === 'inflation' && w.level === 'low');
   for (const w of weather || []) {
     const types = w.level ? aliases[`${w.type}:${w.level}`] || [] : [w.type];
-    for (const type of types) if (!(type === 'inflation' && w.type === 'scenario' && weather.some((e) => e.type === 'inflation' && e.level === 'low')) && !out.some((e) => e.type === type)) out.push({ ...w, type });
+    for (const type of types) {
+      if (type === 'inflation' && w.type === 'scenario' && lowInflation) continue;
+      if (!out.some((e) => e.type === type)) out.push({ ...w, type });
+    }
   }
   return out;
 }

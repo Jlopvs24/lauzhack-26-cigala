@@ -105,5 +105,7 @@ test('qualitative events retain the legacy visual layer and expose the actual se
   assert.deepEqual(d.selected_weather, request);
   assert.deepEqual(d.weather.map((w) => w.type), ['recession', 'inflation', 'market_crash']);
   assert.equal(d.intensity, 1);
+  const override = eventDetail([{ type: 'scenario', level: 'pessimistic' }, { type: 'inflation', level: 'low' }], TREE, false);
+  assert.ok(!override.weather.some((w) => w.type === 'inflation'));
   assert.deepEqual(d.breaking_node_ids, ['2.1']);
 });
