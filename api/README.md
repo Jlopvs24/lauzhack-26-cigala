@@ -28,8 +28,12 @@ Keys are read from `.env.local` at the repo root (`OPENROUTER_API_KEY`, `TOGETHE
 | POST | `/simulate` | `{profile?, node, assumptions?, weather?}` | `{result: SimulationResult}` |
 | POST | `/profiles/extract` | multipart `files[]`, `text` | `{profile, extractor}` (mock until thread 3) |
 | POST | `/agent/ask` | `{question, context}` | answer + traces (below) |
-| POST | `/voice/stt` | multipart `audio`, `language?` | `{text, audio_seconds, cost_usd, model}` |
-| POST | `/voice/tts` | `{text, language?, voice?}` | `audio/mpeg` bytes; cost in `X-Cost-USD` header |
+| POST | `/voice/stt` | multipart `audio` (WAV/MP3), `language?` | `{text, language, cost_usd, model}` |
+| POST | `/voice/ask` | multipart `audio`, `context` (JSON string), `language?` | `/agent/ask` response + `transcript`, `stt` |
+| POST | `/voice/tts` | `{text, language?, voice?}` | `audio/mpeg`, or 503 if no server TTS (use browser `speechSynthesis`) |
+| GET | `/usage` | – | cumulative LLM/voice calls, tokens and USD |
+
+Voice: the proposal is browser Web Speech API first, server STT as fallback. See `api/VOICE.md` (decision OPEN).
 
 `profile` omitted ⇒ Alexia. `assumptions` = overrides `[{"id": "AS-salary-junior-ch", "value": 4500}]`. `weather` ⊂ `recession | inflation | market_crash | job_loss`.
 
@@ -73,4 +77,4 @@ Visible = root + chosen path (`chosen`) + siblings of the current node (`sibling
  "model": "qwen/qwen3.7-flash", "latency_ms": 1800, "error": null}
 ```
 
-The character never computes: numbers come from engine tools (`get_node`, `compare_nodes`, `what_if`, `get_assumptions`). Every number in the answer is checked against tool outputs; if one is not found, or the LLM fails, the answer falls back to a template built from engine results (`mode: "template"`). `language` is auto-detected (en/es/fr/de) unless given.
+The character never computes: numbers come from engine tools (`get_node`, `compare_nodes`, `what_if`, `get_assumptions`). Every number in the answer is checked against tool outputs; if one is not found, or the LLM fails, the answer falls back to a template built from engine results (`mode: "template"`). `language` defaults to English, and the answer switches only when the question is clearly in es/fr/de (or `context.language` is set). The current node, its siblings and its children are preloaded from the engine, so most questions need one LLM call (~USD 0.0001, ~3–5 s with `qwen/qwen3.7-flash`). Model benchmark: `python -m api.bench_agent` (results in `api/bench_agent_results.json`).

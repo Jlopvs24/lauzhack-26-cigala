@@ -72,3 +72,8 @@ def test_grounding():
     tools = [{"final_net_worth_p50": 143660.86, "min_cash": -18600.0}]
     assert check_grounding("Median CHF 143'661, lowest CHF -18'600 in 2029.", tools)["grounded"]
     assert not check_grounding("You would have CHF 250'000.", tools)["grounded"]
+
+
+def test_voice_without_keys_is_503():
+    assert c.post("/voice/tts", json={"text": "hi"}).status_code == 503
+    assert c.post("/voice/stt", files={"audio": ("a.wav", b"RIFF", "audio/wav")}).status_code == 503

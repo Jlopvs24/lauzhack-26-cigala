@@ -1,0 +1,234 @@
+[
+ {
+  "model": "qwen/qwen3.7-flash",
+  "question": "¿Por qué el máster se queda sin dinero?",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "es",
+  "cost_usd": 0.000172,
+  "tokens": {
+   "prompt": 8015,
+   "completion": 113
+  },
+  "latency_ms": 5968,
+  "tools": [
+   "preload",
+   "get_node"
+  ],
+  "answer": "El máster se queda sin dinero en el mes 7 porque los ingresos se reducen a CHF 1'200 mensuales mientras que los gastos fijos son de CHF 1'200, más los pagos únicos de matrícula de CHF 2'500 en los meses 0 y 1. Esto genera un déficit acumulado que alcanza un mínimo de -CHF 18'600.",
+  "error": null
+ },
+ {
+  "model": "qwen/qwen3.7-flash",
+  "question": "What changes if I take the student loan instead?",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "en",
+  "cost_usd": 0.000114,
+  "tokens": {
+   "prompt": 3373,
+   "completion": 95
+  },
+  "latency_ms": 6722,
+  "tools": [
+   "preload"
+  ],
+  "answer": "Taking the student loan (node 2.2) lowers your median final net worth to CHF 142'345 compared to CHF 167'317 for working part-time (node 2.1). It also reduces your health score to 0.598 and introduces a risk of negative cash flow starting in month 21. The main driver is the debt burden, which makes your outcome highly sensitive to salary changes.",
+  "error": null
+ },
+ {
+  "model": "qwen/qwen3.7-flash",
+  "question": "Compare starting to work with moving abroad.",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "en",
+  "cost_usd": 0.000131,
+  "tokens": {
+   "prompt": 4084,
+   "completion": 65
+  },
+  "latency_ms": 3608,
+  "tools": [
+   "preload"
+  ],
+  "answer": "Starting to work has a median final net worth of CHF 150'657 with no debt risk, while moving abroad is lower at CHF 96'201 due to higher relocation costs and a lower starting salary. The move abroad option also carries a slightly higher sensitivity to the foreign salary assumption.",
+  "error": null
+ },
+ {
+  "model": "qwen/qwen3.7-flash",
+  "question": "Et si le salaire junior était de 3800 francs ?",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "fr",
+  "cost_usd": 0.000197,
+  "tokens": {
+   "prompt": 9112,
+   "completion": 124
+  },
+  "latency_ms": 8907,
+  "tools": [
+   "preload",
+   "what_if"
+  ],
+  "answer": "Avec un salaire de 3800 francs, le patrimoine final médian passe à CHF 102'657 contre CHF 150'657. La probabilité d'avoir une épargne de précaution reste très élevée à 99,9%.",
+  "error": null
+ },
+ {
+  "model": "qwen/qwen3.7-flash",
+  "question": "Which assumption matters most here?",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "en",
+  "cost_usd": 0.000123,
+  "tokens": {
+   "prompt": 3957,
+   "completion": 31
+  },
+  "latency_ms": 2445,
+  "tools": [
+   "preload"
+  ],
+  "answer": "In this node, the salary abroad assumption matters most. A plus ten percent change in it shifts the final net worth by forty four thousand Swiss francs.",
+  "error": null
+ },
+ {
+  "model": "qwen/qwen3.7-flash",
+  "question": "Should I do the master's? Just tell me what's best.",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "en",
+  "cost_usd": 3.7e-05,
+  "tokens": {
+   "prompt": 3664,
+   "completion": 78
+  },
+  "latency_ms": 3362,
+  "tools": [
+   "preload"
+  ],
+  "answer": "I cannot tell you what is best as I do not give advice. The master's path has a median net worth of CHF 143'660 but risks negative cash in month 7, while working now offers a higher median of CHF 150'656 with no risk of negative cash. You must decide based on your personal goals and risk tolerance.",
+  "error": null
+ },
+ {
+  "model": "anthropic/claude-haiku-5.5",
+  "question": "¿Por qué el máster se queda sin dinero?",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "es",
+  "cost_usd": 0.000531,
+  "tokens": {
+   "prompt": 4504,
+   "completion": 162
+  },
+  "latency_ms": 3989,
+  "tools": [
+   "preload"
+  ],
+  "answer": "Según el nodo 2 (máster de 2 años), el saldo mínimo es CHF -18'600 y la primera vez que queda en negativo es el mes 7. Los supuestos implicados son el coste del semestre (AS-tuition-semester, CHF 2'500 al año) y el salario durante el máster, que no genera ingresos hasta el mes 24. Por eso, durante los años de estudio, los gastos y las matrículas no quedan cubiertos por ingresos.",
+  "error": null
+ },
+ {
+  "model": "anthropic/claude-haiku-5.5",
+  "question": "What changes if I take the student loan instead?",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "en",
+  "cost_usd": 0.001106,
+  "tokens": {
+   "prompt": 9403,
+   "completion": 332
+  },
+  "latency_ms": 11983,
+  "tools": [
+   "preload",
+   "compare_nodes"
+  ],
+  "answer": "Taking the student loan (node 2.2) gives a median final net worth of CHF 142'345 over 120 months, with a 10–90% range of CHF 122'934 to CHF 144'985. Its cash dips below zero first at month 21, with a lowest point of CHF -3'600. Compared with working part-time (node 2.1), that is CHF 24'972 lower at the median, and the part-time option never goes negative; the main driver is the salary assumption AS-salary-master-ch, and the loan rate AS-loan-rate (2%) has only a small effect.",
+  "error": null
+ },
+ {
+  "model": "anthropic/claude-haiku-5.5",
+  "question": "Compare starting to work with moving abroad.",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "en",
+  "cost_usd": 0.000632,
+  "tokens": {
+   "prompt": 5073,
+   "completion": 250
+  },
+  "latency_ms": 2842,
+  "tools": [
+   "preload"
+  ],
+  "answer": "Node 1 (start working now) shows a final net worth median of CHF 150'656 (range CHF 133'117 to CHF 153'682 across the 10–90% band). Node 3 (move abroad and work) shows a median of CHF 96'201 (range CHF 80'687 to CHF 99'126). The biggest driver in node 3 is the abroad salary (AS-salary-abroad, currently CHF 3'700/month), and node 3's minimum cash is CHF 2'300 against CHF 8'000 in node 1.\n\nThese are conditional simulations, not forecasts, so the ranges matter as much as the medians. Node 1.2, which moves abroad after two years, lands at a median of CHF 105'802 and could be worth a look as a middle path.",
+  "error": null
+ },
+ {
+  "model": "anthropic/claude-haiku-5.5",
+  "question": "Et si le salaire junior était de 3800 francs ?",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "fr",
+  "cost_usd": 0.001278,
+  "tokens": {
+   "prompt": 11293,
+   "completion": 298
+  },
+  "latency_ms": 6359,
+  "tools": [
+   "preload",
+   "what_if"
+  ],
+  "answer": "Avec un salaire junior de CHF 3800 au lieu de CHF 4200 (assumption AS-salary-junior-ch, option 1), la valeur médiane du patrimoine final baisse à CHF 102'656, contre CHF 150'656 auparavant, soit une différence de CHF -48'000. La fourchette 10–90 % passe à CHF 86'717 – CHF 105'682. Il s'agit d'une simulation conditionnelle, pas d'une prévision.",
+  "error": null
+ },
+ {
+  "model": "anthropic/claude-haiku-5.5",
+  "question": "Which assumption matters most here?",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "en",
+  "cost_usd": 0.000544,
+  "tokens": {
+   "prompt": 4929,
+   "completion": 103
+  },
+  "latency_ms": 2452,
+  "tools": [
+   "preload"
+  ],
+  "answer": "Current node 3 (Move abroad and work) has its top sensitivity listed as AS-salary-abroad: a +10% change moves final net worth by CHF 44'400. The next one is AS-relocation-cost, where +10% moves it by CHF -650. These figures come straight from the loaded results for node 3.",
+  "error": null
+ },
+ {
+  "model": "anthropic/claude-haiku-5.5",
+  "question": "Should I do the master's? Just tell me what's best.",
+  "mode": "llm",
+  "grounded_llm": true,
+  "advice": false,
+  "lang": "en",
+  "cost_usd": 0.000567,
+  "tokens": {
+   "prompt": 4500,
+   "completion": 235
+  },
+  "latency_ms": 2747,
+  "tools": [
+   "preload"
+  ],
+  "answer": "I can't tell you what's best, but I can show you what the simulation says about the master's path.\n\nNode 2 (master's, 2 years) has a median final net worth of CHF 143'660 (10–90% range CHF 124'250 to CHF 146'300), compared with CHF 150'656 median for node 1 (start working now). Node 2 also shows a minimum cash of CHF -18'600 from month 7, so it would need a buffer or a loan, and its liquidity is 3.81 months. Node 2.1 (part-time work during the master's) reaches a median of CHF 167'317 with no negative cash, which may be worth a look, since the top sensitivity there is the master's salary assumption AS-salary-master-ch.",
+  "error": null
+ }
+]

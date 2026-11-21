@@ -1,76 +1,114 @@
-"""Server-side voice (optional). Provider decision is OPEN: see api/VOICE.md.
+"""Server-side voice. The provider decision is OPEN; findings and the proposal are in api/VOICE.md.
 
-Default proposal: browser Web Speech API (free, no audio leaves the device for TTS).
-These endpoints exist as the server fallback, using Together (organizers' key):
-- STT: openai/whisper-large-v3 via /v1/audio/transcriptions
-- TTS: cartesia/sonic via /v1/audio/speech
-Each call is logged in USAGE with its estimated cost.
+Proposal: the browser does voice (Web Speech API), and the server is the fallback:
+- STT: OpenRouter chat model with audio input (default google/gemini-3.1-flash-lite), for
+  browsers without SpeechRecognition (Firefox) and for recorded voice notes.
+- TTS: Together /audio/speech when a working TOGETHER_API_KEY exists. OpenRouter's audio-output
+  model (gpt-audio-mini) is NOT used: in our test it answered instead of reading the text verbatim,
+  which could put numbers in the character's mouth that the engine never produced.
+Every call is logged in USAGE with its cost (OpenRouter reports it; Together cost is estimated).
 """
 from __future__ import annotations
 
+import base64
 import os
 import time
 
 import httpx
 
+from api import llm
 from api.llm import USAGE
 
+STT_PROVIDER = os.environ.get("STT_PROVIDER", "openrouter")  # openrouter | together
+STT_MODEL = os.environ.get("STT_MODEL", "google/gemini-3.1-flash-lite")
 TOGETHER = "https://api.together.xyz/v1"
-STT_MODEL = os.environ.get("STT_MODEL", "openai/whisper-large-v3")
+TOGETHER_STT_MODEL = "openai/whisper-large-v3"
 TTS_MODEL = os.environ.get("TTS_MODEL", "cartesia/sonic-2")
-# Price assumptions for logging (USD); update from provider pages. Together lists whisper
-# per audio minute and Cartesia per character.
-STT_USD_PER_MIN = float(os.environ.get("STT_USD_PER_MIN", "0.0015"))
-TTS_USD_PER_1K_CHARS = float(os.environ.get("TTS_USD_PER_1K_CHARS", "0.065"))
+STT_USD_PER_MIN = float(os.environ.get("STT_USD_PER_MIN", "0.0015"))  # Together whisper, estimate
+TTS_USD_PER_1K_CHARS = float(os.environ.get("TTS_USD_PER_1K_CHARS", "0.065"))  # Cartesia, estimate
 
-_TTS_VOICES = {"en": "friendly sidekick", "es": "friendly sidekick", "fr": "friendly sidekick",
-               "de": "friendly sidekick"}
+_FORMATS = {"wav": "wav", "mp3": "mp3", "mpeg": "mp3", "ogg": "ogg", "oga": "ogg", "webm": "ogg",
+            "flac": "flac", "m4a": "m4a", "aac": "aac", "aiff": "aiff"}
+STT_PROMPT = ("Transcribe this audio verbatim in the language spoken. Output only the transcript, "
+              "then on the last line 'LANG: <ISO 639-1 code>'.")
 
 
-def _key() -> str | None:
-    return os.environ.get("TOGETHER_API_KEY")
+class VoiceError(RuntimeError):
+    pass
 
 
 def status() -> dict:
-    return {"server_voice": bool(_key()), "stt_model": STT_MODEL, "tts_model": TTS_MODEL,
-            "recommended_client": "web-speech-api"}
+    return {"recommended_client": "web-speech-api",
+            "server_stt": STT_PROVIDER if (llm.available() if STT_PROVIDER == "openrouter"
+                                           else bool(os.environ.get("TOGETHER_API_KEY"))) else None,
+            "stt_model": STT_MODEL if STT_PROVIDER == "openrouter" else TOGETHER_STT_MODEL,
+            "server_tts": bool(os.environ.get("TOGETHER_API_KEY")), "tts_model": TTS_MODEL}
 
 
-def stt(audio: bytes, filename: str, language: str | None = None) -> dict:
-    if not _key():
-        return {"text": None, "error": "TOGETHER_API_KEY not set", "cost_usd": 0.0, "model": None}
+def _fmt(filename: str, content_type: str | None) -> str:
+    ext = (filename.rsplit(".", 1)[-1] if "." in filename else "").lower()
+    if ext in _FORMATS:
+        return _FORMATS[ext]
+    sub = (content_type or "").split("/")[-1].split(";")[0].lower()
+    return _FORMATS.get(sub, "wav")
+
+
+def stt(audio: bytes, filename: str, language: str | None = None, content_type: str | None = None) -> dict:
+    if STT_PROVIDER == "together":
+        return _stt_together(audio, filename, language)
+    if not llm.available():
+        raise VoiceError("OPENROUTER_API_KEY not set")
+    prompt = STT_PROMPT + (f" Expected language: {language}." if language else "")
+    msgs = [{"role": "user", "content": [
+        {"type": "text", "text": prompt},
+        {"type": "input_audio", "input_audio": {"data": base64.b64encode(audio).decode(), "format": _fmt(filename, content_type)}},
+    ]}]
+    r = llm.chat(msgs, model=STT_MODEL, purpose="stt", max_tokens=400, temperature=0)
+    text = (r["message"].get("content") or "").strip()
+    lang = language
+    lines = text.splitlines()
+    if lines and lines[-1].upper().startswith("LANG:"):
+        lang = lines[-1].split(":", 1)[1].strip().lower()[:2] or lang
+        text = "\n".join(lines[:-1]).strip()
+    return {"text": text, "language": lang, "cost_usd": round(r["cost_usd"], 6), "cost_is_estimate": False,
+            "model": r["model"], "provider_latency_ms": r["latency_ms"], "audio_bytes": len(audio)}
+
+
+def _stt_together(audio: bytes, filename: str, language: str | None) -> dict:
+    key = os.environ.get("TOGETHER_API_KEY")
+    if not key:
+        raise VoiceError("TOGETHER_API_KEY not set")
     t0 = time.perf_counter()
-    data = {"model": STT_MODEL, "response_format": "verbose_json"}
+    data = {"model": TOGETHER_STT_MODEL, "response_format": "verbose_json"}
     if language:
         data["language"] = language[:2]
-    r = httpx.post(f"{TOGETHER}/audio/transcriptions", data=data,
-                   files={"file": (filename, audio)},
-                   headers={"Authorization": f"Bearer {_key()}"}, timeout=60)
+    r = httpx.post(f"{TOGETHER}/audio/transcriptions", data=data, files={"file": (filename, audio)},
+                   headers={"Authorization": f"Bearer {key}"}, timeout=60)
     latency = int((time.perf_counter() - t0) * 1000)
     if r.status_code != 200:
-        return {"text": None, "error": f"together {r.status_code}: {r.text[:200]}", "cost_usd": 0.0,
-                "model": STT_MODEL}
+        raise VoiceError(f"together stt {r.status_code}: {r.text[:200]}")
     j = r.json()
     dur = float(j.get("duration") or 0.0)
     cost = dur / 60 * STT_USD_PER_MIN
-    USAGE.add({"ts": time.time(), "purpose": "stt", "model": STT_MODEL, "cost_usd": cost,
+    USAGE.add({"ts": time.time(), "purpose": "stt", "model": TOGETHER_STT_MODEL, "cost_usd": cost,
                "audio_seconds": dur, "latency_ms": latency})
     return {"text": (j.get("text") or "").strip(), "language": j.get("language"), "audio_seconds": dur,
-            "cost_usd": round(cost, 6), "cost_is_estimate": True, "model": STT_MODEL, "provider_latency_ms": latency}
+            "cost_usd": round(cost, 6), "cost_is_estimate": True, "model": TOGETHER_STT_MODEL,
+            "provider_latency_ms": latency}
 
 
 def tts(text: str, language: str | None = None, voice: str | None = None) -> tuple[bytes, dict]:
-    if not _key():
-        raise RuntimeError("TOGETHER_API_KEY not set")
+    key = os.environ.get("TOGETHER_API_KEY")
+    if not key:
+        raise VoiceError("server TTS unavailable: use the browser speechSynthesis (see api/VOICE.md)")
     t0 = time.perf_counter()
     lang = (language or "en")[:2]
-    body = {"model": TTS_MODEL, "input": text[:2000], "voice": voice or _TTS_VOICES.get(lang, "friendly sidekick"),
+    body = {"model": TTS_MODEL, "input": text[:2000], "voice": voice or "friendly sidekick",
             "response_format": "mp3", "language": lang}
-    r = httpx.post(f"{TOGETHER}/audio/speech", json=body,
-                   headers={"Authorization": f"Bearer {_key()}"}, timeout=60)
+    r = httpx.post(f"{TOGETHER}/audio/speech", json=body, headers={"Authorization": f"Bearer {key}"}, timeout=60)
     latency = int((time.perf_counter() - t0) * 1000)
     if r.status_code != 200:
-        raise RuntimeError(f"together tts {r.status_code}: {r.text[:200]}")
+        raise VoiceError(f"together tts {r.status_code}: {r.text[:200]}")
     cost = len(text) / 1000 * TTS_USD_PER_1K_CHARS
     USAGE.add({"ts": time.time(), "purpose": "tts", "model": TTS_MODEL, "cost_usd": cost,
                "chars": len(text), "latency_ms": latency})
