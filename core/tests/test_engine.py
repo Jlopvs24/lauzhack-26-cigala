@@ -701,3 +701,25 @@ def test_perf_fast_expand_and_lazy_explore():
     assert _best(lambda: expand(None, ["1"], exploration=False, sensitivity=False)) < 0.15
     assert _best(lambda: explore(None, ["1"])) < 0.4
     assert _best(lambda: expand(None, ["1"])) < 0.6
+
+
+# --- live validation (UBS 'technical execution & validation') -------------------
+
+def test_live_validation_passes_with_evidence():
+    from core import validation
+    r = validation()
+    assert r["all_passed"] and r["passed"] == r["total"] == 6, [c for c in r["checks"] if not c["passed"]]
+    ids = [c["id"] for c in r["checks"]]
+    assert ids == ["accounting_identities", "reproducibility", "monotonicity", "isolation", "ubs_starter_kit", "search_verified"]
+    assert r["checks"][0]["evidence"]["nodes"] == 40
+    assert all(c["detail"] and c["evidence"] for c in r["checks"])
+
+
+def test_live_validation_reports_failures_and_crashes(monkeypatch):
+    import importlib
+    v = importlib.import_module("core.validation")  # the package exports a function of the same name
+    monkeypatch.setattr(v, "CHECKS", [("bad", "fails", lambda: (False, "broken on purpose", {"x": 1})),
+                                      ("boom", "crashes", lambda: 1 / 0)])
+    r = v.validation()
+    assert not r["all_passed"] and r["passed"] == 0
+    assert r["checks"][1]["passed"] is False and "ZeroDivisionError" in r["checks"][1]["detail"]
