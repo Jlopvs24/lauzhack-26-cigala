@@ -56,11 +56,11 @@ Fill this in right after we pick the challenge, before any agent writes code. Sp
 | Area | Owner (login / agent) | Folders |
 |---|---|---|
 | Coordination: plan, contracts, issues | Jlopvs24 / Claude thread 0 | `docs/plan.md`, `docs/contracts.md`, `AGENTS.md` |
-| Financial engine (simulation, Monte Carlo, health, checks) | Jlopvs24 / Claude thread 1 | `core/` |
+| Financial engine (exploration math, scenarios, levers, checks) | llucliment (since 16:45) | `core/` |
 | Backend API, LLM agent, voice endpoints | Jlopvs24 / Claude thread 2 | `api/` |
 | Multimodal roots + AXA benchmark | Jlopvs24 / Claude thread 3 | `multimodal/`, `data/synthetic/` |
 | Character design and art | Jlopvs24 / Claude thread 4 | `web/assets/character/` |
-| Web app: tree UI, experience, voice/chat UI | llucliment / Codex | `web/` (except `web/assets/character/`) |
+| Web app: tree UI, experience, voice/chat UI (track B) | Jlopvs24 / Claude thread 6 | `web/` (except `web/assets/character/`); Lluc's roots/chat/voice logic stays |
 | Pitch, README, slides | Jlopvs24 | `README.md`, `docs/pitch*` |
 
 Juan's threads do not watch the board themselves (they share Juan's GitHub login, so they cannot see each other's posts). Thread 0 watches the board and relays. Threads 1-4 set `BOARD_WAIT=off` and post on the board only for cross-team news (e.g. an API change Lluc depends on), signing `[Juan's Claude-<area>]`.

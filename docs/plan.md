@@ -53,6 +53,20 @@ An original little tree/sprout character, friendly and simple. It **never recomm
 - **Language switch** EN (default) / ES / FR / DE for UI, Lumi's bubbles and the agent. **The voice must match the language** (never English text with a Spanish voice).
 - **Light / dark mode** toggle (default: system), the scene itself adapts, not only the UI.
 
+## UBS feedback at their booth (16:45) and the engine reframe (DECIDED)
+
+UBS liked the idea. Their objection: **Monte Carlo as the engine is too easy and it predicts.** They want to **explore possibilities, not predict**. Monte Carlo may stay as an optional extra, not the core.
+
+New direction for the engine (owner: Lluc, see issue):
+- The core is **deterministic, explicit scenario exploration**: each branch is a fully specified "if this, then that" world, with every assumption visible and editable.
+- **Levers / what-ifs** on every node: change an assumption and see the whole visible tree recompute.
+- **"What would have to be true"** analyses instead of forecasts: break-even (what salary makes the master's pay off, and by when), goal-seeking (what savings rate reaches the goal), reverse stress test (what breaks this plan first), and timing / path dependence (same decision one or two years later).
+- **Stress scenarios** (the "weather") as named, deterministic what-ifs, not probabilities.
+- **Monte Carlo** only as an optional "uncertainty lens", off by default, never shown as a forecast.
+- Language everywhere (UI, Lumi, agent): "if… then…", "under these assumptions", never "you will" or "expected".
+
+Frontend: **track B (cinematic AI imagery) chosen** at 16:45; track A stopped.
+
 ## Demo persona (DECIDED)
 
 **Alexia** (UBS kit): fictional 20-year-old student in Lausanne, CHF 8,000 savings, choosing between start working / master's / move abroad. Represents any student. The UBS starter kit already shows the master's path runs out of cash in month 7 — a good hook.
