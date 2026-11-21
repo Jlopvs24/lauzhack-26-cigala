@@ -33,7 +33,7 @@ export default function WeatherControl({ lang = 'en', tree, busy = false, onChan
   useEffect(() => {
     if (!open) return;
     const outside = (e) => { if (!root.current?.contains(e.target)) setOpen(false); };
-    const escape = (e) => { if (e.key === 'Escape') { setOpen(false); more.current?.focus(); } };
+    const escape = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); more.current?.focus(); } };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };

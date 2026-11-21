@@ -75,7 +75,7 @@ QUALITATIVE = {
         "chf_weak": ("Weak franc", "Income and costs in euros are worth more francs.", {"fx_factor": 1.1}),
     },
     "markets": {
-        "crash": ("Market crash", "Invested savings lose part of their value at the start.", {"return_shock": 0.7}),
+        "crash": ("Market crash", "Invested savings fall at the start, then returns follow the usual assumptions.", {"return_shock": 0.7, "return_shift": 0.0}),
         "boom": ("Market boom", "Invested savings earn more during the scenario.", {"return_shift": 0.05}),
     },
     "jobs": {
@@ -108,7 +108,7 @@ def qualitative_option(typ: str, level: str) -> dict:
     notes = [{"label": ASSUMPTION_LABELS[k][0], "value": round(v * ASSUMPTION_LABELS[k][1], 4),
               "unit": ASSUMPTION_LABELS[k][2]} for k, v in assumptions.items()]
     return {"id": f"{typ}:{level}", "type": typ, "level": level, "label": label, "description": description,
-            "defaults": {"start_month": 0, "duration_months": 1200 if typ == "fx" else 1 if (typ, level) == ("markets", "crash") else 24},
+            "defaults": {"start_month": 0, "duration_months": 1200 if typ == "fx" else 24},
             "assumptions": notes, "verified": False,
             "source": "Team-defined conditional scenario; sources provide context, not a calibrated joint forecast.",
             "sources": [SOURCES[k] for k in source_keys]}
@@ -171,7 +171,7 @@ def build_weather(events: list[dict] | None, H: int) -> WeatherArrays:
             if not duration.is_integer():
                 raise ValueError("weather duration must be an integer")
             duration = int(duration)
-            end = start + 1 if (typ, level) == ("markets", "crash") else min(H, start + duration)
+            end = min(H, start + duration)
             for field, value in QUALITATIVE[typ][level][2].items():
                 getattr(w, field)[start:start + 1 if field == "return_shock" else end] = value
             w.applied.append({**option, **p, "end_month": end})

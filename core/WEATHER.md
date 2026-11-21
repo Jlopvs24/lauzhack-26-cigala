@@ -20,7 +20,7 @@ integer start/duration fields are supported by the engine, not exposed by the ra
 | Optimistic | inflation 0.5%/year; real wage growth 2%; portfolio annual return shift +3 points; job-loss hazard multiplier 0.5 |
 | Inflation high / low | inflation 3% / 0%; wages keep their own path |
 | CHF strong / weak | EURCHF factor 0.9 / 1.1 |
-| Markets crash / boom | invested balance factor 0.7 once / portfolio annual return shift +5 points during the window |
+| Markets crash / boom | invested balance factor 0.7 once, then base returns / portfolio annual return shift +5 points during the window |
 | Jobs weak / strong | real wage growth 0% / 2%; job-loss hazard multiplier 2 / 0.5 |
 | Rates up / down | cash savings annual rate shift +1 / -1 percentage point, floored at zero |
 

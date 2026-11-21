@@ -78,3 +78,10 @@ def test_rate_shift_preserves_stochastic_identities_and_reproducibility():
     b = core.simulate_node(core.load_profile(), [], **kwargs)
     assert a['bands'] == b['bands']
     assert all(c['passed'] for c in a['checks'])
+
+
+def test_explicit_market_crash_replaces_macro_return_shift_but_shocks_only_once():
+    w = build_weather([{'type': 'scenario', 'level': 'optimistic'}, {'type': 'markets', 'level': 'crash'}], 36)
+    np.testing.assert_array_equal(w.return_shift, np.zeros(36))
+    assert w.return_shock[0] == 0.7
+    np.testing.assert_array_equal(w.return_shock[1:], np.ones(35))
