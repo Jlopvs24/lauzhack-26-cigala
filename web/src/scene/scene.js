@@ -167,9 +167,11 @@ export async function createScene({ world, labels, onTagClick }) {
       }
       if (p.t.slot) cands.unshift(p.t.slot);
       let best = null;
-      for (const [dx, dy] of cands) {
-        const x = p.x + dx, y = p.y + dy;
-        if (y < minY || y > maxY || x - p.t.w / 2 < 4 || x + p.t.w / 2 > W2 - 4) continue;
+      const lo = p.t.w / 2 + 4, hi = W2 - p.t.w / 2 - 4; // a card is slid fully on screen, never dropped for touching an edge
+      for (let [dx, dy] of cands) {
+        const x = Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)), y = p.y + dy;
+        dx = x - p.x;
+        if (y < minY || y > maxY) continue;
         const r = rectAt(x, y, p.t);
         const cost = taken.reduce((c, q) => c + overlap(r, q), 0) + fixed.reduce((c, q) => c + overlap(r, q), 0);
         if (cost === 0) { best = { dx, dy, r, cost }; break; }

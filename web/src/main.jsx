@@ -11,7 +11,8 @@ import { Assumptions } from './NodeDetail.jsx';
 import { createScene } from './scene/scene.js';
 import { visibleNodes, greyCodes } from './scene/geometry.js';
 import { createVoice } from './scene/voice.js';
-import { createNarrator, translateNode, t } from './scene/narration.js';
+import { createNarrator, translateNode, openingFor, t } from './scene/narration.js';
+import { splitSentences } from './scene/voice.js';
 import { renderReport } from './scene/report.js';
 import { cardHeadline } from './scene/headline.js';
 import PathReport from './report/PathReport.jsx';
@@ -71,6 +72,7 @@ function App() {
   const [convOpen, setConvOpen] = useState(false);
   const [pathReport, setPathReport] = useState(false);
   const [cost, setCost] = useState(0);
+  const [noVoice, setNoVoice] = useState(''); // language with no voice at all on this device
   const [weather, setWeather] = useState([]); // #65: things the user does not choose, on every visible node
 
   const worldRef = useRef(null), labelsRef = useRef(null), lumiRef = useRef(null), introRef = useRef(null);
@@ -91,13 +93,13 @@ function App() {
     lumi.current = createGuide(lumiRef.current, { mood: 70 });
     voice.current = createVoice({
       onTalking: (on) => lumi.current?.setTalking(on),
-      onNoVoice: (l) => setBubble((b) => (b.includes(t(l, 'noVoice')) ? b : `${b} ${t(l, 'noVoice')}`)),
+      onNoVoice: (l) => setNoVoice(l), // a discreet "DE: text only" note, not a sentence in the bubble
     });
     createScene({ world: worldRef.current, labels: labelsRef.current, onTagClick: (id, status) => onTag(id, status) }).then(async (s) => {
       if (disposed) { s.destroy(); return; }
       scene.current = s;
       s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), document.querySelector('.nav-back'), document.querySelector('.cmp-bar'), document.querySelector('.cmp-options-mount'),
-        document.querySelector('.top .brand'), ...document.querySelectorAll('#crumbs > span'), document.querySelector('.top-actions')].filter(Boolean) }));
+        document.querySelector('.top .brand'), ...document.querySelectorAll('#crumbs > span'), document.querySelector('.top-actions'), document.querySelector('.wx'), document.querySelector('.leaf-cta')].filter(Boolean) }));
       await s.intro();
       if (introRef.current) gsap.from(introRef.current.children, { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: 'power3.out' });
     });
@@ -126,6 +128,8 @@ function App() {
     const n = narrator.next(data, l, p ? JSON.stringify(p).length : 'demo', p?.display_name || 'Alexia');
     setBubble(n.text);
     if (!reportOpen()) voice.current?.speak(n.speak, l); // marked as narrated either way: no re-read later
+    // while the user reads, warm the voice with each child's opening (name + first sentence)
+    voice.current?.prefetch(data.nodes.filter((x) => x.status === 'child').map((x) => splitSentences(openingFor(x, l)).slice(0, 2).join(' ')).filter(Boolean), l);
     const cur = data.nodes.find((x) => x.node_id === data.current);
     if (cur?.result?.health?.score != null) lumi.current?.setMood(cur.result.health.score);
   }
@@ -330,7 +334,8 @@ function App() {
     <aside className="narration">
       <div id="lumi" ref={lumiRef} />
       <div className="say-col">
-        {bubble && !convOpen && <div className="say-card" aria-live="polite"><p>{bubble}</p></div>}
+        {bubble && !convOpen && <div className="say-card" aria-live="polite"><p>{bubble}</p>
+          {noVoice === lang && !muted && <span className="voice-note" title={t(lang, 'noVoice')}>{lang.toUpperCase()}: {t(lang, 'textOnly')}</span>}</div>}
       {started && cur && cur.node_id !== '0' && !pathReport && <div className="pz-mount">
         <MakeItMine key={cur.node_id} lang={lang} node={cur} path={path} profile={profile} assumptions={overrides}
           tr={(n) => translateNode(n, lang)} labelOf={(id) => tree.assumptions?.find((a) => a.id === id)?.label || id}

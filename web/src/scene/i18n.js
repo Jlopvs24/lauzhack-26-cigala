@@ -34,7 +34,7 @@ export const UI = {
     tagHealth: "Health", tagShort: (m) => `cash short from month ${m}`, tagOk: "cash stays positive",
     noEngine: "I can't reach the engine right now. Is the API running?", thinking: "Let me check the numbers…",
     noAnswer: "I couldn't answer that one.", noMic: "Voice input needs Chrome or Edge. You can type instead.",
-    noVoice: "No voice for this language on this device, so I'll stay silent. The text is all here.",
+    textOnly: "text only", noVoice: "No voice for this language on this device, so I'll stay silent. The text is all here.",
   },
   es: {
     leafEnd: "Has llegado al final de esta rama", openReport: "Abrir tu informe",
@@ -63,7 +63,7 @@ export const UI = {
     tagHealth: "Salud", tagShort: (m) => `sin liquidez desde el mes ${m}`, tagOk: "la liquidez se mantiene",
     noEngine: "Ahora no llego al motor. ¿Está la API en marcha?", thinking: "Déjame mirar los números…",
     noAnswer: "No he podido responder a eso.", noMic: "La voz necesita Chrome o Edge. Puedes escribir.",
-    noVoice: "Este dispositivo no tiene voz en este idioma, así que me quedo en silencio. Todo está en el texto.",
+    textOnly: "solo texto", noVoice: "Este dispositivo no tiene voz en este idioma, así que me quedo en silencio. Todo está en el texto.",
   },
   fr: {
     leafEnd: "Vous êtes au bout de cette branche", openReport: "Ouvrir votre rapport",
@@ -92,7 +92,7 @@ export const UI = {
     tagHealth: "Santé", tagShort: (m) => `trésorerie négative dès le mois ${m}`, tagOk: "la trésorerie reste positive",
     noEngine: "Je n'arrive pas à joindre le moteur. L'API tourne-t-elle ?", thinking: "Je regarde les chiffres…",
     noAnswer: "Je n'ai pas pu répondre à cela.", noMic: "La voix nécessite Chrome ou Edge. Vous pouvez écrire.",
-    noVoice: "Pas de voix pour cette langue sur cet appareil, je reste silencieux. Tout est dans le texte.",
+    textOnly: "texte seulement", noVoice: "Pas de voix pour cette langue sur cet appareil, je reste silencieux. Tout est dans le texte.",
   },
   de: {
     leafEnd: "Du bist am Ende dieses Astes", openReport: "Deinen Bericht öffnen",
@@ -121,7 +121,7 @@ export const UI = {
     tagHealth: "Gesundheit", tagShort: (m) => `Liquidität fehlt ab Monat ${m}`, tagOk: "Liquidität bleibt positiv",
     noEngine: "Ich erreiche die Engine gerade nicht. Läuft die API?", thinking: "Ich schaue mir die Zahlen an…",
     noAnswer: "Darauf konnte ich nicht antworten.", noMic: "Spracheingabe braucht Chrome oder Edge. Du kannst auch tippen.",
-    noVoice: "Auf diesem Gerät gibt es keine Stimme für diese Sprache, also bleibe ich still. Alles steht im Text.",
+    textOnly: "nur Text", noVoice: "Auf diesem Gerät gibt es keine Stimme für diese Sprache, also bleibe ich still. Alles steht im Text.",
   },
 };
 

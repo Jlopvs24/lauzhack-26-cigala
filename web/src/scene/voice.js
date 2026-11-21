@@ -1,133 +1,169 @@
 // Lumi's voice. The voice always matches the language: server Kokoro (/voice/tts) only for the
-// languages /health lists, else a browser voice whose lang matches, else silence (never English
+// languages /health lists, else a browser voice whose lang matches, else text only (never English
 // text read by a Spanish voice, or the reverse). Audio unlocks on the first user gesture.
+//
+// Speed under load: a paragraph is spoken sentence by sentence. The first sentence is requested
+// alone (short = fast), sentence k+1 is synthesised while k plays, every sentence is cached, and the
+// children's opening sentences are prefetched at low priority while the user reads. If the first
+// sentence is not ready in FIRST_MS, the browser voice of the same language reads the paragraph.
 import { SPEECH_LANG } from './i18n.js';
 
 const API = (import.meta.env?.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+export const FIRST_MS = 1500;
+
+/** Sentences as Lumi speaks them ("2.9 months" stays whole: a sentence ends at .!?… plus a space). */
+export function splitSentences(text) {
+  return String(text || '').split(/(?<=[.!?…])\s+/).map((s) => s.trim()).filter(Boolean);
+}
+
+/** Pick a browser voice for a language: exact locale, then same language; local voices first. */
+export function pickVoice(voices, lang) {
+  const want = (SPEECH_LANG[lang] || lang).toLowerCase();
+  const norm = (v) => String(v.lang || '').toLowerCase().replace('_', '-');
+  const rank = (v) => (norm(v) === want ? 0 : 2) + (v.localService ? 0 : 1);
+  return [...voices].filter((v) => norm(v) === want || norm(v).startsWith(`${lang}-`) || norm(v) === lang)
+    .sort((a, b) => rank(a) - rank(b))[0] || null;
+}
+
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
 export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {}) {
   let unlocked = false, muted = false, audio = null, seq = 0, serverLangs = [], disposed = false;
-  const inflight = new Set(); // AbortControllers of /voice/tts(/stream) requests: stop() aborts them all
-  function request(path, text, lang, ms) {
-    const c = new AbortController(); inflight.add(c);
-    const signal = AbortSignal.any ? AbortSignal.any([c.signal, AbortSignal.timeout(ms)]) : c.signal;
-    return fetch(`${API}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, language: lang }), signal }).finally(() => inflight.delete(c));
-  }
-  const cache = new Map(); // `${lang}|${text}` -> object URL: the same sentence is synthesised once
-  fetch(`${API}/health`).then((r) => r.json())
+  let preGen = 0, fgPending = 0;
+  const hasSpeech = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const health = fetch(`${API}/health`).then((r) => r.json())
     .then((h) => { if (h.voice?.kokoro?.available) serverLangs = h.voice.kokoro.languages || []; })
     .catch(() => {});
+  // Browser voices load late in Chrome (getVoices() is [] until 'voiceschanged').
+  let voices = hasSpeech ? speechSynthesis.getVoices() : [];
+  const voicesReady = !hasSpeech ? Promise.resolve() : voices.length ? Promise.resolve() : new Promise((ok) => {
+    const on = () => { voices = speechSynthesis.getVoices(); if (voices.length) { speechSynthesis.removeEventListener?.('voiceschanged', on); ok(); } };
+    speechSynthesis.addEventListener?.('voiceschanged', on);
+    setTimeout(ok, 1500);
+  });
+  const browserVoice = (lang) => (hasSpeech ? pickVoice(voices.length ? voices : (voices = speechSynthesis.getVoices()), lang) : null);
 
-  // Silence everything at once: the playing sentence, the browser voice, every TTS request in flight
-  // and whatever was queued after it (seq invalidates the rest of the paragraph).
+  // ---------- sentence cache: `${lang}|${sentence}` -> Promise<object URL> ----------
+  const cache = new Map();
+  const ctls = new Map(); // AbortController -> 'fg' | 'low'
+  function synth(sentence, lang, low = false) {
+    const key = `${lang}|${sentence}`;
+    const hit = cache.get(key);
+    if (hit) { cache.delete(key); cache.set(key, hit); return hit.p; } // LRU touch
+    const c = new AbortController(); ctls.set(c, low ? 'low' : 'fg');
+    if (!low) fgPending++;
+    const signal = AbortSignal.any ? AbortSignal.any([c.signal, AbortSignal.timeout(30000)]) : c.signal;
+    const entry = {};
+    entry.p = fetch(`${API}/voice/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: sentence, language: lang }), signal, priority: low ? 'low' : 'high' })
+      .then(async (r) => { if (!r.ok) throw new Error(`tts ${r.status}`); return (entry.url = URL.createObjectURL(await r.blob())); })
+      .catch((e) => { if (cache.get(key) === entry) cache.delete(key); throw e; })
+      .finally(() => { ctls.delete(c); if (!low) fgPending--; });
+    entry.p.catch(() => {});
+    cache.set(key, entry);
+    while (cache.size > 160) { const [k, e] = cache.entries().next().value; if (e.url) URL.revokeObjectURL(e.url); cache.delete(k); }
+    return entry.p;
+  }
+  function abort(kind) { for (const [c, k] of ctls) if (!kind || k === kind) { c.abort(); ctls.delete(c); } }
+
+  // Silence everything at once: the playing sentence, the browser voice, every foreground TTS
+  // request and the rest of the paragraph (seq invalidates it).
   function stop() {
     seq++;
-    for (const c of inflight) c.abort();
-    inflight.clear();
+    abort('fg');
     if (audio) { // pause() fires onpause, which resolves the sentence being awaited
       const a = audio; audio = null; a.onerror = null; a.pause(); a.removeAttribute('src'); a.load();
     }
     try { speechSynthesis.cancel(); } catch { /* not supported */ }
     onTalking(false);
   }
+  function cancelPrefetch() { preGen++; abort('low'); }
   // Lumi never talks to a page nobody is looking at: closing, leaving, hiding the tab or going back.
-  const onHidden = () => { if (document.visibilityState === 'hidden') stop(); };
-  const lifecycle = [['pagehide', stop], ['beforeunload', stop], ['popstate', stop], ['hashchange', stop]];
+  const silenceAll = () => { stop(); cancelPrefetch(); };
+  const onHidden = () => { if (document.visibilityState === 'hidden') silenceAll(); };
+  const lifecycle = [['pagehide', silenceAll], ['beforeunload', silenceAll], ['popstate', stop], ['hashchange', stop]];
   if (typeof window !== 'undefined') {
     for (const [ev, fn] of lifecycle) addEventListener(ev, fn);
     document.addEventListener('visibilitychange', onHidden);
   }
-  function browserVoice(lang) {
-    if (!('speechSynthesis' in window)) return null;
-    const vs = speechSynthesis.getVoices(), want = SPEECH_LANG[lang].toLowerCase();
-    return vs.find((v) => v.lang.toLowerCase() === want) || vs.find((v) => v.lang.toLowerCase().startsWith(lang)) || null;
-  }
-  // Server voice, streamed: /voice/tts/stream sends one WAV per sentence (NDJSON), so Lumi starts
-  // after the first sentence instead of waiting for the whole paragraph (a long French narration
-  // took longer than any sane timeout as one file). Falls back to /voice/tts, then the browser.
-  const b64url = (b64, type) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return URL.createObjectURL(new Blob([u], { type: type || 'audio/wav' })); };
+
   function playUrl(url, my) {
     return new Promise((resolve, reject) => {
       if (my !== seq) return resolve();
       audio = new Audio(url);
       audio.onplay = () => onTalking(true);
       audio.onended = () => resolve();
-      audio.onpause = () => { onTalking(false); resolve(); };
+      audio.onpause = () => resolve();
       audio.onerror = () => reject(new Error('audio'));
       audio.play().catch(reject);
     });
   }
-  async function* streamUrls(text, lang, my) {
-    const r = await request('/voice/tts/stream', text, lang, 60000);
-    if (!r.ok || !r.body) throw new Error(`tts stream ${r.status}`);
-    const rd = r.body.getReader(), dec = new TextDecoder();
-    let buf = '';
-    for (;;) {
-      const { value, done } = await rd.read();
-      if (my !== seq) { rd.cancel().catch(() => {}); return; }
-      buf += done ? '' : dec.decode(value, { stream: true });
-      let i;
-      while ((i = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
-        if (!line) continue;
-        const d = JSON.parse(line);
-        if (d.error) throw new Error(d.error);
-        if (d.audio_b64) yield b64url(d.audio_b64, d.media_type);
-      }
-      if (done) return;
-    }
+  function browserSpeak(sentences, v, my) {
+    if (my !== seq || !sentences.length) return;
+    sentences.forEach((s, i) => { // one utterance per sentence: Chrome cuts long utterances short
+      const u = new SpeechSynthesisUtterance(s);
+      u.voice = v; u.lang = v.lang; u.rate = 1.02;
+      if (i === 0) u.onstart = () => onTalking(true);
+      if (i === sentences.length - 1) u.onend = () => onTalking(false);
+      u.onerror = () => onTalking(false);
+      if (my === seq) speechSynthesis.speak(u);
+    });
   }
-  async function serverSpeak(text, lang, my) {
-    const key = `${lang}|${text}`;
-    let urls = cache.get(key);
-    if (urls) { for (const u of urls) { if (my !== seq) return; await playUrl(u, my); } return; }
-    urls = [];
-    let started = false, complete = false;
-    try {
-      // fetch sentence k+1 while sentence k plays
-      const it = streamUrls(text, lang, my);
-      let next = it.next();
-      for (;;) {
-        const { value, done } = await next;
-        if (done) { complete = true; break; }
-        if (my !== seq) break;
-        urls.push(value); started = true;
-        next = it.next(); next.catch(() => {});
-        await playUrl(value, my);
-      }
-    } catch (e) {
-      if (started || my !== seq) return; // mid-paragraph failure: stop quietly rather than restart
-      const r = await request('/voice/tts', text, lang, 30000);
-      if (!r.ok) throw new Error(`tts ${r.status}`);
-      const u = URL.createObjectURL(await r.blob());
-      urls = [u]; complete = true;
-      if (my === seq) await playUrl(u, my);
-    }
-    if (complete && urls.length) {
-      if (cache.size > 40) { const [k, us] = cache.entries().next().value; us.forEach((u) => URL.revokeObjectURL(u)); cache.delete(k); }
-      cache.set(key, urls);
-    }
-    if (my === seq) onTalking(false);
-  }
+
   async function speak(text, lang) {
     stop();
     if (muted || !unlocked || !text || disposed || document.visibilityState === 'hidden') return;
     const my = seq;
-    try {
-      if (!serverLangs.includes(lang)) throw new Error(`no server voice for ${lang}`);
-      await serverSpeak(text, lang, my);
-    } catch {
+    const parts = splitSentences(text);
+    await Promise.race([health, sleep(600)]);
+    if (my !== seq) return;
+    if (!serverLangs.includes(lang)) { // e.g. German: no Kokoro voice, the OS/Chrome voice reads it
+      await voicesReady;
       if (my !== seq) return;
       const v = browserVoice(lang);
-      if (!v) { onNoVoice(lang); return; }
-      const u = new SpeechSynthesisUtterance(text);
-      u.voice = v; u.lang = v.lang; u.rate = 1.02;
-      u.onstart = () => onTalking(true);
-      u.onend = u.onerror = () => onTalking(false);
-      if (my === seq) speechSynthesis.speak(u);
+      if (v) browserSpeak(parts, v, my); else onNoVoice(lang);
+      return;
+    }
+    // first sentence as soon as possible; the browser voice takes over if the server is slow
+    const first = synth(parts[0], lang);
+    const ready = await Promise.race([first.then(() => true, () => false), sleep(FIRST_MS).then(() => null)]);
+    if (my !== seq) return;
+    if (ready !== true) {
+      const v = browserVoice(lang);
+      if (v) { browserSpeak(parts, v, my); return; }
+      if (ready === false) { onNoVoice(lang); return; }
+    }
+    for (let k = 0; k < parts.length; k++) {
+      let url;
+      try { url = await synth(parts[k], lang); } catch {
+        if (my !== seq) return;
+        const v = browserVoice(lang); // mid-paragraph failure: the browser finishes the paragraph
+        if (v) browserSpeak(parts.slice(k), v, my); else onTalking(false);
+        return;
+      }
+      if (my !== seq) return;
+      if (parts[k + 1]) synth(parts[k + 1], lang).catch(() => {}); // next sentence while this one plays
+      try { await playUrl(url, my); } catch { /* a broken clip: skip to the next sentence */ }
+      if (my !== seq) return;
+    }
+    onTalking(false);
+  }
+
+  /** Warm the cache with what Lumi will probably say next (children's openings). Low priority,
+   *  one request at a time, only while no narration is being synthesised; cancelled on navigation. */
+  async function prefetch(texts, lang) {
+    cancelPrefetch();
+    const g = preGen;
+    await Promise.race([health, sleep(600)]);
+    if (muted || disposed || !serverLangs.includes(lang)) return;
+    const todo = [...new Set(texts.flatMap(splitSentences))].filter((s) => !cache.has(`${lang}|${s}`));
+    for (const s of todo) {
+      while (fgPending > 0) { if (g !== preGen) return; await sleep(250); }
+      if (g !== preGen || disposed || document.visibilityState === 'hidden') return;
+      try { await synth(s, lang, true); } catch { /* aborted or failed: never mind */ }
     }
   }
+
   return {
     unlock() {
       if (unlocked) return;
@@ -135,14 +171,14 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
       try { const a = new Audio(); a.muted = true; a.play().catch(() => {}); } catch { /* ignore */ }
       try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch { /* ignore */ }
     },
-    speak, stop,
+    speak, stop, prefetch, cancelPrefetch,
     /** The app is going away: silence, and never speak again from this instance. */
     dispose() {
-      disposed = true; stop();
+      disposed = true; silenceAll();
       for (const [ev, fn] of lifecycle) removeEventListener(ev, fn);
       document.removeEventListener('visibilitychange', onHidden);
     },
-    setMuted(m) { muted = m; if (m) stop(); },
+    setMuted(m) { muted = m; if (m) { stop(); cancelPrefetch(); } },
     get muted() { return muted; },
   };
 }

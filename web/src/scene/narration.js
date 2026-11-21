@@ -13,6 +13,14 @@ export function translateNode(n, lang) {
   return { label: x[0], desc: same ? x[1] : n.description || '', known: true, descKnown: same };
 }
 
+// The opening Lumi says when arriving at a node (its name and description), as storyFor builds it:
+// what the voice prefetches for the children while the user is still reading.
+export function openingFor(n, lang) {
+  const c = translateNode(n, lang);
+  if (!c.known) return '';
+  return `${c.label}. ${c.descKnown ? c.desc.replace(/([^.])$/, '$1.') : ''}`.trim();
+}
+
 export function storyFor(data, lang, who = 'Alexia') {
   const S = STORY[lang] || STORY.en;
   const cur = data.nodes.find((n) => n.node_id === data.current);

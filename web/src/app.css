@@ -89,6 +89,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #lumi .guide-say { display: none !important; }
 .say-card { pointer-events: auto; margin-bottom: 18px; padding: 16px 20px; border-radius: 18px 18px 18px 6px; background: rgba(250, 248, 242, 0.92); color: #1d2420; border: 1px solid rgba(255, 255, 255, 0.6); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); font-size: 15px; line-height: 1.5; transform-origin: 0 100%; }
 .say-card p { margin: 0; }
+.say-card .voice-note { display: inline-block; margin-top: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11px; letter-spacing: 0.04em; color: var(--card-muted, #5d6660); border: 1px solid currentColor; opacity: 0.8; }
 
 
 /* ---------- report ---------- */
