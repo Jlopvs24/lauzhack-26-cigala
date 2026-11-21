@@ -69,6 +69,14 @@ Suggestions for the engine (owner: Lluc, issue #21):
 
 Frontend: **track B (cinematic AI imagery) chosen** at 16:45; track A stopped.
 
+## Personal conditions → the tree re-grows (DECIDED 20:05, the core value-add)
+
+The user can attach their OWN conditions to any branch, in words or voice, and the engine recomputes that branch and everything below it. Example: on "Do a master's" the user says "I'd get a CHF 600/month scholarship" or "I'd combine it with a 40% job": the master's card and all its children update, and new possibilities appear.
+
+- **Two modes**: (a) *condition* = patch the chosen node (its subtree inherits it, cards recompute); (b) *new branch* = add a custom sibling ("Master's with scholarship") to compare against the original.
+- **Flow**: chat/voice/text → `POST /tree/personalize` (LLM parses into the intervention schema using only the node's levers/assumptions; numbers come from the user, never invented; validation + ranges; asks one clarifying question if needed) → proposal chip the user confirms → `POST /tree/expand` with `custom_nodes` / `node_patches` → branch re-grows, custom items marked, siblings re-compared, report and Lumi include the conditions. Session-persisted.
+- **Ownership**: core support for `custom_nodes` / `node_patches` (thread 1, with Lluc's OK since he owns core/) · `/tree/personalize` + agent tool (thread 2) · proposal/confirm UI component in `web/src/personalize/` (thread 7) mounted by the scene (thread 6).
+
 ## Demo persona (DECIDED)
 
 **Alexia** (UBS kit): fictional 20-year-old student in Lausanne, CHF 8,000 savings, choosing between start working / master's / move abroad. Represents any student. The UBS starter kit already shows the master's path runs out of cash in month 7 — a good hook.
