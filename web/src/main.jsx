@@ -1,139 +1,283 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { pathToNode, validateTree } from './tree.js';
-import NodeDetail from './NodeDetail.jsx';
-import { money } from './results.js';
+import gsap from 'gsap';
+import { createGuide } from '../assets/character/guide/guide.js';
+import '../assets/character/guide/guide.css';
 import { apiRequest } from './api.js';
+import { pathToNode, validateTree } from './tree.js';
 import Roots from './Roots.jsx';
 import Chat from './Chat.jsx';
-import './style.css';
+import { Assumptions } from './NodeDetail.jsx';
+import { createScene } from './scene/scene.js';
+import { visibleNodes, greyCodes } from './scene/geometry.js';
+import { createVoice } from './scene/voice.js';
+import { createNarrator, translateNode, t } from './scene/narration.js';
+import { renderReport } from './scene/report.js';
+import { UI, LANGS } from './scene/i18n.js';
+import './app.css';
 
-function Branch({ node, current, busy, onChoose }) {
-  const metrics = node.result.metrics;
-  const selected = node.node_id === current;
-  return <button className={`branch ${node.status} ${selected ? 'current' : ''}`}
-    disabled={busy || selected} aria-current={selected ? 'step' : undefined}
-    onClick={() => onChoose(node.node_id)}>
-    <span className="branch-top"><span className="branch-dot" />
-      {selected ? 'Your current branch' : node.status === 'sibling' ? 'Alternative path' : 'Explore this option'}
-      <span className="arrow" aria-hidden="true">↗</span></span>
-    <h3>{node.label}</h3>
-    <dl className="metrics">
-      <div><dt>Median final net worth</dt><dd>{money(metrics.final_net_worth_p50)}</dd></div>
-      <div><dt>Lowest cash balance</dt><dd className={metrics.min_cash < 0 ? 'negative' : ''}>{money(metrics.min_cash)}</dd></div>
-    </dl>
-    <span className={`cash-note ${metrics.first_negative_month != null ? 'warning' : ''}`}>
-      {metrics.first_negative_month != null
-        ? `Financing needed from month ${metrics.first_negative_month + 1}`
-        : 'No negative cash in this simulation'}</span>
-  </button>;
+const CALL_URL = import.meta.env?.VITE_CALL_URL || 'http://127.0.0.1:8000/call';
+const store = { get: (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
+
+function tagMeta(n, lang) {
+  const m = n.result?.metrics, h = n.result?.health;
+  if (!m || !(n.status === 'child' || n.status === 'sibling')) return '';
+  const cash = m.first_negative_month != null ? `<span class="warn">${t(lang, 'tagShort')(m.first_negative_month + 1)}</span>` : t(lang, 'tagOk');
+  return `${t(lang, 'tagHealth')} <b>${Math.round(h?.score ?? 0)}</b> · ${cash}`;
 }
 
 function App() {
+  const [lang, setLang] = useState(() => (UI[store.get('cigala.lang', 'en')] ? store.get('cigala.lang', 'en') : 'en'));
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || 'light');
+  const [started, setStarted] = useState(false);
+  const [sheet, setSheet] = useState(null); // 'roots' | null
+  const [panel, setPanel] = useState(null); // 'report' | 'chat' | null
+  const [demoProfile, setDemoProfile] = useState(null);
+  const [profile, setProfile] = useState(null); // null = the API's demo persona
   const [tree, setTree] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [busy, setBusy] = useState(true);
-  const [error, setError] = useState('');
   const [overrides, setOverrides] = useState([]);
-  const [sessionCost, setSessionCost] = useState(0);
-  const [retryRequest, setRetryRequest] = useState({ path: [], assumptions: [], profile: null });
-  const controller = useRef(null);
-  const heading = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [bubble, setBubble] = useState('');
+  const [muted, setMuted] = useState(false);
+  const [lens, setLens] = useState(false);
+  const [lensPending, setLensPending] = useState(false);
+  const [question, setQuestion] = useState('');
+  const [cost, setCost] = useState(0);
 
-  function addCost(cost) { if (Number.isFinite(cost) && cost > 0) setSessionCost(previous => previous + cost); }
+  const worldRef = useRef(null), labelsRef = useRef(null), lumiRef = useRef(null), introRef = useRef(null);
+  const scene = useRef(null), lumi = useRef(null), voice = useRef(null);
+  const narrator = useMemo(() => createNarrator(), []);
+  const seen = useRef(new Map());
+  const state = useRef({}); // latest values for imperative callbacks
+  state.current = { tree, lang, profile, overrides, lens, busy };
 
-  async function expand(path, moveFocus = true, assumptions = overrides, nextProfile = profile) {
-    controller.current?.abort();
-    const request = new AbortController();
-    controller.current = request;
-    setBusy(true);
-    setError('');
-    setRetryRequest({ path, assumptions, profile: nextProfile });
-    try {
-      const data = validateTree(await apiRequest('/tree/expand', {
-        body: { path, assumptions, profile: nextProfile }, signal: request.signal,
-      }));
-      if (request.signal.aborted) return;
-      setTree(data);
-      setOverrides(assumptions);
-      if (nextProfile) setProfile(nextProfile);
-      addCost(data.cost_usd);
-      if (moveFocus) requestAnimationFrame(() => heading.current?.focus());
-    } catch (failure) {
-      if (!request.signal.aborted) setError(failure instanceof TypeError
-        ? 'Cannot reach the simulation API. Start the backend on port 8000, then retry.' : failure.message);
-    } finally {
-      if (!request.signal.aborted) setBusy(false);
-    }
-  }
+  const addCost = (c) => { if (Number.isFinite(c) && c > 0) setCost((x) => x + c); };
+  const path = tree ? pathToNode(tree.nodes, tree.current) : [];
 
+  // ---------- scene, Lumi and voice: created once ----------
   useEffect(() => {
-    expand([], false);
-    const profileRequest = new AbortController();
-    apiRequest('/profiles/demo', { method: 'GET', signal: profileRequest.signal })
-      .then(data => { if (!profileRequest.signal.aborted) setProfile(data?.profile || null); })
-      .catch(() => {}); // The tree remains usable if optional profile details are unavailable.
-    return () => { controller.current?.abort(); profileRequest.abort(); };
+    let disposed = false;
+    lumi.current = createGuide(lumiRef.current, { mood: 70 });
+    voice.current = createVoice({
+      onTalking: (on) => lumi.current?.setTalking(on),
+      onNoVoice: (l) => setBubble((b) => (b.includes(t(l, 'noVoice')) ? b : `${b} ${t(l, 'noVoice')}`)),
+    });
+    createScene({ world: worldRef.current, labels: labelsRef.current, onTagClick: (id, status) => onTag(id, status) }).then(async (s) => {
+      if (disposed) { s.destroy(); return; }
+      scene.current = s;
+      await s.intro();
+      if (introRef.current) gsap.from(introRef.current.children, { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: 'power3.out' });
+    });
+    apiRequest('/profiles/demo', { method: 'GET' }).then((d) => setDemoProfile(d?.profile || null)).catch(() => {});
+    const onResize = () => { const s = state.current; if (s.tree) scene.current?.refit(s.tree.current); };
+    addEventListener('resize', onResize);
+    return () => { disposed = true; removeEventListener('resize', onResize); scene.current?.destroy(); voice.current?.stop(); lumi.current?.destroy?.(); };
   }, []);
 
-  function choose(id) {
-    try { expand(pathToNode(tree.nodes, id)); }
-    catch (failure) { setError(failure.message); }
+  useEffect(() => { document.documentElement.lang = lang; store.set('cigala.lang', lang); }, [lang]);
+  useEffect(() => { document.documentElement.dataset.theme = theme; store.set('cigala.theme', theme); }, [theme]);
+  useEffect(() => { voice.current?.setMuted(muted); }, [muted]);
+
+  // ---------- narration ----------
+  function say(text, spoken = text) {
+    setBubble(text);
+    voice.current?.speak(spoken, state.current.lang);
+  }
+  function narrateNode(data, l = state.current.lang) {
+    const p = state.current.profile;
+    const n = narrator.next(data, l, p ? JSON.stringify(p).length : 'demo', p?.display_name || 'Alexia');
+    setBubble(n.text);
+    voice.current?.speak(n.speak, l);
+    const cur = data.nodes.find((x) => x.node_id === data.current);
+    if (cur?.result?.health?.score != null) lumi.current?.setMood(cur.result.health.score);
   }
 
-  const chosen = tree?.nodes.filter(node => node.status === 'chosen') || [];
-  const alternatives = tree?.nodes.filter(node => node.status === 'sibling') || [];
-  const children = tree?.nodes.filter(node => node.status === 'child') || [];
-  const current = tree?.nodes.find(node => node.node_id === tree.current);
-  const path = tree ? pathToNode(tree.nodes, tree.current) : [];
-  const mock = tree?.engine === 'mock';
+  // ---------- data + camera ----------
+  function tagItems(data, l) {
+    return visibleNodes(data, seen.current)
+      .filter((n) => n.node_id !== data.current && n.status !== 'chosen')
+      .map((n) => ({ id: n.node_id, status: n.status, name: translateNode(n, l).label, meta: tagMeta(n, l), clickable: n.status === 'child' || n.status === 'sibling' }));
+  }
+  async function fetchTree(p, opts = {}) {
+    const s = state.current;
+    const body = { path: p, assumptions: opts.assumptions ?? s.overrides, uncertainty: opts.lens ?? s.lens };
+    const prof = opts.profile !== undefined ? opts.profile : s.profile;
+    if (prof) body.profile = prof;
+    const data = validateTree(await apiRequest('/tree/expand', { body }));
+    addCost(data.cost_usd);
+    return data;
+  }
+  async function go(p, opts = {}) {
+    if (state.current.busy && !opts.force) return;
+    setBusy(true); setError('');
+    voice.current?.unlock();
+    voice.current?.stop();
+    const deeper = p.length > (state.current.tree ? pathToNode(state.current.tree.nodes, state.current.tree.current).length : -1);
+    try {
+      const data = await fetchTree(p, opts);
+      if (opts.assumptions) setOverrides(opts.assumptions);
+      setTree(data);
+      const vis = visibleNodes(data, seen.current);
+      const l = state.current.lang;
+      setTimeout(() => narrateNode(data, l), deeper ? 900 : 600);
+      await scene.current?.show({
+        pathIds: data.path, current: data.current, grey: greyCodes(vis), deeper,
+        tagItems: tagItems(data, l), childIds: data.nodes.filter((n) => n.status === 'child').map((n) => n.node_id),
+      });
+    } catch (e) {
+      setError(e instanceof TypeError ? t(state.current.lang, 'noEngine') : e.message);
+    } finally { setBusy(false); }
+  }
+  function onTag(id, status) {
+    const s = state.current;
+    if (!s.tree || s.busy) return;
+    const p = pathToNode(s.tree.nodes, s.tree.current);
+    if (status === 'child') go([...p, id]);
+    else if (status === 'sibling') go([...p.slice(0, -1), id]); // switch sideways, same level
+  }
+  function back() { const s = state.current; if (s.tree && !s.busy) { const p = pathToNode(s.tree.nodes, s.tree.current); if (p.length) go(p.slice(0, -1)); } }
 
-  return <div className="app">
-    <header className="header"><a className="brand" href="/" aria-label="cigala home"><span aria-hidden="true">✳</span> cigala<span className="brand-period">.</span></a>
-      <span className="header-note">A little clarity. Room to grow.</span>
-      <span className="demo-label">FICTIONAL DEMO</span></header>
-    <main>
-      <section className="intro"><div><p className="eyebrow">YOUR TREE OF POSSIBILITIES</p>
-        <h1>One choice.<br /><em>Room for many futures.</em></h1>
-        <p className="intro-text">Explore how life's decisions shape your finances.<br />Follow a branch, compare the trade-offs, and change your mind.</p></div>
-        <aside className="profile"><span className="profile-icon" aria-hidden="true">{profile?.display_name?.[0] || 'A'}</span>
-          <div><span className="eyebrow">MEET YOUR STARTING POINT</span><h2>{profile?.display_name || 'Alexia'}'s story</h2>
-            <p>{profile ? `${profile.age} years old · ${profile.city}` : 'Fictional student · Lausanne'}</p></div>
-          {profile && <dl><div><dt>Starting cash</dt><dd>{money(profile.cash)}</dd></div>
-            <div><dt>Monthly net income</dt><dd>{money(profile.monthly_net_income)}</dd></div></dl>}
-        </aside></section>
-      <Roots profile={profile} busy={busy} onCost={addCost} onApply={next => expand([], true, [], next)} />
+  async function begin(prof) {
+    if (started) return;
+    voice.current?.unlock();
+    setProfile(prof); setSheet(null); setStarted(true);
+    narrator.reset(); seen.current.clear();
+    await scene.current?.rise();
+    go([], { profile: prof, force: true });
+  }
 
-      <section className="workspace" aria-labelledby="tree-heading" aria-busy={busy}>
-        <div className="workspace-heading"><div><p className="eyebrow">EXPLORE, ONE STEP AT A TIME</p>
-          <h2 id="tree-heading" tabIndex="-1" ref={heading}>{path.length ? 'Your path is taking shape.' : 'Where would you like to grow?'}</h2></div>
-          <button className="back" disabled={busy || !path.length} onClick={() => expand(path.slice(0, -1))}>← Back one step</button></div>
-        <div role="status" className="status">{busy ? 'Calculating the visible branches…' : tree
-          ? `${tree.nodes.length} visible nodes · ${current?.result.horizon_months ?? '—'}-month horizon · ${mock ? 'Mock engine — illustrative results' : 'Simulation results'}`
-          : 'Connect the simulation API to start exploring.'}</div>
-        {error && <div className="error" role="alert"><p>{error}</p><button onClick={() => expand(retryRequest.path, true, retryRequest.assumptions, retryRequest.profile)} disabled={busy}>Retry simulation</button></div>}
+  // relabel and re-narrate on language change (new language = new content)
+  useEffect(() => {
+    if (!tree) return;
+    scene.current?.setTags(tagItems(tree, lang));
+    narrateNode(tree, lang);
+  }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
-        {tree && <div className="tree">
-          <nav className="path" aria-label="Chosen decision path">{chosen.filter(node => node.node_id !== tree.current).map((node, index) =>
-            <React.Fragment key={node.node_id}><button disabled={busy} onClick={() => choose(node.node_id)}>
-              <span className="path-number">{index === 0 ? '○' : index}</span>{node.label}</button><span className="path-connector" aria-hidden="true" /></React.Fragment>)}</nav>
-          {current && <div className="current-row"><Branch node={current} current={tree.current} busy={busy} onChoose={choose} /></div>}
-          {!!alternatives.length && <details className="alternatives" open><summary>Other paths at this decision · {alternatives.length}</summary>
-            <div className="alternative-grid">{alternatives.map(node => <Branch key={node.node_id} node={node} current={tree.current} busy={busy} onChoose={choose} />)}</div></details>}
-          {!!children.length && <><div className="growth-line" aria-hidden="true" /><p className="next-label">{path.length ? 'WHAT HAPPENS NEXT? PICK A BRANCH.' : 'THREE WAYS TO BEGIN. YOU CAN ALWAYS GO BACK.'}</p>
-            <div className="children">{children.map(node => <Branch key={node.node_id} node={node} current={tree.current} busy={busy} onChoose={choose} />)}</div></>}
-          {!children.length && <p className="leaf-note">You've reached the end of this branch. Go back to explore an alternative.</p>}
-          <div className="roots" aria-hidden="true">╲ │ ╱</div>
-        </div>}
-      </section>
-      {current && <NodeDetail node={current} peers={alternatives.length ? [current, ...alternatives] : [current, ...children]}
-        assumptions={tree.assumptions} busy={busy} onApply={next => expand(path, false, next)} />}
-      {current && <Chat key={current.result.trace_id} context={{ profile, path, node_id: tree.current, assumptions: overrides, weather: tree.weather || [] }}
-        disabled={busy} onCost={addCost} />}
-      <footer><p><strong>Possibilities, with perspective.</strong> These are conditional simulations, not guaranteed forecasts. {mock && 'The engine currently uses mock assumptions.'}</p>
-        <p>Session API cost: USD {sessionCost.toFixed(5)}. Your choices stay in this session.</p></footer>
+  // the uncertainty lens asks the engine for Monte Carlo only when switched on (#21)
+  async function toggleLens(on) {
+    setLens(on);
+    const cur = tree?.nodes.find((n) => n.node_id === tree.current);
+    if (!on || cur?.result?.metrics?.final_net_worth_p50 != null) return;
+    setLensPending(true);
+    try { setTree(await fetchTree(path, { lens: true })); } catch (e) { setError(e.message); } finally { setLensPending(false); }
+  }
+
+  // keyboard + wheel: one level back, never further
+  useEffect(() => {
+    let acc = 0, last = 0;
+    const onKey = (e) => { if (e.target.closest?.('input, textarea, select')) return; if (e.key === 'Escape') { if (panel) setPanel(null); else back(); } };
+    const onWheel = (e) => {
+      if (!started || e.target.closest?.('.drawer, .report')) return;
+      const now = performance.now(); if (now - last > 400) acc = 0; last = now; acc += e.deltaY;
+      if (acc < -160) { acc = 0; back(); }
+    };
+    addEventListener('keydown', onKey); addEventListener('wheel', onWheel, { passive: true });
+    return () => { removeEventListener('keydown', onKey); removeEventListener('wheel', onWheel); };
+  });
+
+  async function ask(e) {
+    e.preventDefault();
+    const q = question.trim();
+    if (!q || !tree) return;
+    voice.current?.unlock();
+    setQuestion('');
+    say(t(lang, 'thinking'), '');
+    try {
+      const out = await apiRequest('/agent/ask', { body: { question: q, context: { profile, path, node_id: tree.current, assumptions: overrides, language: lang } } });
+      addCost(out.cost_usd);
+      say(out.answer || t(lang, 'noAnswer'));
+    } catch { say(t(lang, 'noEngine')); }
+  }
+  function dictateAsk() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { say(t(lang, 'noMic')); return; }
+    const rec = new SR();
+    rec.lang = { en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE' }[lang];
+    voice.current?.stop();
+    rec.onresult = (ev) => setQuestion([...ev.results].map((r) => r[0].transcript).join(''));
+    rec.start();
+  }
+
+  const cur = tree?.nodes.find((n) => n.node_id === tree.current);
+  const crumbs = tree ? tree.path.map((id) => tree.nodes.find((n) => n.node_id === id)).filter(Boolean) : [];
+  const reportHTML = tree ? renderReport({ data: tree, lang, ui: UI[lang], tr: (n) => translateNode(n, lang), lens, lensPending }) : '';
+
+  return <>
+    <main id="stage" aria-label="Financial tree">
+      <div id="world" ref={worldRef} />
+      <div className="grade" aria-hidden="true" /><div className="moon" aria-hidden="true" />
+      <div className="mist mist-a" aria-hidden="true" /><div className="mist mist-b" aria-hidden="true" />
+      <div className="vignette" aria-hidden="true" /><div className="grain" aria-hidden="true" />
+      <div id="labels" ref={labelsRef} />
     </main>
-  </div>;
+
+    <header className="top">
+      <div className="brand"><span className="mark" aria-hidden="true" />cigala</div>
+      <nav id="crumbs" aria-label="Path">{crumbs.map((n) => <span key={n.node_id}>{translateNode(n, lang).label}</span>)}</nav>
+      <div className="top-actions">
+        <div className="seg" role="group" aria-label="Language">{Object.entries(LANGS).map(([k, v]) =>
+          <button key={k} type="button" aria-pressed={k === lang} onClick={() => setLang(k)}>{v}</button>)}</div>
+        <button className="ghost-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? t(lang, 'light') : t(lang, 'dark')}</button>
+        <button className="ghost-btn" aria-pressed={muted} onClick={() => { voice.current?.unlock(); setMuted(!muted); }}>{muted ? t(lang, 'soundOff') : t(lang, 'soundOn')}</button>
+        {tree && <button className={`ghost-btn ${panel === 'chat' ? 'on' : ''}`} onClick={() => setPanel(panel === 'chat' ? null : 'chat')}>{t(lang, 'chat')}</button>}
+        {tree && <button className={`ghost-btn ${panel === 'report' ? 'on' : ''}`} onClick={() => setPanel(panel === 'report' ? null : 'report')}>{t(lang, 'report')}</button>}
+      </div>
+    </header>
+
+    {started && path.length > 0 && <button className="nav-back" onClick={back} disabled={busy}>
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <span>{t(lang, 'back')}</span></button>}
+
+    {!started && !sheet && <section className="intro" ref={introRef}>
+      <p className="eyebrow">{t(lang, 'eyebrow')}</p>
+      <h1>{t(lang, 'h1a')}<br /><em>{t(lang, 'h1b')}</em></h1>
+      <p className="lede">{t(lang, 'lede')}</p>
+      <div className="choices">
+        <button className="primary" onClick={() => begin(null)}>{t(lang, 'demo')}</button>
+        <button className="secondary" onClick={() => { voice.current?.unlock(); setSheet('roots'); }}>{t(lang, 'own')}</button>
+      </div>
+      <p className="demo-note">{t(lang, 'demoNote')}</p>
+    </section>}
+
+    {sheet === 'roots' && <section className="drawer sheet" aria-labelledby="roots-title">
+      <button className="close" aria-label="Close" onClick={() => setSheet(null)}>×</button>
+      <h2 className="sheet-title" id="roots-title">{t(lang, 'rootsTitle')}</h2>
+      <p className="sheet-lede">{t(lang, 'rootsLede')}</p>
+      {demoProfile ? <Roots open profile={demoProfile} busy={busy} onCost={addCost} onApply={(p) => begin(p)} />
+        : <p>{t(lang, 'noEngine')}</p>}
+    </section>}
+
+    <aside className="narration" aria-live="polite">
+      <div id="lumi" ref={lumiRef} />
+      {bubble && <div className="say-card"><p>{bubble}</p></div>}
+    </aside>
+
+    {started && <form className="ask" autoComplete="off" onSubmit={ask}>
+      <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t(lang, 'ask')} aria-label={t(lang, 'ask')} />
+      <button type="button" className="icon-btn" aria-label="Speak your question" onClick={dictateAsk}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></button>
+      <button type="submit" className="icon-btn send" aria-label="Send">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
+    </form>}
+
+    {panel === 'report' && cur && <aside className="report drawer" aria-label="Report">
+      <button className="close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
+      <div onChange={(e) => { if (e.target.id === 'lensToggle') toggleLens(e.target.checked); }} dangerouslySetInnerHTML={{ __html: reportHTML }} />
+      <div className="drawer-inline"><Assumptions assumptions={tree.assumptions} busy={busy} onApply={(next) => go(path, { assumptions: next, force: true })} /></div>
+      <p className="note">{t(lang, 'sessionCost')} USD {cost.toFixed(4)}</p>
+    </aside>}
+
+    {panel === 'chat' && cur && <aside className="drawer side" aria-label="Conversation">
+      <button className="close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
+      <Chat key={`${tree.current}|${lang}`} context={{ profile, path, node_id: tree.current, assumptions: overrides, weather: tree.weather || [], language: lang }}
+        disabled={busy} onCost={addCost} speak={(text) => say(text)} />
+      <p><a className="call-link" href={CALL_URL} target="_blank" rel="noreferrer">{t(lang, 'call')}</a></p>
+    </aside>}
+
+    {busy && started && <div className="loading" role="status">{t(lang, 'loading')}</div>}
+    {error && <div className="error-toast" role="alert">{error}<button onClick={() => { setError(''); go(path, { force: true }); }}>{t(lang, 'retry')}</button></div>}
+  </>;
 }
 
 createRoot(document.getElementById('root')).render(<App />);

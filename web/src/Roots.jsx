@@ -4,7 +4,7 @@ import { profileFields, profileFromForm } from './profile.js';
 import { percent } from './results.js';
 import Dictation from './Dictation.jsx';
 
-export default function Roots({ profile, busy, onApply, onCost }) {
+export default function Roots({ profile, busy, onApply, onCost, open = false }) {
   const [draft, setDraft] = useState(profile);
   const [edited, setEdited] = useState([]);
   const [text, setText] = useState('');
@@ -44,7 +44,7 @@ export default function Roots({ profile, busy, onApply, onCost }) {
     catch (failure) { setError(failure.message); }
   }
   if (!profile) return null;
-  return <details className="roots-panel"><summary>Your roots · edit the starting profile</summary>
+  return <details className="roots-panel" open={open}><summary>Your roots · edit the starting profile</summary>
     <p>Use fictional information only. These fields update the starting point; the demo's decision options, assets, debts and goals remain attached to this profile.</p>
     <div className="roots-grid"><form onSubmit={apply}><fieldset disabled={busy || extracting}><legend>1. Review the starting point</legend>
       <div className="profile-fields">{profileFields.map(field => <label key={field.key}>{field.label}

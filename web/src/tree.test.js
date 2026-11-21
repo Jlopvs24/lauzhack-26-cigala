@@ -26,3 +26,10 @@ test('accept valid negative cash; reject incomplete, duplicate, or invalid API r
   assert.throws(() => validateTree({ ...data, nodes: [makeNode('study', null, 'pruned')] }));
   assert.throws(() => validateTree({ ...data, nodes: [{ ...nodes[1], result: {} }] }));
 });
+test('accept exploration-first results (p50 null) and pruned ghost branches', () => {
+  const det = (id, parent, status) => ({ node_id: id, parent_id: parent, status, label: id,
+    result: { deterministic: { final_net_worth: 120000 }, metrics: { final_net_worth_p50: null, min_cash: -10 } } });
+  const data = { current: 'study', path: ['root', 'study'], nodes: [det('root', null, 'chosen'), det('study', 'root', 'chosen'),
+    { node_id: 'work', parent_id: 'root', status: 'pruned', label: 'Work' }] };
+  assert.equal(validateTree(data), data);
+});

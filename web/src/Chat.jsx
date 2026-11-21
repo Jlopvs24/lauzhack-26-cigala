@@ -3,7 +3,7 @@ import { apiRequest } from './api.js';
 import Dictation from './Dictation.jsx';
 import VoiceNote from './VoiceNote.jsx';
 
-export default function Chat({ context, disabled, onCost }) {
+export default function Chat({ context, disabled, onCost, speak }) {
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
@@ -12,7 +12,7 @@ export default function Chat({ context, disabled, onCost }) {
   const [autoRead, setAutoRead] = useState(true);
   const request = useRef(null);
   const log = useRef(null);
-  const canSpeak = 'speechSynthesis' in window;
+  const canSpeak = !!speak || 'speechSynthesis' in window;
   useEffect(() => () => { request.current?.abort(); window.speechSynthesis?.cancel(); }, []);
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [messages]);
 
@@ -41,6 +41,7 @@ export default function Chat({ context, disabled, onCost }) {
     finally { if (!controller.signal.aborted) setBusy(false); }
   }
   function read(message) {
+    if (speak) { speak(message.content); return; } // Lumi's voice, matched to the UI language
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message.content);
     utterance.lang = { es: 'es-ES', fr: 'fr-FR', de: 'de-DE' }[message.data.language] || 'en-US';

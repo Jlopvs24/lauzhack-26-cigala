@@ -8,6 +8,7 @@ export const SPEECH_LANG = { en: "en-GB", es: "es-ES", fr: "fr-FR", de: "de-DE" 
 
 export const UI = {
   en: {
+    chat: "Conversation", call: "Call Lumi (live voice)", retry: "Retry", sessionCost: "Session API cost:",
     eyebrow: "A financial twin for students",
     h1a: "Every choice grows", h1b: "a different tree.",
     lede: "See what each path does to the next ten years, before you take it. Every number comes from a tested engine, never from the AI.",
@@ -33,6 +34,7 @@ export const UI = {
     noVoice: "No voice for this language on this device, so I'll stay silent. The text is all here.",
   },
   es: {
+    chat: "Conversación", call: "Llamar a Lumi (voz en directo)", retry: "Reintentar", sessionCost: "Coste de API de la sesión:",
     eyebrow: "Un gemelo financiero para estudiantes",
     h1a: "Cada decisión hace crecer", h1b: "un árbol distinto.",
     lede: "Mira qué hace cada camino con tus próximos diez años antes de tomarlo. Cada número sale de un motor verificado, nunca de la IA.",
@@ -58,6 +60,7 @@ export const UI = {
     noVoice: "Este dispositivo no tiene voz en este idioma, así que me quedo en silencio. Todo está en el texto.",
   },
   fr: {
+    chat: "Conversation", call: "Appeler Lumi (voix en direct)", retry: "Réessayer", sessionCost: "Coût API de la session :",
     eyebrow: "Un jumeau financier pour les étudiants",
     h1a: "Chaque choix fait pousser", h1b: "un autre arbre.",
     lede: "Voyez ce que chaque chemin change à vos dix prochaines années avant de le prendre. Chaque chiffre vient d'un moteur testé, jamais de l'IA.",
@@ -83,6 +86,7 @@ export const UI = {
     noVoice: "Pas de voix pour cette langue sur cet appareil, je reste silencieux. Tout est dans le texte.",
   },
   de: {
+    chat: "Gespräch", call: "Lumi anrufen (Live-Stimme)", retry: "Erneut versuchen", sessionCost: "API-Kosten der Sitzung:",
     eyebrow: "Ein finanzieller Zwilling für Studierende",
     h1a: "Jede Entscheidung lässt", h1b: "einen anderen Baum wachsen.",
     lede: "Sieh, was jeder Weg mit deinen nächsten zehn Jahren macht, bevor du ihn gehst. Jede Zahl kommt aus einer geprüften Engine, nie von der KI.",
