@@ -1,0 +1,68 @@
+# Plan — team cigala @ LauzHack 2026
+
+Status: living document, owned by the coordination thread. Decisions marked **DECIDED** are fixed; **OPEN** ones must not be assumed.
+
+## One project, three challenges
+
+One submission (LauzHack allows one project per team), opting into:
+
+| Challenge | What judges must understand we add |
+|---|---|
+| **UBS – AI Financial Twin** (main) | *Reliability*: every number comes from a deterministic, tested engine, never from the LLM. Explicit, editable assumptions with sources; uncertainty bands (Monte Carlo); sensitivity ("which assumption matters most"); calculation traces; accounting checks. |
+| **AXA – Frugal multimodal AI** | *Why not just send everything to a frontier model*: our pipeline (browser STT / OCR / small extraction model → structured JSON → engine; LLM only narrates) is cheaper, faster, more private and auditable. Proven with a **measured benchmark** on synthetic documents with known ground truth (accuracy, cost, latency vs. a big model). Cost per session visible in the UI. |
+| **IMC – Tech for Good** | *Social impact*: people who most need a financial advisor (students, first-gen, exchange/Erasmus students) can't afford one. Free, voice-first, multilingual, deployable by a non-profit (e.g. Erasmus Student Network). |
+
+UBS judging (draft): modelling correctness 25 · scenario/counterfactual exploration 20 · technical execution & validation 15 · UX 15 · innovation 15 · responsible design/transparency 10. LLM use earns nothing by itself.
+
+## The product: a tree of life (DECIDED)
+
+- **Roots = who you are today.** Filled by a short questionnaire *or* multimodal input: synthetic documents (payslip, bank statement, rental contract) via OCR/extraction, voice, text.
+- **Trunk = current state**, with a transparent financial-health indicator (liquidity months, debt ratio, goal feasibility). Tree and character look healthier/weaker accordingly.
+- **Branches = decisions.** **Lazy expansion with pruning**: at step 0 we simulate options 1, 2, 3, explain them, the user picks one. Picking 1 shows 1.1, 1.2, 1.3 and explains what decision 1 changed. Picking 1.1 prunes 2 and 3 (more than one level away). The user can always go **back one level** and switch. Only the current path, the siblings (shown greyed out for comparison) and the children exist: never thousands of nodes.
+- **Weather = things you don't choose** (recession, inflation, market drawdown, job loss), toggled as stress on a node.
+- **Leaf = the explanation**: metrics, comparison with sibling branches, charts, Monte Carlo bands, the key assumption, and the character walking across the screen explaining it.
+- **Monte Carlo is per visible node** (e.g. 1,000 paths × 120 months, fixed seed). It gives uncertainty, it is not a forecast. Pruning bounds the number of nodes; Monte Carlo is the uncertainty inside each node.
+- **Editable assumptions** from any node; the visible tree recomputes.
+
+## The character (DECIDED, design OPEN)
+
+An original little tree/sprout character, friendly and simple. It **never recommends or decides**: it explains possibilities and trade-offs so the user decides. Talks by text and audio; the user can type, send voice notes, or call it (conversational mode). Must be an original design (own silhouette, proportions, palette, name) — not a copy of any existing franchise character.
+
+## Demo persona (DECIDED)
+
+**Alexia** (UBS kit): fictional 20-year-old student in Lausanne, CHF 8,000 savings, choosing between start working / master's / move abroad. Represents any student. The UBS starter kit already shows the master's path runs out of cash in month 7 — a good hook.
+
+## Data rules (DECIDED)
+
+- UBS kit is "all rights reserved": fetch with `bash scripts/fetch_ubs_kit.sh` into `vendor/ubs-kit` (gitignored). Never commit its files.
+- We generate our own synthetic documents from UBS synthetic profiles (ground truth known) → roots input + AXA benchmark.
+- Public data for assumptions (cost of living, tuition, salaries) must be cited with source and date.
+
+## OPEN
+
+- Exact questionnaire questions and decision tree content (next discussion).
+- Voice provider (browser speech APIs vs. a TTS/STT model on Together/OpenRouter).
+- Character design and name.
+- Demo script and pitch (Sunday morning).
+
+## Timeline
+
+| When | Milestone |
+|---|---|
+| Sat 15:00 | Contracts v1 agreed (`docs/contracts.md`) |
+| Sat 20:00 | Thin end-to-end slice with Alexia: roots → 3 options → pick → children → leaf |
+| Night | Multimodal roots + benchmark, agent + voice, weather, character animation |
+| Sun 09:00 | Feature freeze: only fixes and polish |
+| Sun 11:30 | Repo public, README, video, submission form |
+| Sun 12:00 | Hard stop |
+
+## Threads (Juan's side)
+
+| Thread | Scope |
+|---|---|
+| 0 Coordination | plan, contracts, issues, board with Lluc, PR review |
+| 1 Engine | `core/` |
+| 2 API & agent | `api/` |
+| 3 Multimodal roots & AXA benchmark | `multimodal/`, `data/synthetic/` |
+| 4 Character & art | `web/assets/character/` |
+| Lluc (Codex) | `web/` — tree UI and experience |

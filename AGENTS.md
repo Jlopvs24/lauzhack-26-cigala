@@ -53,10 +53,16 @@ Fill this in right after we pick the challenge, before any agent writes code. Sp
 
 | Area | Owner (login / agent) | Folders |
 |---|---|---|
-| Core engine (model / strategy / data pipeline) | TBD | `core/` |
-| Backend API | TBD | `api/` |
-| Frontend / demo UI | TBD | `web/` |
-| Data, fixtures, demo script | TBD | `data/`, `scripts/` |
-| Pitch, README, slides | Juan | `docs/`, `README.md` |
+| Coordination: plan, contracts, issues | Jlopvs24 / Claude thread 0 | `docs/plan.md`, `docs/contracts.md`, `AGENTS.md` |
+| Financial engine (simulation, Monte Carlo, health, checks) | Jlopvs24 / Claude thread 1 | `core/` |
+| Backend API, LLM agent, voice endpoints | Jlopvs24 / Claude thread 2 | `api/` |
+| Multimodal roots + AXA benchmark | Jlopvs24 / Claude thread 3 | `multimodal/`, `data/synthetic/` |
+| Character design and art | Jlopvs24 / Claude thread 4 | `web/assets/character/` |
+| Web app: tree UI, experience, voice/chat UI | llucliment / Codex | `web/` (except `web/assets/character/`) |
+| Pitch, README, slides | Jlopvs24 | `README.md`, `docs/pitch*` |
+
+Juan's threads do not watch the board themselves (they share Juan's GitHub login, so they cannot see each other's posts). Thread 0 watches the board and relays. Threads 1-4 set `BOARD_WAIT=off` and post on the board only for cross-team news (e.g. an API change Lluc depends on), signing `[Juan's Claude-<area>]`.
+
+See `docs/plan.md` for the product and decisions.
 
 Shared contracts (API schema, data formats) live in `docs/contracts.md`. Changing one = board post tagging `@all`.
