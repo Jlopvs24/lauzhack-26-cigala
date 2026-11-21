@@ -268,6 +268,31 @@ button.vr-node-card:hover { border-color: var(--vr-line-2); transform: translate
 .vr-card p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--vr-ink-2); }
 .vr-card ul { margin: 10px 0 0; padding: 10px 0 0; list-style: none; border-top: 1px solid var(--vr-line); display: grid; gap: 4px; font-size: 12.5px; line-height: 1.4; color: var(--vr-muted); }
 
+/* ---------- what would fix it, room to move ---------- */
+.vr-fixcards .vr-card { position: relative; }
+.vr-or { position: absolute; left: -11px; top: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vr-muted); background: var(--vr-bg); padding: 2px 4px; }
+.vr-then { margin-top: 8px !important; font-size: 12.5px !important; }
+.vr-heat { position: relative; overflow-x: auto; }
+.vr-heat svg { display: block; }
+.vr-hcell rect { stroke: var(--vr-bg); stroke-width: 2; }
+.vr-hcell text { font-size: 12px; font-weight: 700; fill: #fff; pointer-events: none; }
+.vr-hcell.holds rect { fill: var(--vr-good); } .vr-hcell.holds_below_target rect { fill: var(--vr-warn); } .vr-hcell.holds_below_target text { fill: #0b0b0b; }
+.vr-hcell.infeasible rect { fill: #ec835a; } .vr-hcell.needs_financing rect { fill: var(--vr-crit); }
+.vr-hcell { outline: none; cursor: default; } .vr-hcell:hover rect, .vr-hcell:focus-visible rect { opacity: 0.82; }
+.vr-hplanned { fill: none; stroke: var(--vr-ink); stroke-width: 2.5; pointer-events: none; }
+.vr-hbreak { stroke: var(--vr-ink); stroke-width: 3; stroke-linecap: round; pointer-events: none; }
+.vr .k.lvl { width: 12px; height: 12px; border-radius: 3px; } .vr .k.lvl.holds { background: var(--vr-good); } .vr .k.lvl.holds_below_target { background: var(--vr-warn); } .vr .k.lvl.needs_financing { background: var(--vr-crit); }
+.vr .k.planned { width: 12px; height: 12px; border-radius: 3px; background: transparent; box-shadow: inset 0 0 0 2px var(--vr-ink); }
+.vr .k.brk { width: 16px; height: 3px; background: var(--vr-ink); }
+.vr-tstrip { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(74px, 1fr)); gap: 6px; }
+.vr-tstrip li { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border-radius: 12px; background: var(--vr-raise); border-top: 3px solid var(--vr-crit); font-variant-numeric: tabular-nums; }
+.vr-tstrip li.good { border-top-color: var(--vr-good); } .vr-tstrip li.warn { border-top-color: var(--vr-warn); }
+.vr-tstrip b { font-size: 13px; } .vr-tstrip small { font-size: 11.5px; color: var(--vr-muted); }
+.vr-tdot { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 10px; font-weight: 700; color: #fff; background: var(--vr-crit); }
+.vr-tstrip li.good .vr-tdot { background: var(--vr-good); } .vr-tstrip li.warn .vr-tdot { background: var(--vr-warn); color: #0b0b0b; }
+.vr .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.vr-tmtext { margin: 10px 0 0; font-size: 14px; font-weight: 500; }
+
 /* ---------- pillar 3a ---------- */
 .vr-p3card { margin-top: 14px; padding: 16px 18px; border-radius: 16px; background: var(--vr-surface); border: 1px solid var(--vr-line); box-shadow: var(--vr-shadow); }
 .vr-p3card .vr-sub { margin-bottom: 12px; }

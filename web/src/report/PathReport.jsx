@@ -4,13 +4,13 @@
 // It renders from /tree/expand at once, fills the what-ifs from /tree/explore, and swaps in the language
 // model's wording of the summary whenever /report answers: nothing waits for the LLM.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { buildFromLevels, loadExploration, loadLevels, loadLiveValidation, loadSummary, mergeExploration } from './pathReport.js';
-import { chf, compareLevels, constraintRows, fmtVal, heroTiles, pillar3a, taxSegments, oneLiner, plainTemplate, qualKeys, signedChf, stressRows, timeSeries, tornadoRows, whatIfCards } from './reportModel.js';
+import { buildFromLevels, loadAnalyses, loadExploration, loadLevels, loadLiveValidation, loadSummary, mergeExploration } from './pathReport.js';
+import { chf, compareLevels, constraintRows, fixOptions, fmtVal, heroTiles, pillar3a, surfaceGrid, taxSegments, timingStrip, oneLiner, plainTemplate, qualKeys, signedChf, stressRows, timeSeries, tornadoRows, whatIfCards } from './reportModel.js';
 import { ri } from './reportI18n.js';
 import { usePersonalItems } from '../personalize/YourConditions.jsx';
 import { describe as describeOwn } from '../personalize/model.js';
 import { H_I18N } from '../scene/headline.js';
-import { CompareLevels, MarginRows, Pillar3aBars, StressRows, TimeChart, Tornado } from './charts.jsx';
+import { CompareLevels, Heatmap, MarginRows, Pillar3aBars, StressRows, TimeChart, TimingStrip, Tornado } from './charts.jsx';
 import { AddToCompare } from '../compare/index.js';
 import './report.css';
 
@@ -27,17 +27,18 @@ function Disclosure({ n, title, children }) {
   return <details className="vr-disc"><summary><span className="vr-n">{String(n).padStart(2, '0')}</span>{title}<span className="vr-chev" aria-hidden="true" /></summary><div className="vr-disc-body">{children}</div></details>;
 }
 
-export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label, desc: n.description || '' }), profile, startProfile = profile, path, assumptions = [], lens = false, onClose }) {
+export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label, desc: n.description || '' }), profile, startProfile = profile, path, assumptions = [], lens = false, weather = [], onClose }) {
   const L = ri(lang), H = H_I18N[lang] || H_I18N.en;
   const [data, setData] = useState(null), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
   const [lensOn, setLensOn] = useState(!!lens), [refetching, setRefetching] = useState(false);
   const [summary, setSummary] = useState(null);
   const [metric, setMetric] = useState('cash');
   const [openStep, setOpenStep] = useState(null), [trueStep, setTrueStep] = useState(null);
+  const [adv, setAdv] = useState(null); // smallest_change / surface / timing_scan, each optional
   const [live, setLive] = useState(null), [plainOpen, setPlainOpen] = useState(false);
   const root = useRef(null);
   const mine = usePersonalItems(); // the user's own conditions (web/src/personalize), sent with every request
-  const key = JSON.stringify([path, assumptions, profile ? JSON.stringify(profile).length : 0, mine.map((it) => it.id)]);
+  const key = JSON.stringify([path, assumptions, profile ? JSON.stringify(profile).length : 0, mine.map((it) => it.id), weather]);
   const ownOf = (id) => mine.filter((it) => (it.mode === 'patch' ? it.node_id === id : it.custom_node?.node_id === id));
   const name = (n) => tr({ label: n.label, description: n.description }).label;
 
@@ -48,11 +49,14 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
     setError(''); setRefetching(true);
     (async () => {
       try {
-        const levels = await loadLevels({ profile, path, assumptions, uncertainty: lensOn, signal: ac.signal });
+        const levels = await loadLevels({ profile, path, assumptions, uncertainty: lensOn, weather, signal: ac.signal });
         if (!on) return;
         const d = buildFromLevels(levels, { profile, path, assumptions, uncertainty: lensOn, startProfile });
         setData(d); setRefetching(false);
-        const explored = await loadExploration({ profile, path, assumptions, signal: ac.signal });
+        setAdv(null);
+        loadAnalyses({ profile, path, assumptions, weather, level: d.leaf.plan_check?.level, peer: d.steps.at(-1)?.alternatives?.[0]?.node_id, signal: ac.signal })
+          .then((a) => on && setAdv(a)).catch(() => {});
+        const explored = await loadExploration({ profile, path, assumptions, weather, signal: ac.signal });
         if (on) setData((cur) => mergeExploration(cur?.leaf?.node_id === d.leaf.node_id ? cur : d, explored));
       } catch (e) {
         if (on && e.name !== 'AbortError') { setError(e.message); setRefetching(false); }
@@ -91,9 +95,10 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
       line: oneLiner(data, lang, tr), tiles: heroTiles(data, lang), template: plainTemplate(data, lang, tr),
       series: timeSeries(data, metric), levels: compareLevels(data), ti,
       cards: steps.length ? whatIfCards(steps[ti], lang, tr) : [], tornado: steps.length ? tornadoRows(steps[ti]) : [], p3a: steps.length ? pillar3a(steps[ti], lang) : null,
+      fix: fixOptions(adv?.fix, lang), grid: surfaceGrid(adv?.surface, lang), strip: timingStrip(adv?.timing, lang),
       stress: stressRows(data, lang), limits: constraintRows(data.leaf.constraints, lang), qual: qualKeys(data),
     };
-  }, [data, lang, metric, trueStep]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, lang, metric, trueStep, adv]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const who = profile?.display_name || (profile ? L.you : 'Alexia');
   const top = <header className="vr-top">
@@ -259,6 +264,22 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
           <p className="vr-sub">{L.sTornadoSub}</p>
           <Tornado rows={v.tornado} L={L} />
         </div>}
+      </Section>}
+
+      {/* what would fix it (core.smallest_change), only when the plan does not hold */}
+      {v.fix && <Section id="vr-fix" title={L.fxTitle} sub={v.fix.lead} i={5}>
+        {v.fix.options.length ? <div className="vr-cards vr-fixcards">{v.fix.options.map((o, i) => <article className="vr-card good" key={o.key} style={{ '--i': i }}>
+          {i > 0 && <span className="vr-or" aria-hidden="true">{L.fxOr}</span>}
+          <b className="vr-card-big">{o.big}</b><p>{o.text}</p>{o.then && <p className="vr-muted vr-then">{o.then}</p>}
+        </article>)}</div> : <p className="vr-sub">{v.fix.none}</p>}
+      </Section>}
+
+      {/* room to move: 2-lever surface + timing scan */}
+      {(v.grid || v.strip) && <Section id="vr-room" title={L.srTitle} sub={v.grid ? L.srSub : L.tmSub} i={5}>
+        {v.grid && <><Heatmap grid={v.grid} L={L} H={H} peerName={(() => { const a = steps.at(-1)?.alternatives?.find((x) => x.node_id === v.grid.peer); return a ? `“${name(a)}”` : ''; })()} />
+          {v.grid.share && <p className="vr-muted">{v.grid.share}</p>}</>}
+        {v.strip && <div className="vr-subsec"><h3 className="vr-h3">{L.tmTitle}</h3><p className="vr-sub">{L.tmSub}</p>
+          <TimingStrip strip={v.strip} H={H} /><p className="vr-tmtext">{v.strip.text}</p></div>}
       </Section>}
 
       {/* 7 + 8 · does it hold */}

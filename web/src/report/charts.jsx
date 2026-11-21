@@ -3,7 +3,7 @@
 // coloured series (emphasis), a funding gap is the red zone below zero, every chart has hover + focus
 // tooltips and every value is also readable without hovering (direct labels, value columns or a table).
 import React, { useId, useLayoutEffect, useRef, useState } from 'react';
-import { chf, compact, fmtVal } from './reportModel.js';
+import { chf, compact, fmtVal, signedChf } from './reportModel.js';
 
 export function useWidth(ref, fallback = 720) {
   const [w, setW] = useState(fallback);
@@ -268,4 +268,61 @@ export function Pillar3aBars({ rows, L }) {
     </div>)}
     {tip.el}
   </div>;
+}
+
+// ---------------------------------------------------------------- 2-lever heatmap (plan level per cell)
+const LEVEL_GLYPH = { holds: '✓', holds_below_target: '!', infeasible: '✕', needs_financing: '✕' };
+export function Heatmap({ grid, L, H, peerName }) {
+  const box = useRef(null), w = useWidth(box), tip = useTip(box);
+  const nx = grid.xs.length, ny = grid.rows.length;
+  const m = { l: 74, r: 8, t: 8, b: 40 };
+  const cw = Math.max(26, Math.min(64, Math.floor((w - m.l - m.r) / nx))), ch = Math.min(44, cw);
+  const W = m.l + nx * cw + m.r, Ht = m.t + ny * ch + m.b;
+  const X = (i) => m.l + i * cw, Y = (j) => m.t + j * ch;
+  const money = (v, signed) => `${signed && v > 0 ? '+' : ''}${compact(v)}`;
+  // break-even: an edge between two neighbouring cells whose delta_vs_peer has opposite signs
+  const edges = [];
+  if (grid.hasPeer) grid.rows.forEach((r, j) => r.cells.forEach((c, i) => {
+    const s = Math.sign(c.delta_vs_peer || 0), right = r.cells[i + 1], down = grid.rows[j + 1]?.cells[i];
+    if (right && Math.sign(right.delta_vs_peer || 0) !== s) edges.push([X(i + 1), Y(j), X(i + 1), Y(j + 1)]);
+    if (down && Math.sign(down.delta_vs_peer || 0) !== s) edges.push([X(i), Y(j + 1), X(i + 1), Y(j + 1)]);
+  }));
+  const plannedRow = grid.planned.y >= 0 ? ny - 1 - grid.planned.y : -1;
+  return <div className="vr-heat" ref={box}>
+    <svg width={W} height={Ht} viewBox={`0 0 ${W} ${Ht}`} role="img" aria-label={`${L.srTitle}: ${L.srX} × ${L.srY}`}>
+      {grid.rows.map((r, j) => <g key={j}>
+        <text className="vr-axis" x={m.l - 8} y={Y(j) + ch / 2 + 4} textAnchor="end">{money(r.y, true)}</text>
+        {r.cells.map((c, i) => <g key={i} className={`vr-hcell ${c.level}`} tabIndex={0}
+          {...bindTip(tip, <><div className="vr-tip-h">{L.srCell(money(c.x, true), money(c.y, true))}</div>
+            <div className="vr-tip-row"><b>{H.level[c.level] || c.level}</b><span>{L.tPlan}</span></div>
+            <div className="vr-tip-row"><b>{chf(c.final_net_worth_real)}</b><span>{L.tNw}</span></div>
+            <div className="vr-tip-row"><b className={c.min_cash < 0 ? 'neg' : ''}>{chf(c.min_cash)}</b><span>{L.lowest}</span></div>
+            {Number.isFinite(c.delta_vs_peer) && peerName && <div className="vr-tip-row"><b>{signedChf(c.delta_vs_peer)}</b><span>vs {peerName}</span></div>}</>)}>
+          <rect x={X(i) + 1} y={Y(j) + 1} width={cw - 2} height={ch - 2} rx="4" />
+          {cw >= 30 && <text x={X(i) + cw / 2} y={Y(j) + ch / 2 + 4} textAnchor="middle">{LEVEL_GLYPH[c.level] || ''}</text>}
+        </g>)}
+      </g>)}
+      {grid.planned.x >= 0 && plannedRow >= 0 && <rect className="vr-hplanned" x={X(grid.planned.x) - 1} y={Y(plannedRow) - 1} width={cw + 2} height={ch + 2} rx="6" />}
+      {edges.map((e, k) => <line key={k} className="vr-hbreak" x1={e[0]} y1={e[1]} x2={e[2]} y2={e[3]} />)}
+      {grid.xs.map((x, i) => <text key={i} className="vr-axis" x={X(i) + cw / 2} y={m.t + ny * ch + 16} textAnchor="middle">{money(x, true)}</text>)}
+      <text className="vr-axis" x={m.l} y={Ht - 4}>{L.srX} →</text>
+      <text className="vr-axis" x={4} y={m.t + 10}>{L.srY}</text>
+    </svg>
+    <div className="vr-legend">
+      {['holds', 'holds_below_target', 'needs_financing'].map((k) => <span key={k}><i className={`k lvl ${k}`} />{H.level[k]}</span>)}
+      {grid.planned.x >= 0 && <span><i className="k planned" />{L.srPlanned}</span>}
+      {edges.length > 0 && peerName && <span><i className="k brk" />{L.srBreak(peerName)}</span>}
+    </div>
+    {tip.el}
+  </div>;
+}
+
+// ---------------------------------------------------------------- timing strip
+export function TimingStrip({ strip, H }) {
+  return <ol className="vr-tstrip">
+    {strip.rows.map((r) => <li key={r.delay} className={r.tone} title={H.level[r.level] || r.level}>
+      <span className="vr-tdot" aria-hidden="true">{r.tone === 'good' ? '✓' : r.tone === 'warn' ? '!' : '✕'}</span>
+      <b>{r.label}</b><small>{compact(r.nw)}</small><span className="sr">{H.level[r.level] || r.level}</span>
+    </li>)}
+  </ol>;
 }

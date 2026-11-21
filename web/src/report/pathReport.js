@@ -22,13 +22,13 @@ export function summary(r) {
 const delta = (a, b, k) => (a?.metrics?.[k] != null && b?.metrics?.[k] != null ? Math.round((a.metrics[k] - b.metrics[k]) * 100) / 100 : null);
 const series = (r) => ({ cash: r?.deterministic?.cash || [], net_worth: r?.deterministic?.net_worth || [], net_worth_real: r?.deterministic?.net_worth_real || [] });
 
-export function expandBody({ profile, path, assumptions = [], uncertainty = false }) {
-  return { path, assumptions, uncertainty, exploration: false, ...(profile ? { profile } : {}), ...personalFields() };
+export function expandBody({ profile, path, assumptions = [], uncertainty = false, weather = [] }) {
+  return { path, assumptions, uncertainty, exploration: false, ...(weather?.length ? { weather } : {}), ...(profile ? { profile } : {}), ...personalFields() };
 }
 
 // Stage 1. `expand(path, isLeaf)` is injectable for tests; the lens (Monte Carlo) is asked for the leaf only.
-export function loadLevels({ profile, path, assumptions = [], uncertainty = false, expand, signal }) {
-  const call = expand || ((p, leaf) => apiRequest('/tree/expand', { body: expandBody({ profile, path: p, assumptions, uncertainty: uncertainty && leaf }), signal }));
+export function loadLevels({ profile, path, assumptions = [], uncertainty = false, weather = [], expand, signal }) {
+  const call = expand || ((p, leaf) => apiRequest('/tree/expand', { body: expandBody({ profile, path: p, assumptions, uncertainty: uncertainty && leaf, weather }), signal }));
   return Promise.all(Array.from({ length: path.length + 1 }, (_, i) => call(path.slice(0, i), i === path.length)));
 }
 
@@ -78,8 +78,8 @@ export function buildFromLevels(levels, { profile, path, assumptions = [], uncer
 }
 
 // Stage 2: exploration + tornado for every step, in parallel. Resolves to one entry per step (null on failure).
-export function loadExploration({ profile, path, assumptions = [], explore, signal }) {
-  const call = explore || ((p) => apiRequest('/tree/explore', { body: { path: p, assumptions, ...(profile ? { profile } : {}), ...personalFields() }, signal }));
+export function loadExploration({ profile, path, assumptions = [], weather = [], explore, signal }) {
+  const call = explore || ((p) => apiRequest('/tree/explore', { body: { path: p, assumptions, ...(weather?.length ? { weather } : {}), ...(profile ? { profile } : {}), ...personalFields() }, signal }));
   return Promise.all(path.map((_, i) => call(path.slice(0, i + 1)).catch(() => null)));
 }
 
@@ -110,3 +110,22 @@ export async function loadSummary({ profile, path, assumptions = [], uncertainty
 }
 
 export const loadLiveValidation = ({ signal } = {}) => apiRequest('/validation', { method: 'GET', signal });
+
+// Stage 2b (core #48 item 6, thread 2's routes): what would fix the leaf, a 2-lever surface and a timing scan.
+// Each one is optional: a failed or missing route gives null and its card is simply not drawn.
+export const SURFACE_LEVERS = {
+  x: { param: 'monthly_net_income', op: 'add', range: [0, 1500] },
+  y: { param: 'monthly_rent', op: 'add', range: [-600, 0] },
+};
+export const fixTarget = (level) => ({ needs_financing: 'no_funding_gap', infeasible: 'feasible', holds_below_target: 'holds' })[level] || null;
+export async function loadAnalyses({ profile, path, assumptions = [], weather = [], level, peer, request = apiRequest, signal }) {
+  const base = { path, assumptions, ...(weather?.length ? { weather } : {}), ...(profile ? { profile } : {}), ...personalFields() };
+  const target = fixTarget(level);
+  const call = (route, extra) => request(route, { body: { ...base, ...extra }, signal }).catch(() => null);
+  const [fix, surface, timing] = await Promise.all([
+    target ? call('/tree/smallest_change', { target }) : null,
+    path.length ? call('/tree/surface', { ...SURFACE_LEVERS, n: 5, ...(peer ? { compare_to: peer } : {}) }) : null,
+    path.length ? call('/tree/timing_scan', {}) : null,
+  ]);
+  return { fix, surface, timing };
+}

@@ -223,3 +223,43 @@ export function pillar3a(step, lang = 'en') {
     seek: seekFn ? seekFn(Number.isFinite(seek.value) ? chf(seek.value) : monthly) : '',
   };
 }
+
+// "What would fix it" (core.smallest_change): one card per lever that reaches the target, smallest change first
+// in the engine's order. null when the plan already holds, the route is absent, or nothing reaches it.
+export function fixOptions(fix, lang = 'en') {
+  const L = ri(lang), H = H_I18N[lang] || H_I18N.en;
+  if (!fix || fix.already_holds || !Array.isArray(fix.changes)) return null;
+  const found = fix.changes.filter((c) => c.status === 'threshold_found' && Number.isFinite(c.value));
+  const options = found.map((c) => {
+    const monthly = /month/.test(c.unit || '') || /^monthly_/.test(c.param || '');
+    const sign = c.direction === 'decrease' ? MINUS : '+';
+    const big = c.lever === 'cash_now' ? chf(c.value) : `${sign}${chf(c.value)}${monthly ? '/month' : ''}`;
+    const r = c.result || {};
+    return { key: c.lever, big, text: L.fxLever[c.lever] || c.label || c.lever,
+      then: r.level ? L.fxThen(H.level[r.level] || r.level, chf(r.final_net_worth_real)) : '' };
+  });
+  return { target: fix.target, lead: L.fxLead[fix.target] || L.fxLead.no_funding_gap, options, none: options.length ? '' : L.fxNone };
+}
+
+// The 2-lever surface as a heatmap model: rows = y values (top = highest), cells with plan level and peer delta.
+export function surfaceGrid(sf, lang = 'en') {
+  const L = ri(lang);
+  if (!sf || !Array.isArray(sf.cells) || !sf.cells.length || !sf.x?.values || !sf.y?.values) return null;
+  const xs = sf.x.values, ys = sf.y.values;
+  const rows = ys.map((y, j) => ({ y, cells: (sf.cells[j] || []).map((c, i) => ({ ...c, x: xs[i], y })) })).reverse();
+  const hasPeer = rows.some((r) => r.cells.some((c) => Number.isFinite(c.delta_vs_peer)));
+  return { xs, ys, rows, hasPeer, peer: sf.compare_to || null,
+    share: Number.isFinite(sf.holds_share) ? L.srShare(Math.round(sf.holds_share * 100)) : '',
+    planned: { x: xs.indexOf(0), y: ys.indexOf(0) } };
+}
+
+// The timing scan as a strip: one chip per start delay, and the latest start that still holds.
+export function timingStrip(ts, lang = 'en') {
+  const L = ri(lang);
+  if (!ts || ts.status !== 'evaluated' || !Array.isArray(ts.rows) || !ts.rows.length) return null;
+  const rows = ts.rows.map((r) => ({ delay: r.delay_months, level: r.level, tone: levelTone(r.level), nw: r.final_net_worth_real ?? r.final_net_worth,
+    label: r.delay_months === 0 ? L.tmNow : L.tmIn(r.delay_months) }));
+  const allHold = rows.every((r) => r.tone !== 'bad');
+  const latest = ts.latest_start_that_holds;
+  return { rows, text: Number.isFinite(latest) ? (allHold && latest === rows.at(-1).delay ? L.tmAlways : L.tmLatest(latest)) : L.tmNever };
+}
