@@ -118,12 +118,14 @@ def _budget(pid: str, kit: dict) -> dict:
 
 
 def replay(kit: dict | None = None, overrides: dict | None = None, world: str = "zero",
-           profiles: list[str] | None = None) -> dict:
+           profiles: list[str] | None = None, income_basis: str = "take_home") -> dict:
     """Run each UBS profile through our engine for its ledger months with its average budget.
 
     world='zero': cash-only, no inflation/returns/tax/shocks (the starter kit's world): checks
     that the engine turns the same budget into the same cash. world='swiss': our defaults
-    (plus ``overrides``): shows the drift our Swiss modelling adds (income tax above all)."""
+    (plus ``overrides``): shows the drift our Swiss modelling adds. ``income_basis`` defaults to
+    take_home, the basis of imported UBS profiles (#48 item 1); pass net_before_tax to see the
+    income tax our engine would add on top of their ledgers."""
     kit = kit or ubs.load()
     aset = build_assumptions(base=zero_world_assumptions(), overrides=overrides) if world == "zero" \
         else build_assumptions(overrides=overrides)
@@ -135,9 +137,10 @@ def replay(kit: dict | None = None, overrides: dict | None = None, world: str = 
         b = _budget(pid, kit)
         prof = Profile.from_dict({"profile_id": pid, "as_of": rows[0]["month"] + "-01", "horizon_months": H,
                                   "cash": max(rows[0]["opening"], 0.0), "monthly_net_income": max(b["income"], 0.0),
-                                  "monthly_rent": max(b["rent"], 0.0), "monthly_other_expenses": max(b["other"], 0.0)})
+                                  "monthly_rent": max(b["rent"], 0.0), "monthly_other_expenses": max(b["other"], 0.0),
+                                  "income_basis": income_basis})
         sched = build_schedule(prof, parse_interventions([], A, H))
-        out = run(sched, prof.cash, 0.0, A, aset.tax_table(), build_weather([], H), stochastic=False)
+        out = run(sched, prof.cash, 0.0, A, prof.tax_table(aset), build_weather([], H), stochastic=False)
         ours = out.cash[0, 1:]
         theirs = np.array([r["closing"] for r in rows])
         unit = max(b["income"], b["rent"] + b["other"], 1.0)  # one month of the budget
@@ -145,7 +148,7 @@ def replay(kit: dict | None = None, overrides: dict | None = None, world: str = 
         errs_path.append(float(np.mean(np.abs(ours - theirs))) / unit)
         scale.append(unit)
     fe = np.array(errs_final)
-    return {"world": world, "profiles": len(fe), "months": H,
+    return {"world": world, "income_basis": income_basis, "profiles": len(fe), "months": H,
             "final_cash_error_months_of_budget": {"median": round(float(np.median(fe)), 3),
                                                    "p10": round(float(np.percentile(fe, 10)), 3),
                                                    "p90": round(float(np.percentile(fe, 90)), 3)},
@@ -166,8 +169,8 @@ def drift_decomposition(kit: dict | None = None) -> list[dict]:
     """Where the Swiss-world replay departs from the UBS ledgers, switching our additions off one by one."""
     kit = kit or ubs.load()
     rows = []
-    for label, ov in DRIFT_STEPS:
-        r = replay(kit, overrides=ov or None, world="swiss")
+    for label, ov in DRIFT_STEPS:  # as if their income were before tax: the size of the basis question
+        r = replay(kit, overrides=ov or None, world="swiss", income_basis="net_before_tax")
         rows.append({"step": label, "overrides": ov, "final_cash_error_months_of_budget": r["final_cash_error_months_of_budget"]["median"]})
     return rows
 

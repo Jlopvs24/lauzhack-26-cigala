@@ -59,3 +59,13 @@ def test_ubs_scenario_assumptions_are_compared_with_the_tree():
     rows = {r["parameter"]: r for r in harness.scenario_assumptions_vs_tree()}
     assert rows["annual_tuition_chf"]["ubs_alexia"] == 8000.0
     assert rows["annual_tuition_chf"]["ours_range"][1] == 8000  # the UBS figure is our high end
+
+
+@needs_kit
+def test_ubs_profiles_are_replayed_as_take_home():
+    take = harness.replay(world="swiss")
+    before = harness.replay(world="swiss", income_basis="net_before_tax")
+    assert take["income_basis"] == "take_home"
+    # without the second income tax the Swiss world stays within half a month of budget of their ledgers
+    assert abs(take["final_cash_error_months_of_budget"]["median"]) < 0.5
+    assert before["final_cash_error_months_of_budget"]["median"] < -2

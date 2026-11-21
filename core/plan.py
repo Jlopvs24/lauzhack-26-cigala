@@ -92,7 +92,7 @@ def weather_resilience(profile, sched, A, aset, weather, goals) -> dict:
             kinds.append(kind)
         except ValueError:  # e.g. its default start month lies beyond a short horizon
             rows.append({"type": kind, "already_applied": False, "holds": None, "status": "outside_horizon"})
-    out = (run_batch([sched] * len(ws), [A] * len(ws), profile.cash, profile.investments, aset.tax_table(), ws,
+    out = (run_batch([sched] * len(ws), [A] * len(ws), profile.cash, profile.investments, profile.tax_table(aset), ws,
                      stochastic=False) if ws else None)  # all named weathers in one pass
     for j, kind in enumerate(kinds):
         missed = []

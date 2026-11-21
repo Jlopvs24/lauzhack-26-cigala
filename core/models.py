@@ -21,6 +21,13 @@ SERIES_PARAMS = (
 EVENT_PARAMS = ("one_off_cost", "one_off_income", "new_liability", "loan_change", "cancel_one_off")
 MODEL_PARAMS = ("assumption",)  # node-level assumption values, applied by AssumptionSet.with_node_values
 OPS = ("set", "add", "mul")
+# What "monthly_net_income" means (#48 item 1). net_before_tax: after social contributions, before
+# income tax (the Swiss payslip "Nettolohn"; residents pay income tax separately), so the engine
+# charges income tax. take_home: what is left after income tax too, so no income tax is charged
+# again. Our tree uses net_before_tax; imported UBS synthetic profiles use take_home unless stated
+# (their ledgers have no tax line).
+INCOME_BASES = ("net_before_tax", "take_home")
+NO_TAX = [[0, 0.0]]
 
 
 def num(value: Any, label: str, *, minimum: float | None = None) -> float:
@@ -98,6 +105,11 @@ class Profile:
     liabilities: tuple[Liability, ...]
     goals: tuple[Goal, ...]
     raw: dict = field(compare=False, repr=False, default_factory=dict)
+    income_basis: str = "net_before_tax"
+
+    def tax_table(self, aset) -> list[list[float]]:
+        """The income-tax table the engine applies to this profile's income."""
+        return NO_TAX if self.income_basis == "take_home" else aset.tax_table()
 
     @staticmethod
     def from_dict(d: dict) -> "Profile":
@@ -105,6 +117,9 @@ class Profile:
         if isinstance(horizon, bool) or not isinstance(horizon, int) or not 1 <= horizon <= 600:
             raise ValueError("horizon_months must be an integer in 1..600")
         as_of = date.fromisoformat(str(d.get("as_of", "2025-01-01")))
+        basis = str(d.get("income_basis", "net_before_tax"))
+        if basis not in INCOME_BASES:
+            raise ValueError(f"income_basis must be one of {INCOME_BASES}, got {basis!r}")
         investments = 0.0
         for i, a in enumerate(d.get("assets", []) or []):
             value = num(a.get("value", 0), f"assets[{i}].value", minimum=0)
@@ -141,6 +156,7 @@ class Profile:
             liabilities=liabilities,
             goals=tuple(goals),
             raw=d,
+            income_basis=basis,
         )
 
 

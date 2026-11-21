@@ -9,6 +9,7 @@
   "employment_status": "student",
   "cash": 8000,
   "monthly_net_income": 1200,
+  "income_basis": "net_before_tax",
   "monthly_rent": 900,
   "monthly_other_expenses": 600,
   "monthly_investment_contribution": 0,
@@ -21,6 +22,7 @@
   "provenance": {
     "cash": {"source": "ubs_kit:synthetic-profiles.csv", "confidence": 1.0},
     "monthly_net_income": {"source": "ubs_kit:synthetic-profiles.csv", "confidence": 1.0},
+    "income_basis": {"source": "assumption:team", "confidence": 1.0, "note": "Read as Swiss payslip net pay, before income tax (#48 item 1)"},
     "monthly_rent": {"source": "ubs_kit:synthetic-profiles.csv", "confidence": 1.0},
     "monthly_other_expenses": {"source": "assumption:team", "confidence": 0.5},
     "goals": {"source": "ubs_kit:synthetic-goals.csv", "confidence": 1.0}

@@ -29,6 +29,7 @@ Produced by the questionnaire or multimodal extraction. Unknown fields are ignor
   "employment_status": "student",
   "cash": 8000,
   "monthly_net_income": 1200,
+  "income_basis": "net_before_tax",
   "monthly_rent": 900,
   "monthly_other_expenses": 600,
   "monthly_investment_contribution": 0,
@@ -42,6 +43,7 @@ Produced by the questionnaire or multimodal extraction. Unknown fields are ignor
 | Field | Notes |
 |---|---|
 | `horizon_months` | new, default 120 |
+| `income_basis` | #48 item 1, default `net_before_tax`: `monthly_net_income` (and node incomes) are after social contributions, before income tax, as on a Swiss payslip, so the engine charges income tax. `take_home`: after income tax too, so no income tax is charged (`income_tax` flows are 0). Our tree uses `net_before_tax`; profiles imported from the UBS synthetic data use `take_home` unless stated (their ledgers have no tax line). Any other value is rejected. Echoed as `income_basis` in every SimulationResult |
 | `monthly_investment_contribution` | new, CHF/month moved from cash to investments when cash allows (a transfer, not an expense) |
 | `assets[].type` | `investment` / `investment_portfolio` / `pension_3a` are simulated as one balanced portfolio; other types are ignored in v1 |
 | `liabilities[]` | fixed payment, monthly rate = `annual_rate / 12`; optional `payment_start_month` (interest is capitalised before it) |
@@ -166,6 +168,7 @@ Engine `core-1.1` (issue #21, exploration first). The primary result is the dete
   "uncertainty": false,
   "mode": "deterministic",
   "horizon_months": 120,
+  "income_basis": "net_before_tax",
   "deterministic": {
     "cash": [8000.0, 4589.15, 3678.23, 2767.46, "... 121 points"],
     "investments": ["121 points"], "debt": ["121 points"], "net_worth": ["121 points"],
