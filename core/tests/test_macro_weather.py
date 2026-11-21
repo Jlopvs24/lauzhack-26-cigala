@@ -69,3 +69,12 @@ def test_new_catalog_and_report_assumptions_are_additive():
     assert [w['type'] for w in report['weather_assumptions']] == ['scenario', 'rates']
     assert all(w['source'] and w['sources'] for w in report['weather_assumptions'])
     assert len(weather_catalog()) == 19
+
+
+def test_rate_shift_preserves_stochastic_identities_and_reproducibility():
+    kwargs = dict(weather=[{'type': 'rates', 'level': 'up'}], n_paths=64, seed=7,
+                  uncertainty=True, sensitivity=False, exploration=False)
+    a = core.simulate_node(core.load_profile(), [], **kwargs)
+    b = core.simulate_node(core.load_profile(), [], **kwargs)
+    assert a['bands'] == b['bands']
+    assert all(c['passed'] for c in a['checks'])

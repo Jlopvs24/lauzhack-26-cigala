@@ -91,12 +91,25 @@ QUALITATIVE = {
 }
 
 
+
+ASSUMPTION_LABELS = {
+    "inflation_override": ("Annual price growth", 100, "%"),
+    "real_wage_override": ("Annual real wage growth", 100, "%"),
+    "return_shift": ("Annual portfolio return change", 100, "percentage points"),
+    "job_loss_multiplier": ("Simulated job-loss hazard", 1, "times the base assumption"),
+    "fx_factor": ("EURCHF during the scenario", 1, "times the base rate"),
+    "return_shock": ("Invested balance after the initial shock", 1, "times the opening invested balance"),
+    "cash_rate_shift": ("Annual cash-savings rate change", 100, "percentage points, floored at zero"),
+}
+
 def qualitative_option(typ: str, level: str) -> dict:
     label, description, assumptions = QUALITATIVE[typ][level]
     source_keys = ["macro", "inflation", "markets"] if typ == "scenario" else [typ if typ in SOURCES else "macro"]
+    notes = [{"label": ASSUMPTION_LABELS[k][0], "value": round(v * ASSUMPTION_LABELS[k][1], 4),
+              "unit": ASSUMPTION_LABELS[k][2]} for k, v in assumptions.items()]
     return {"id": f"{typ}:{level}", "type": typ, "level": level, "label": label, "description": description,
             "defaults": {"start_month": 0, "duration_months": 1200 if typ == "fx" else 1 if (typ, level) == ("markets", "crash") else 24},
-            "assumptions": dict(assumptions), "verified": False,
+            "assumptions": notes, "verified": False,
             "source": "Team-defined conditional scenario; sources provide context, not a calibrated joint forecast.",
             "sources": [SOURCES[k] for k in source_keys]}
 
@@ -159,7 +172,7 @@ def build_weather(events: list[dict] | None, H: int) -> WeatherArrays:
                 raise ValueError("weather duration must be an integer")
             duration = int(duration)
             end = start + 1 if (typ, level) == ("markets", "crash") else min(H, start + duration)
-            for field, value in option["assumptions"].items():
+            for field, value in QUALITATIVE[typ][level][2].items():
                 getattr(w, field)[start:start + 1 if field == "return_shock" else end] = value
             w.applied.append({**option, **p, "end_month": end})
             continue
