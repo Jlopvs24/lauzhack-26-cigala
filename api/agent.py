@@ -558,7 +558,7 @@ def _parse(tok: str) -> float | None:
     return v * 1000 if k else v
 
 
-def check_grounding(answer: str, tool_outputs: list[Any], user_text: str = "") -> dict:
+def check_grounding(answer: str, tool_outputs: list[Any], user_text: str = "", rel_tol: float = 0.02) -> dict:
     """Every number >= 100 in the answer must match a tool number or one the user said
     (tolerating rounding and probabilities written as percent)."""
     known = _numbers_in(tool_outputs, []) + _numbers_in(user_text, [])
@@ -568,7 +568,7 @@ def check_grounding(answer: str, tool_outputs: list[Any], user_text: str = "") -
         v = _parse(tok)
         if v is None or abs(v) < 100 or (1900 <= v <= 2100 and float(v).is_integer()):
             continue  # small counts, months, option ids and calendar years are not money figures
-        if not any(abs(abs(v) - abs(k)) <= max(0.02 * abs(k), 1.0) for k in known):
+        if not any(abs(abs(v) - abs(k)) <= max(rel_tol * abs(k), 1.0) for k in known):
             ungrounded.append(tok.strip())
     return {"grounded": not ungrounded, "ungrounded_numbers": ungrounded}
 

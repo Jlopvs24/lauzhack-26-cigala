@@ -170,6 +170,24 @@ def profiles_extract(files: list[UploadFile] | None = File(None), text: str | No
             "latency_ms": int((time.perf_counter() - t0) * 1000), "model": out.get("extractor")}
 
 
+class ReportReq(Loose):
+    profile: dict[str, Any] | None = Field(None, description="Profile; omit to use Alexia.")
+    path: list[str] = Field(default_factory=list, description='Chosen node ids from the root, e.g. ["2", "2.1"].')
+    assumptions: list[dict[str, Any]] = Field(default_factory=list, description="Overrides: [{id, value}]")
+    uncertainty: bool = Field(False, description="Include the optional Monte Carlo lens (section 10).")
+    language: str = Field("en", description="Language of the plain-language summary.")
+
+
+@app.post("/report")
+def report(req: ReportReq):
+    """Path report (docs/report-spec.md §3): 12 structured sections, numbers only from the engine."""
+    from api.report import build_report
+    try:
+        return build_report(req.profile, req.path, req.assumptions, req.uncertainty, req.language)
+    except (KeyError, ValueError, StopIteration) as e:
+        raise HTTPException(422, f"bad path: {e}") from e
+
+
 @app.post("/agent/ask")
 def agent_ask(req: AskReq):
     t0 = time.perf_counter()

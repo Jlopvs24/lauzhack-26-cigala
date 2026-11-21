@@ -397,3 +397,47 @@ def test_history_is_budgeted_newest_first(monkeypatch):
     assert sum(len(m["content"]) for m in past) <= agent.HISTORY_MAX_CHARS
     assert past[-1]["content"].startswith("turn 59")  # newest kept
     assert j["history_dropped"] > 0 and j["history_used"] == len(past)
+
+
+def _report(**body):
+    r = c.post("/report", json=body)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_report_has_12_sections_and_engine_numbers():
+    j = _report(path=["2", "2.1"])
+    keys = [s["key"] for s in j["section_order"]]
+    assert len(keys) == 12 and set(keys) == set(j["sections"])
+    S = j["sections"]
+    leaf = S["alternatives"]["levels"][-1]["chosen"]
+    sim = c.post("/simulate", json={"node": {"node_id": "2.1"}}).json()["result"]
+    assert leaf["final_net_worth"] == sim["metrics"]["final_net_worth"]  # same engine numbers
+    assert [d["node_id"] for d in S["decisions"]] == ["2", "2.1"]
+    assert S["alternatives"]["levels"][0]["siblings"] and S["alternatives"]["status_quo_baseline"]["node_id"] == "0"
+    assert [r["weather"] for r in S["stress"]["rows"]] == ["none", "recession", "inflation", "market_crash", "job_loss"]
+    assert S["constraints"]["items"][0]["name"] == "liquidity_floor"
+    assert S["uncertainty"]["enabled"] is False
+    assert S["validation"]["reproduce"]["body"]["path"] == ["2", "2.1"]
+    assert S["summary"]["mode"] == "template" and j["cost_usd"] == 0
+    assert S["summary"]["text"].startswith("If ") and "advice" in S["summary"]["text"]
+    from api.agent import check_grounding
+    assert check_grounding(S["summary"]["text"], [S])["grounded"]
+
+
+def test_report_uncertainty_lens_and_bad_path():
+    j = _report(path=["1"], uncertainty=True)
+    u = j["sections"]["uncertainty"]
+    assert u["enabled"] is True and u["n_paths"] and u["n_paths"] > 0
+    assert c.post("/report", json={"path": ["9.9"]}).status_code == 422
+    assert _report(path=[])["leaf"] == "0"
+
+
+def test_report_rejects_llm_summary_with_invented_numbers(monkeypatch):
+    from api import report
+    monkeypatch.setattr(report.llm, "available", lambda: True)
+    monkeypatch.setattr(report.llm, "chat", lambda *a, **k: {
+        "message": {"content": "If you do this, then you would have CHF 987'654 after 10 years."},
+        "model": "fake", "cost_usd": 0.00001, "prompt_tokens": 1, "completion_tokens": 1, "latency_ms": 1})
+    s = report.build_report(None, ["2"])["sections"]["summary"]
+    assert s["mode"] == "template" and s["rejected_llm_numbers"]
