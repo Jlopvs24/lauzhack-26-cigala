@@ -11,6 +11,7 @@ import { usePersonalItems } from '../personalize/YourConditions.jsx';
 import { describe as describeOwn } from '../personalize/model.js';
 import { H_I18N } from '../scene/headline.js';
 import { CompareLevels, MarginRows, Pillar3aBars, StressRows, TimeChart, Tornado } from './charts.jsx';
+import { AddToCompare } from '../compare/index.js';
 import './report.css';
 
 const TONE_ICON = { good: '✓', warn: '!', bad: '✕', neutral: '' };
@@ -99,6 +100,7 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
     <span className="vr-brand">cigala</span>
     <span className="vr-top-title">{L.title}</span>
     <div className="vr-actions">
+      {data && path.length > 0 && <AddToCompare path={path} label={name(data.steps.at(-1))} crumbs={data.steps.map(name)} lang={lang} />}
       <button type="button" className="vr-btn" onClick={() => print()} disabled={!data}>{L.print}</button>
       <button type="button" className="vr-btn" onClick={onClose}>{L.close}</button>
     </div>
@@ -224,7 +226,8 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
 
       {/* 5 · alternatives at every level */}
       {v.levels.length > 0 && <Section id="vr-alt" title={L.sAlt} sub={L.sAltSub} i={3}>
-        <CompareLevels levels={v.levels} baseline={{ ...data.baseline, ...data.baseline.summary }} L={L} H={H} name={name} />
+        <CompareLevels levels={v.levels} baseline={{ ...data.baseline, ...data.baseline.summary }} L={L} H={H} name={name}
+          pin={(lv, r) => <AddToCompare path={[...path.slice(0, lv.step - 1), r.node_id]} label={name(r)} lang={lang} variant="icon" />} />
       </Section>}
 
       {/* 6 · what would have to be true + tornado */}

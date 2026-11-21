@@ -124,3 +124,18 @@
 .pz-mrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pz-mrow label { display: grid; gap: 8px; }
 .pz-manual select:focus, .pz-mrow input:focus, .pz-mrow select:focus { outline: none; border-color: var(--pz-accent); box-shadow: 0 0 0 3px var(--pz-accent-wash); }
+
+/* phone (QA P1): a bottom sheet over the scene, full width, scrollable; buttons and fields wrap */
+@media (max-width: 720px) {
+  .pz-panel { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 40; width: 100%; max-width: none; max-height: 88vh; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain;
+    border-radius: 18px 18px 0 0; border-bottom: 0; padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); animation-name: pz-sheet; }
+  .pz-head { position: sticky; top: -14px; z-index: 1; margin: -14px -16px 6px; padding: 12px 16px 6px; background: var(--pz-bg); }
+  .pz-actions { flex-wrap: wrap; }
+  .pz-actions .pz-btn { flex: 1 1 auto; }
+  .pz-reading { flex-wrap: wrap; }
+  .pz-mrow { grid-template-columns: 1fr; }
+  .pz-conds li { flex-direction: column; align-items: flex-start; }
+  .pz-field textarea, .pz-field input, .pz-name, .pz-amt input, .pz-mrow input, .pz-mrow select, .pz-manual select { font-size: 16px; } /* no iOS zoom on focus */
+  .pz-list { width: 100%; }
+}
+@keyframes pz-sheet { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }

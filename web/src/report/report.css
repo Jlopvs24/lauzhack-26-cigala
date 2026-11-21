@@ -450,3 +450,11 @@ button.vr-node-card:hover { border-color: var(--vr-line-2); transform: translate
   .vr-disc > summary .vr-chev, .vr-link { display: none; }
   .vr-plain p.clamp { display: block; -webkit-line-clamp: unset; overflow: visible; }
 }
+
+/* compare pins (web/src/compare): header pill + row icons */
+.vr-actions { align-items: center; }
+.vr-row-chip { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.vr-pin { margin-left: auto; }
+.vr-row { grid-template-columns: minmax(150px, 30%) 1fr 104px 184px; }
+@media (max-width: 720px) { .vr-actions .cmp-add.pill span { display: none; } .vr-row-chip { justify-content: flex-start; } }
+@media print { .vr-actions .cmp-add, .vr-pin { display: none !important; } }
