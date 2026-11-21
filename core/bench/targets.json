@@ -118,8 +118,8 @@
    "target": 0.0535,
    "tolerance": 0.01,
    "weight": 0,
-   "status": "verified",
-   "source": "Pictet 1926-2024, Table 1: geometric nominal return 7.7% (Swiss shares) and 4.0% (bonds) -> 50/50 mix 5.85%, minus 0.5 points of costs. Reported only (weight 0): it carries the 2% average inflation of 1926-2024, the model assumes 1%; the like-for-like target is balanced-real-return",
+   "status": "to_verify",
+   "source": "Illustrative approximation from Pictet Table 1 individual asset geometric returns. Their weighted average is not the CAGR of a rebalanced portfolio. The 0.5 percentage-point cost deduction is a team modelling choice. Retained for reference and excluded from verified-public-target fitting until a portfolio series or justified estimator is supplied.",
    "url": "https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf"
   },
   {
@@ -127,9 +127,9 @@
    "kind": "real_return",
    "target": 0.0335,
    "tolerance": 0.011,
-   "weight": 1,
-   "status": "verified",
-   "source": "Pictet 1926-2024, Table 1: geometric REAL return 5.6% (Swiss shares) and 2.1% (bonds) -> 50/50 mix 3.85%, minus 0.5 points of costs (the deduction already stated in AS-investment-return) = 3.35%. Compared with the model's real return (1 + investment return) / (1 + inflation) - 1. Tolerance = standard error of a 99-year mean at 10.7% volatility",
+   "weight": 0,
+   "status": "to_verify",
+   "source": "Illustrative approximation from Pictet Table 1 individual asset geometric returns. Their weighted average is not the CAGR of a rebalanced portfolio. The 0.5 percentage-point cost deduction is a team modelling choice. Retained for reference and excluded from verified-public-target fitting until a portfolio series or justified estimator is supplied.",
    "url": "https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf"
   },
   {
