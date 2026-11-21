@@ -445,3 +445,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tag.breaking .name { text-decoration: line-through; text-decoration-color: rgba(220, 120, 100, 0.8); text-decoration-thickness: 1.5px; }
 .tag.holding .card { box-shadow: 0 0 0 1px rgba(198, 227, 163, 0.75), 0 0 22px rgba(198, 227, 163, 0.35); }
 @media (prefers-reduced-motion: reduce) { .wx-rain, .wx-flash { display: none; } .wx-sky { transition: none; } }
+
+/* docked Lumi (thread 10's dock, bottom-right): the flying Lumi and her bubble step aside */
+.narration.docked #lumi, .narration.docked .say-card { display: none; }

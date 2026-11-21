@@ -27,7 +27,15 @@ export function pickVoice(voices, lang) {
 
 const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
-export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {}) {
+// Lumi's mouth follows the voice: onLevel(0..1) at ~30 fps while speaking. Server audio goes through an
+// AnalyserNode (RMS of the waveform); the browser voice has no audio stream, so each word boundary is a pulse.
+export function levelFromSamples(buf) {
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+  return Math.min(1, Math.sqrt(sum / (buf.length || 1)) * 4.5);
+}
+
+export function createVoice({ onTalking = () => {}, onNoVoice = () => {}, onLevel = () => {} } = {}) {
   let unlocked = false, muted = false, audio = null, seq = 0, serverLangs = [], disposed = false;
   let preGen = 0, fgPending = 0;
   const hasSpeech = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -75,6 +83,7 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
       const a = audio; audio = null; a.onerror = null; a.pause(); a.removeAttribute('src'); a.load();
     }
     try { speechSynthesis.cancel(); } catch { /* not supported */ }
+    speaking = false; pulse = 0;
     onTalking(false);
   }
   function cancelPrefetch() { preGen++; abort('low'); }
@@ -87,10 +96,39 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
     document.addEventListener('visibilitychange', onHidden);
   }
 
+  // ---------- mouth level ----------
+  let actx = null, analyser = null, samples = null, meterRaf = 0, lastEmit = 0, level = 0, pulse = 0;
+  function ensureAnalyser() {
+    if (analyser || typeof window === 'undefined' || !(window.AudioContext || window.webkitAudioContext)) return analyser;
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = actx.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.5;
+      analyser.connect(actx.destination);
+      samples = new Uint8Array(analyser.fftSize);
+    } catch { analyser = null; }
+    return analyser;
+  }
+  function meter(now) {
+    meterRaf = 0;
+    let target = 0;
+    if (audio && !audio.paused && analyser) { analyser.getByteTimeDomainData(samples); target = levelFromSamples(samples); }
+    pulse *= 0.82; // word pulses (browser voice) decay between boundaries
+    target = Math.max(target, pulse);
+    level += (target - level) * (target > level ? 0.6 : 0.3);
+    if (now - lastEmit > 30) { lastEmit = now; onLevel(level < 0.02 ? 0 : level); }
+    if (level > 0.01 || (audio && !audio.paused) || speaking) meterRaf = requestAnimationFrame(meter);
+    else onLevel(0);
+  }
+  let speaking = false;
+  const startMeter = () => { if (!meterRaf && typeof requestAnimationFrame !== 'undefined') meterRaf = requestAnimationFrame(meter); };
   function playUrl(url, my) {
     return new Promise((resolve, reject) => {
       if (my !== seq) return resolve();
       audio = new Audio(url);
+      if (ensureAnalyser() && actx.state === 'running') { // a suspended context would mute the clip
+        try { actx.resume?.(); actx.createMediaElementSource(audio).connect(analyser); } catch { /* plays unmetered */ }
+      }
+      audio.addEventListener('play', startMeter);
       audio.onplay = () => onTalking(true);
       audio.onended = () => resolve();
       audio.onpause = () => resolve();
@@ -103,9 +141,10 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
     sentences.forEach((s, i) => { // one utterance per sentence: Chrome cuts long utterances short
       const u = new SpeechSynthesisUtterance(s);
       u.voice = v; u.lang = v.lang; u.rate = 1.02;
-      if (i === 0) u.onstart = () => onTalking(true);
-      if (i === sentences.length - 1) u.onend = () => onTalking(false);
-      u.onerror = () => onTalking(false);
+      if (i === 0) u.onstart = () => { speaking = true; pulse = 0.7; startMeter(); onTalking(true); };
+      u.onboundary = (e) => { if (e.name !== 'sentence') { pulse = 0.55 + Math.random() * 0.4; startMeter(); } };
+      if (i === sentences.length - 1) u.onend = () => { speaking = false; onTalking(false); };
+      u.onerror = () => { speaking = false; onTalking(false); };
       if (my === seq) speechSynthesis.speak(u);
     });
   }
@@ -169,6 +208,7 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
       if (unlocked) return;
       unlocked = true;
       try { const a = new Audio(); a.muted = true; a.play().catch(() => {}); } catch { /* ignore */ }
+      try { ensureAnalyser(); actx?.resume?.(); } catch { /* ignore */ } // created inside the gesture: never suspended
       try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch { /* ignore */ }
     },
     speak, stop, prefetch, cancelPrefetch,
