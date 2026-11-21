@@ -84,8 +84,13 @@ async def _run(browser, lang, width, height, paths, results):
         m = await pg.evaluate(MEASURE)
         key = f"{lang} {width}px {'/'.join(p) or 'root'}"
         results.append((key, m))
+        if m["bad"] or m["offscreen"]:
+            print("FAIL-STATE", key, m["bad"], m["offscreen"], flush=True)
         if (m["bad"] or m["offscreen"] or m.get("faded")) and args.out:
-            await pg.screenshot(path=f"{args.out}/{lang}_{width}_{'-'.join(p) or 'root'}.png")
+            try:
+                await pg.screenshot(path=f"{args.out}/{lang}_{width}_{'-'.join(p) or 'root'}.png", timeout=10000)
+            except Exception:
+                pass  # a screenshot is a nice-to-have, the measurement is the test
     results.append((f"{lang} {width}px page errors", {"bad": errors, "offscreen": 0}))
     await ctx.close()
 
