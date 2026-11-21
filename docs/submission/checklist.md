@@ -44,8 +44,8 @@ gitleaks detect --source . --log-opts="--all" --redact
 - [ ] No UBS kit files are tracked (check (c) above).
 - [ ] `data/synthetic/` holds documents rendered from UBS synthetic profiles (invented names and IBANs; amounts from the kit). The lead decides whether they go public as they are. If UBS objects, remove `data/synthetic/docs` before flipping; anyone with kit access can regenerate them with `python -m multimodal.gen.generate`.
 - [ ] License: the README states that there is no license file. Add one (for example MIT) only if the team decides to.
-- [ ] README: screenshots exist in `docs/submission/screenshots/` (8 files, see the README table), the video link has been added, and the title matches the form.
-- [ ] The only remaining TODOs are the product name, screenshots and video: `git grep -n "TODO (" -- README.md docs/pitch.md docs/submission/`.
+- [ ] README: screenshots exist in `docs/submission/screenshots/` (8 files, see the README table), the video link has been added, and the title (**Arbor**) matches the form.
+- [ ] The only remaining TODOs are screenshots and video: `git grep -n "TODO (" -- README.md docs/pitch.md docs/submission/`.
 - [ ] Every PR that should ship is merged into `master`, and `git log origin/master -1` is the commit you demo.
 
 **Make it public** (lead only):
@@ -77,8 +77,10 @@ gh repo view Jlopvs24/lauzhack-26-cigala --json visibility -q .visibility    # e
   ```
   On Sat 20:40 the shared API returned 200 twice, but took **57 s and 74 s** (the benchmark's median is 5.1 s). If it is still slow, skip the documents beat. At 18:52 the same route had failed with `TypeError: 'module' object is not callable`: `api/main.py` imports `extract` from `multimodal` at call time, and importing `multimodal.extract.profile` replaces that name with the subpackage. The code is unchanged since then, so make sure the third call also returns 200.
 - [ ] Web: `cd web && npm run dev` serves `http://127.0.0.1:5175`. **Try the demo: Alexia** grows the tree, and the master's branch says *"cash runs short from month 7"*. Lumi is docked at the bottom right and her mouth moves while she speaks.
-- [ ] Clear rehearsal conditions: open a new private window, or remove them under **Your conditions**.
+- [ ] Clear rehearsal state: reload the page. Since #121 a reload starts fresh (no chat, pins, personal conditions or Live consent).
 - [ ] Click the whole demo path once so every node is cached, then reload.
+- [ ] **Chat what-ifs:** in the chat, type *"What if I got a CHF 600 scholarship during the master's?"* on the master's: a new branch grows in about 1 s. A statement (*"I'd get…"*) changes the current branch.
+- [ ] **Lumi Live (optional):** `curl -s http://127.0.0.1:8000/live/status` shows `available:true` (it needs `GEMINI_API_KEY`). In the app the consent step appears before the call. If it is unavailable, do not show Live; the classic chat works.
 
 **Kokoro TTS model files:**
 
