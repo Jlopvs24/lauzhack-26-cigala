@@ -202,7 +202,7 @@ def test_visible_nodes_prune_far_branches():
     ids = lambda path: {str(n["node_id"]): s for n, s, _ in visible_nodes(tree, path)}  # noqa: E731
     assert set(ids([])) == {"0", "1", "2", "3"}
     v = ids(["2", "2.1"])
-    assert set(v) == {"0", "2", "2.1", "2.2", "2.3"}       # 1 and 3 are pruned
+    assert set(v) == {"0", "2", "2.1", "2.2", "2.3", "2.1.1", "2.1.2", "2.1.3"}  # 1 and 3 are pruned
     assert v["2.2"] == "sibling"
     v = ids(["2"])
     assert v["1"] == "sibling" and v["2.1"] == "child"
@@ -212,7 +212,8 @@ def test_expand_envelope_and_back():
     r = expand(load_profile(), ["2", "2.2"], [{"id": "AS-alexia-master-tuition", "value": 3000}], ["job_loss"])
     assert r["current"] == "2.2" and r["path"] == ["0", "2", "2.2"] and r["back_path"] == ["2"]
     statuses = {n["node_id"]: n["status"] for n in r["nodes"]}
-    assert statuses == {"0": "chosen", "2": "chosen", "2.2": "chosen", "2.1": "sibling", "2.3": "sibling"}
+    assert statuses == {"0": "chosen", "2": "chosen", "2.2": "chosen", "2.1": "sibling", "2.3": "sibling",
+                        "2.2.1": "child", "2.2.2": "child", "2.2.3": "child"}
     cur = [n for n in r["nodes"] if n["is_current"]][0]
     assert cur["result"]["sensitivity"] and cur["changes"]
     assert all(all(c["passed"] for c in n["result"]["checks"]) for n in r["nodes"])
@@ -463,3 +464,85 @@ def test_weather_moves_the_deterministic_path_with_the_lens_off(kind):
     base = simulate_node(prof, [])["deterministic"]["net_worth"][-1]
     hit = simulate_node(prof, [], weather=[kind])
     assert hit["uncertainty"] is False and hit["deterministic"]["net_worth"][-1] < base - 1
+
+
+# --- tree content (#25) and the interventions it needs --------------------------
+
+def _all_nodes(tree):
+    out, stack = [], [tree["root"]]
+    while stack:
+        n = stack.pop()
+        out.append(n)
+        stack.extend(n.get("children", []) or [])
+    return out
+
+
+def test_alexia_tree_is_three_by_three_and_every_node_balances():
+    tree = load_tree()
+    nodes = _all_nodes(tree)
+    assert len(nodes) == 40  # root + 3 + 9 + 27
+    assert all(len(n.get("children", [])) in (0, 3) for n in nodes)
+    for n in nodes:
+        r = simulate(None, n["node_id"], sensitivity=False, exploration=False)
+        assert all(c["passed"] for c in r["checks"]), n["node_id"]
+
+
+def test_every_tree_assumption_is_sourced_and_unverified_ones_are_labelled():
+    tree = load_tree()
+    ids = {a["id"] for a in core_assumptions()} | {a["id"] for a in tree["assumptions"]}
+    for a in tree["assumptions"]:
+        assert a["source"] and a["kind"] == "assumption" and isinstance(a["verified"], bool)
+        if not a["verified"]:
+            assert a["source"].startswith("Modelling choice")
+    blob = json.dumps(tree)
+    import re
+    for ref in re.findall(r'"assumption": "([^"]+)"', blob) + re.findall(r'"id": "(AS-[^"]+)"', blob):
+        assert ref in ids, ref
+    assert "erasmus" not in blob.lower()
+
+
+def core_assumptions():
+    from core.assumptions import default_assumptions
+    return default_assumptions()
+
+
+def test_node_assumption_value_applies_to_its_branch_only_and_user_override_wins():
+    eq = simulate(None, "1.2.3", sensitivity=False, exploration=False)
+    used = {a["id"]: a for a in eq["assumptions_used"]}
+    assert used["AS-investment-return"]["value"] == 0.055 and used["AS-investment-return"]["set_by_decision"]
+    base = simulate(None, "1.2.1", sensitivity=False, exploration=False)
+    assert eq["metrics"]["final_net_worth"] > base["metrics"]["final_net_worth"]
+    assert {a["id"]: a["value"] for a in base["assumptions_used"]}["AS-investment-return"] == 0.04
+    user = simulate(None, "1.2.3", {"AS-investment-return": 0.04}, sensitivity=False, exploration=False)
+    assert user["metrics"]["final_net_worth"] == pytest.approx(base["metrics"]["final_net_worth"], abs=0.01)
+
+
+def test_loan_change_payment_and_rate():
+    prof = base_profile(horizon_months=36, monthly_net_income=3000)
+    loan = {"param": "new_liability", "month": 0, "label": "L",
+            "liability": {"label": "L", "principal": 6000, "annual_rate": 0.0, "monthly_payment": 100}}
+    slow = simulate_node(prof, [loan], assumptions=ZERO)["debts"][0]
+    fast = simulate_node(prof, [loan, {"param": "loan_change", "loan": "L", "month": 1, "monthly_payment": 300}],
+                         assumptions=ZERO)
+    assert slow["final_balance"] == pytest.approx(6000 - 35 * 100)
+    assert fast["debts"][0]["paid_off_month"] == 20  # 6000 / 300 = 20 payments from month 1
+    assert all(c["passed"] for c in fast["checks"])
+    dear = simulate_node(prof, [loan, {"param": "loan_change", "loan": "L", "month": 12, "annual_rate": 0.12}],
+                         assumptions=ZERO)
+    assert dear["metrics"]["total_debt_interest"] > 0 and dear["debts"][0]["final_balance"] > slow["final_balance"]
+    with pytest.raises(ValueError):
+        simulate_node(prof, [{"param": "loan_change", "loan": "nope", "month": 1, "monthly_payment": 1}], assumptions=ZERO)
+
+
+def test_cancel_one_off_removes_a_planned_cost():
+    prof = base_profile()
+    ivs = [{"param": "one_off_cost", "month": 5, "value": 700, "label": "Fee"}]
+    paid = simulate_node(prof, ivs, assumptions=ZERO)
+    cancelled = simulate_node(prof, ivs + [{"param": "cancel_one_off", "label": "Fee"}], assumptions=ZERO)
+    assert cancelled["metrics"]["final_net_worth"] - paid["metrics"]["final_net_worth"] == pytest.approx(700)
+    assert cancelled["events"] == [] and all(c["passed"] for c in cancelled["checks"])
+
+
+def test_drop_out_pays_only_the_first_year_of_tuition():
+    r = simulate(None, "2.3.3", sensitivity=False, exploration=False)
+    assert [e["label"] for e in r["events"]] == ["Tuition year 1"]

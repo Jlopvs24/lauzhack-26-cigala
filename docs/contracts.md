@@ -50,14 +50,14 @@ Produced by the questionnaire or multimodal extraction. Unknown fields are ignor
 
 ## Decision tree (data file, `core/data/trees/<name>.json`)
 
-The tree content is editable data (decisions are OPEN in `docs/plan.md`). A node's interventions apply on top of all its ancestors' interventions, in order.
+The tree content is editable data. `alexia-v2` (issue #25) is the 3 x 3 x 3 tree approved from `docs/tree-proposal.md`: 40 nodes, each with `catalog` = the UBS scenario-catalog ids it is grounded in. A node's interventions apply on top of all its ancestors' interventions, in order.
 
 ```json
 {
-  "tree_id": "alexia-v1",
+  "tree_id": "alexia-v2",
   "assumptions": [{"id": "AS-alexia-master-tuition", "param": "master_tuition", "value": 2500, "unit": "CHF/year", "range": [1460, 8000], "...": "..."}],
   "root": {"node_id": "0", "label": "Today: student in Lausanne", "interventions": [], "children": [
-    {"node_id": "2", "label": "Do a master's", "description": "...", "interventions": ["..."], "children": ["..."]}
+    {"node_id": "2", "label": "Do a master's", "description": "...", "catalog": ["S001"], "interventions": ["..."], "children": ["..."]}
   ]}
 }
 ```
@@ -70,7 +70,10 @@ The tree content is editable data (decisions are OPEN in `docs/plan.md`). A node
 |---|---|---|
 | `monthly_net_income`, `monthly_rent`, `monthly_other_expenses`, `monthly_investment_contribution` | `op` (`set` / `add` / `mul`), `value`, `from_month`, `to_month` | changes the planned monthly amount in the window (never below 0) |
 | `one_off_cost`, `one_off_income` | `month`, `value` (>= 0), `label` | one payment in that month |
-| `new_liability` | `month`, `liability` {`type`, `label`, `principal`, `annual_rate`, `monthly_payment`, `payment_start_month`?} | loan received in cash in `month`; payments start at `payment_start_month` (default `month + 1`) |
+| `new_liability` | `month`, `liability` {`type`, `label`, `principal`, `annual_rate`, `monthly_payment`, `payment_start_month`?} | loan received in cash in `month`; payments start at `payment_start_month` (default `month + 1`). `principal`, `annual_rate` and `monthly_payment` may reference an assumption |
+| `loan_change` | `loan` (label of a loan on the path), `month`, `monthly_payment`? and/or `annual_rate`? | from `month` on, that loan uses the new payment and/or rate (e.g. repay faster, variable rate rises); listed in `debts[].changes` and `events` |
+| `cancel_one_off` | `label` | removes the one-off costs/incomes with that label planned earlier on the path (e.g. tuition not due after dropping out) |
+| `assumption` | `id`, `value` | this decision changes a model assumption on its branch (e.g. an 80% equity portfolio sets `AS-investment-return`). An explicit user override of the same assumption still wins. Shown in `assumptions_used[]` with `set_by_decision: true` and in the node's `assumptions_ref` |
 
 ```json
 {"param": "monthly_net_income", "op": "set", "value": {"assumption": "AS-alexia-student-job"}, "from_month": 0, "to_month": 24, "label": "Student job"}

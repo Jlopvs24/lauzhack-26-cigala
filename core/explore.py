@@ -78,6 +78,9 @@ def shift_interventions(interventions, delay, horizon):
     shifted = []
     for original in interventions:
         iv = copy.deepcopy(original)
+        if iv["param"] == "assumption":  # a change of assumption has no date
+            shifted.append(iv)
+            continue
         key = "from_month" if iv["param"].startswith("monthly_") else "month"
         iv[key] = iv.get(key, 0) + delay
         if iv[key] >= horizon:
@@ -96,8 +99,9 @@ def explore_node(profile, interventions, own_interventions, aset, weather, compa
     wx = build_weather(weather, H)
 
     def run_cases(cases):
-        schedules = [build_schedule(profile, parse_interventions(ivs, a.values(), H)) for ivs, a in cases]
-        return run_batch(schedules, [a.values() for _, a in cases], profile.cash,
+        values = [a.with_node_values(ivs).values() for ivs, a in cases]
+        schedules = [build_schedule(profile, parse_interventions(ivs, v, H)) for (ivs, _), v in zip(cases, values)]
+        return run_batch(schedules, values, profile.cash,
                          profile.investments, aset.tax_table(), wx, stochastic=False)
 
     def summary(out, row=0):

@@ -23,7 +23,7 @@ ENGINE_VERSION = "core-1.1"
 
 
 def _prepare(profile: Profile, interventions: list[dict], aset: AssumptionSet, weather: list[dict] | None):
-    A = aset.values()
+    A = aset.with_node_values(interventions).values()
     ivs = parse_interventions(interventions, A, profile.horizon_months)
     sched = build_schedule(profile, ivs)
     w = build_weather(weather, profile.horizon_months)
@@ -74,7 +74,7 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
     min_k = int(np.argmin(cash_d[1:]))
     final_nw_mc = mc.net_worth[:, -1] if mc is not None else None
     min_cash_mc = mc.cash[:, 1:].min(axis=1) if mc is not None else None
-    used = [a for a in aset.to_list()]
+    used = aset.with_node_values(interventions).to_list()
     metrics = {
         "final_cash": an.r2(cash_d[-1]),
         "final_net_worth": an.r2(det.net_worth[0, -1]),
@@ -132,7 +132,8 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
         "events": sched.events,
         "debts": det.debt_detail.per_liability,
         "weather": w.applied,
-        "assumptions_used": [{"id": a["id"], "value": a["value"], **({"user_edited": True} if a.get("user_edited") else {})}
+        "assumptions_used": [{"id": a["id"], "value": a["value"], **({"user_edited": True} if a.get("user_edited") else {}),
+                              **({"set_by_decision": True} if a.get("set_by_decision") else {})}
                              for a in used],
         "trace_id": trace_id(prof.raw, interventions, used, weather, n_paths if uncertainty else 0,
                              seed if uncertainty else None, uncertainty),
@@ -157,7 +158,7 @@ def sensitivity_analysis(profile: Profile, interventions: list[dict], aset: Assu
     All variants run in ONE batched pass, without random draws.
     Sorted by swing, largest first."""
     variants: list[tuple[dict | None, str]] = [(None, "base")]
-    for a in aset.to_list():
+    for a in aset.with_node_values(interventions).to_list():  # labels/base values as this node sees them
         if a.get("range"):
             variants += [(a, "low"), (a, "high")]
     scheds, As = [], []

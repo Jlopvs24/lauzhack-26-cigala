@@ -7,7 +7,7 @@ its parent's.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -64,6 +64,21 @@ def build_schedule(profile: Profile, interventions: list[Intervention]) -> Sched
             liabilities.append(iv.liability)
             events.append({"month": iv.month, "type": "loan", "amount": iv.liability.principal,
                            "label": iv.label})
+        elif iv.param == "cancel_one_off":
+            hits = [e for e in events if e["type"] in ("cost", "income") and e["label"] == iv.label]
+            if not hits:
+                raise ValueError(f"cancel_one_off: no one-off labelled {iv.label!r} on this path")
+            for e in hits:
+                (one_off_cost if e["type"] == "cost" else one_off_income)[e["month"]] -= e["amount"]
+                events.remove(e)
+        elif iv.param == "loan_change":
+            k = next((j for j in range(len(liabilities) - 1, -1, -1) if liabilities[j].label == iv.loan), None)
+            if k is None:
+                raise ValueError(f"loan_change: no loan labelled {iv.loan!r} on this path")
+            liabilities[k] = replace(liabilities[k], changes=liabilities[k].changes +
+                                     ((iv.month, iv.monthly_payment, iv.annual_rate),))
+            events.append({"month": iv.month, "type": "loan_change", "loan": iv.loan, "label": iv.label,
+                           "monthly_payment": iv.monthly_payment, "annual_rate": iv.annual_rate})
     return Schedule(
         horizon=H,
         income=series["monthly_net_income"],
@@ -102,6 +117,8 @@ def debt_schedule(liabilities: list[Liability], H: int) -> DebtSchedule:
     per = []
     for liab in liabilities:
         i = liab.annual_rate / 12.0
+        pay = liab.monthly_payment
+        changes = sorted(liab.changes, key=lambda c: c[0])
         d = 0.0 if liab.is_new else liab.principal
         bal = np.zeros(H + 1)
         bal[0] = d
@@ -111,8 +128,12 @@ def debt_schedule(liabilities: list[Liability], H: int) -> DebtSchedule:
                 proceeds[t] += liab.principal
                 bal[t + 1] = d
                 continue
+            for month, new_pay, new_rate in changes:
+                if month == t:
+                    pay = pay if new_pay is None else new_pay
+                    i = i if new_rate is None else new_rate / 12.0
             accrued = d * i
-            due = liab.monthly_payment if t >= liab.payment_start_month else 0.0
+            due = pay if t >= liab.payment_start_month else 0.0
             paid = min(due, d + accrued)
             d = d + accrued - paid
             if d < 1e-9:
@@ -125,6 +146,7 @@ def debt_schedule(liabilities: list[Liability], H: int) -> DebtSchedule:
         per.append({"label": liab.label, "type": liab.type, "principal": liab.principal,
                     "annual_rate": liab.annual_rate, "monthly_payment": liab.monthly_payment,
                     "start_month": liab.start_month, "payment_start_month": liab.payment_start_month, "paid_off_month": None if paid_off is None else paid_off - 1,
+                    "changes": [{"month": m, "monthly_payment": p, "annual_rate": r} for m, p, r in changes],
                     "final_balance": round(float(bal[-1]), 2)})
     return DebtSchedule(balance, payment, interest, proceeds, per)
 
