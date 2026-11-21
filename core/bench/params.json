@@ -1,5 +1,5 @@
 {
-  "note": "Parameter set scored by `python -m core.bench --params core/bench/params.json` (#42). Each entry overrides one assumption id. tunable = may be searched against PUBLIC targets (core.bench.search / score); rule = a legal rule, threshold or value judgement: source it or label it, never optimise it. Values below are today's defaults; edit a copy tonight.",
+  "note": "Parameter set scored by `python -m core.bench --params core/bench/params.json` (#42). Each entry overrides one assumption id. tunable = may be searched against PUBLIC targets (core.bench.search / score); rule = a legal rule, threshold or value judgement: source it or label it, never optimise it. Values below are today's defaults. AS-income-tax is a rule since #48 item 3 (official ESTV tables, scale 1). `python -m core.bench.optimise` searches the tunable ones (see OPTIMISATION.md).",
   "params": {
     "AS-inflation-mean": {"value": 0.01, "class": "tunable"},
     "AS-inflation-sd": {"value": 0.008, "class": "tunable"},
@@ -8,10 +8,10 @@
     "AS-investment-vol": {"value": 0.1, "class": "tunable"},
     "AS-cash-interest": {"value": 0.001, "class": "tunable"},
     "AS-job-loss-prob": {"value": 0.03, "class": "tunable"},
-    "AS-unemployment-duration": {"value": 6, "class": "tunable"},
+    "AS-unemployment-duration": {"value": 5.8, "class": "tunable"},
     "AS-unexpected-prob": {"value": 0.3, "class": "tunable"},
     "AS-unexpected-mean": {"value": 1500, "class": "tunable"},
-    "AS-income-tax": {"value": 1.0, "class": "tunable"},
+    "AS-income-tax": {"value": 1.0, "class": "rule"},
     "AS-unemployment-replacement": {"value": 0.7, "class": "rule"},
     "AS-auto-liquidate": {"value": 1, "class": "rule"},
     "AS-liquidity-target": {"value": 3, "class": "rule"},

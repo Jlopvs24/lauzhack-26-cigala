@@ -1,5 +1,5 @@
 {
- "note": "Public Swiss targets for core.bench.score (#42). status: verified = already checked by the team (same source as the assumption file); to_verify = figure known but not yet checked against the primary source tonight; to_fill = source known, figure must be read from it (e.g. a calculator). Only verified targets count in score() by default. kind: assumption = compares an assumption value; tax_rate_at = effective rate of the tax table at an income; not_modelled = a Swiss rule the engine does not model yet (see core/ENGINE_AUDIT.md).",
+ "note": "Public Swiss targets for core.bench.score (#42). status: verified = already checked by the team (same source as the assumption file); to_verify = figure known but not yet checked against the primary source tonight; to_fill = source known, figure must be read from it (e.g. a calculator). Only verified targets count in score() by default. kind: assumption = compares an assumption value; tax_rate_at = effective rate of the tax table at an income; real_return = (1 + investment return) / (1 + inflation) - 1; not_modelled = a quantity the engine does not model yet (see core/ENGINE_AUDIT.md).",
  "targets": [
   {
    "id": "cpi-recent-average",
@@ -13,14 +13,25 @@
    "url": "https://www.bfs.admin.ch/bfs/en/home/statistics/prices/consumer-price-index.html"
   },
   {
+   "id": "cpi-recent-sd",
+   "kind": "assumption",
+   "param": "inflation_sd",
+   "target": 0.0095,
+   "tolerance": 0.005,
+   "weight": 0.5,
+   "status": "verified",
+   "source": "Sample standard deviation of the FSO CPI annual averages +2.1% (2023), +1.1% (2024), +0.2% (2025): 0.95 points. Three observations, so weight 0.5",
+   "url": "https://www.bfs.admin.ch/bfs/en/home/statistics/prices/consumer-price-index.html"
+  },
+  {
    "id": "snb-price-stability",
    "kind": "assumption",
    "param": "inflation_mean",
    "target": 0.01,
    "tolerance": 0.01,
    "weight": 0.5,
-   "status": "to_verify",
-   "source": "SNB defines price stability as CPI inflation below 2% a year (midpoint of 0-2% used as target)",
+   "status": "verified",
+   "source": "SNB monetary policy strategy: 'The SNB equates price stability with a rise in the Swiss consumer price index (CPI) of less than 2% per annum' and sustained deflation also breaches it; midpoint of the 0-2% band used as the long-run anchor, tolerance = half the band",
    "url": "https://www.snb.ch/en/the-snb/mandates-goals/monetary-policy/strategy"
   },
   {
@@ -29,9 +40,20 @@
    "param": "real_wage_growth",
    "target": 0.0115,
    "tolerance": 0.006,
-   "weight": 1,
+   "weight": 0.5,
    "status": "verified",
-   "source": "FSO Swiss Wage Index: real wages +1.6% (2025) and +0.7% (2024); mean 1.15%",
+   "source": "FSO Swiss Wage Index: real wages +1.6% (2025) and +0.7% (2024); mean 1.15%. Weight 0.5: shares the series with real-wage-5y",
+   "url": "https://www.bfs.admin.ch/bfs/en/home/statistics/work-income/wages-income-employment-labour-costs/wage-index.html"
+  },
+  {
+   "id": "real-wage-5y",
+   "kind": "assumption",
+   "param": "real_wage_growth",
+   "target": -0.0016,
+   "tolerance": 0.006,
+   "weight": 0.5,
+   "status": "verified",
+   "source": "FSO Swiss Wage Index, real wages: -0.8% (2021), -1.9% (2022), -0.4% (2023), +0.7% (2024), +1.6% (2025); mean -0.16%. Tolerance = standard error of a 5-year mean",
    "url": "https://www.bfs.admin.ch/bfs/en/home/statistics/work-income/wages-income-employment-labour-costs/wage-index.html"
   },
   {
@@ -52,9 +74,20 @@
    "target": 0.0295,
    "tolerance": 0.01,
    "weight": 0,
-   "status": "to_verify",
-   "source": "SECO registered unemployment rate 2.9-3.0% (mid-2026). This is a STOCK rate; the engine's hazard should be the annual INFLOW into unemployment (see SOURCES.md), so this target has weight 0 until that is fixed",
+   "status": "verified",
+   "source": "SECO registered unemployment rate 2.9-3.0% (mid-2026). A STOCK rate, not the hazard the engine needs: reported only (weight 0); the hazard target is unemployment-inflow",
    "url": "https://www.amstat.ch"
+  },
+  {
+   "id": "unemployment-inflow",
+   "kind": "assumption",
+   "param": "job_loss_annual_prob",
+   "target": 0.035,
+   "tolerance": 0.01,
+   "weight": 0.5,
+   "status": "verified",
+   "source": "SECO 'Die Lage auf dem Arbeitsmarkt' December 2024, table 7: 12,627 new registrations from employment in the month -> about 152,000 a year over 4.35 million employed = 3.5% a year. One seasonally high month, so weight 0.5 and tolerance 1 point",
+   "url": "https://www.newsd.admin.ch/newsd/message/attachments/91383.pdf"
   },
   {
    "id": "uv-replacement",
@@ -71,34 +104,44 @@
    "id": "uv-duration",
    "kind": "assumption",
    "param": "unemployment_mean_duration_months",
-   "target": null,
+   "target": 5.8,
    "tolerance": 1.5,
    "weight": 1,
-   "status": "to_fill",
-   "source": "SECO: average duration of registered unemployment (months), latest year",
-   "url": "https://www.amstat.ch"
+   "status": "verified",
+   "source": "SECO 'Die Lage auf dem Arbeitsmarkt' December 2024, table 5: average duration of registered unemployment 5.8 months (median 4.0); elapsed duration of current spells",
+   "url": "https://www.newsd.admin.ch/newsd/message/attachments/91383.pdf"
   },
   {
    "id": "balanced-return",
    "kind": "assumption",
    "param": "investment_return_mean",
-   "target": 0.05,
+   "target": 0.0535,
    "tolerance": 0.01,
-   "weight": 0.5,
-   "status": "to_verify",
-   "source": "Pictet 1926-2024: Swiss shares 7.7%/yr, bonds 4.0%/yr nominal -> 50/50 about 5.9% gross; minus about 0.5-1% fees and costs = about 5% (derivation to confirm)",
-   "url": "https://www.group.pictet/asset-management/performance-swiss-shares-bonds"
+   "weight": 0,
+   "status": "verified",
+   "source": "Pictet 1926-2024, Table 1: geometric nominal return 7.7% (Swiss shares) and 4.0% (bonds) -> 50/50 mix 5.85%, minus 0.5 points of costs. Reported only (weight 0): it carries the 2% average inflation of 1926-2024, the model assumes 1%; the like-for-like target is balanced-real-return",
+   "url": "https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf"
+  },
+  {
+   "id": "balanced-real-return",
+   "kind": "real_return",
+   "target": 0.0335,
+   "tolerance": 0.011,
+   "weight": 1,
+   "status": "verified",
+   "source": "Pictet 1926-2024, Table 1: geometric REAL return 5.6% (Swiss shares) and 2.1% (bonds) -> 50/50 mix 3.85%, minus 0.5 points of costs (the deduction already stated in AS-investment-return) = 3.35%. Compared with the model's real return (1 + investment return) / (1 + inflation) - 1. Tolerance = standard error of a 99-year mean at 10.7% volatility",
+   "url": "https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf"
   },
   {
    "id": "balanced-vol",
    "kind": "assumption",
    "param": "investment_return_vol",
-   "target": null,
+   "target": 0.107,
    "tolerance": 0.02,
    "weight": 0.5,
-   "status": "to_fill",
-   "source": "Annual volatility of a Swiss 50/50 index (e.g. Pictet LPP-25/40 or a balanced fund factsheet)",
-   "url": "https://www.group.pictet/asset-management/indices"
+   "status": "verified",
+   "source": "Pictet 1926-2024, Table 1: standard deviation 19.9% (shares), 3.9% (bonds), correlation 28% -> 50/50 mix 10.7%/year",
+   "url": "https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf"
   },
   {
    "id": "tax-lausanne-30k",
@@ -106,9 +149,9 @@
    "annual_income_chf": 30000,
    "target": null,
    "tolerance": 0.01,
-   "weight": 1,
+   "weight": 0,
    "status": "to_fill",
-   "source": "ESTV tax calculator: single, no church, Lausanne (VD), taxable income CHF 30,000, effective federal+cantonal+communal rate",
+   "source": "ESTV tax calculator: single, no church, Lausanne (VD), taxable income CHF 30,000, effective federal+cantonal+communal rate. Weight 0 since #48 item 3: the tax tables are the ESTV figures by construction",
    "url": "https://swisstaxcalculator.estv.admin.ch"
   },
   {
@@ -117,9 +160,9 @@
    "annual_income_chf": 50000,
    "target": null,
    "tolerance": 0.01,
-   "weight": 1,
+   "weight": 0,
    "status": "to_fill",
-   "source": "ESTV tax calculator, same settings, CHF 50,000",
+   "source": "ESTV tax calculator, same settings, CHF 50,000. Weight 0 since #48 item 3: the tax tables are the ESTV figures by construction",
    "url": "https://swisstaxcalculator.estv.admin.ch"
   },
   {
@@ -128,9 +171,9 @@
    "annual_income_chf": 70000,
    "target": null,
    "tolerance": 0.01,
-   "weight": 1,
+   "weight": 0,
    "status": "to_fill",
-   "source": "ESTV tax calculator, same settings, CHF 70,000",
+   "source": "ESTV tax calculator, same settings, CHF 70,000. Weight 0 since #48 item 3: the tax tables are the ESTV figures by construction",
    "url": "https://swisstaxcalculator.estv.admin.ch"
   },
   {
@@ -139,60 +182,65 @@
    "annual_income_chf": 100000,
    "target": null,
    "tolerance": 0.01,
-   "weight": 1,
+   "weight": 0,
    "status": "to_fill",
-   "source": "ESTV tax calculator, same settings, CHF 100,000",
+   "source": "ESTV tax calculator, same settings, CHF 100,000. Weight 0 since #48 item 3: the tax tables are the ESTV figures by construction",
    "url": "https://swisstaxcalculator.estv.admin.ch"
   },
   {
    "id": "ahv-iv-eo-employee",
-   "kind": "not_modelled",
+   "kind": "assumption",
    "target": 0.053,
    "tolerance": 0.001,
    "weight": 1,
-   "status": "to_verify",
-   "source": "Employee share of AHV/IV/EO contributions on gross salary (AHV 4.35% + IV 0.7% + EO 0.25%); check the 2026 rates",
-   "url": "https://www.ahv-iv.ch/en/Social-insurances/Contributions"
+   "status": "verified",
+   "source": "BSV contribution table, 1 Jan 2026: employee AHV 4.35% + IV 0.7% + EO 0.25% = 5.3%. A legal rule (modelled since #48 items 2 and 4): a regression guard, never searched",
+   "url": "https://www.bsv.admin.ch",
+   "param": "payroll_ahv_iv_eo_rate"
   },
   {
    "id": "alv-employee",
-   "kind": "not_modelled",
+   "kind": "assumption",
    "target": 0.011,
    "tolerance": 0.001,
    "weight": 1,
-   "status": "to_verify",
-   "source": "Employee share of unemployment insurance (ALV) 1.1% up to the insured-salary cap (CHF 148,200/year); check the 2026 rates",
-   "url": "https://www.arbeit.swiss"
+   "status": "verified",
+   "source": "BSV contribution table 2026: employee ALV 1.1% up to CHF 148,200/year. A legal rule (modelled since #48 items 2 and 4): a regression guard, never searched",
+   "url": "https://www.bsv.admin.ch",
+   "param": "payroll_alv_rate"
   },
   {
    "id": "bvg-entry-threshold",
-   "kind": "not_modelled",
+   "kind": "assumption",
    "target": 22680,
    "tolerance": 100,
    "weight": 1,
-   "status": "to_verify",
-   "source": "BVG (pillar 2) entry threshold, CHF/year (2025); check the 2026 value",
-   "url": "https://www.bsv.admin.ch"
+   "status": "verified",
+   "source": "BSV key figures 2025/2026: BVG entry threshold CHF 22,680. A legal rule (modelled since #48 items 2 and 4): a regression guard, never searched",
+   "url": "https://www.bsv.admin.ch/dam/de/sd-web/GZplHByBJoFc/Internet_Masszahlenarticles_25_26_d.pdf",
+   "param": "payroll_bvg_entry"
   },
   {
    "id": "bvg-coordination-deduction",
-   "kind": "not_modelled",
+   "kind": "assumption",
    "target": 26460,
    "tolerance": 100,
    "weight": 1,
-   "status": "to_verify",
-   "source": "BVG coordination deduction, CHF/year (2025); check the 2026 value",
-   "url": "https://www.bsv.admin.ch"
+   "status": "verified",
+   "source": "BSV key figures 2025/2026: coordination deduction CHF 26,460. A legal rule (modelled since #48 items 2 and 4): a regression guard, never searched",
+   "url": "https://www.bsv.admin.ch/dam/de/sd-web/GZplHByBJoFc/Internet_Masszahlenarticles_25_26_d.pdf",
+   "param": "payroll_bvg_coord"
   },
   {
    "id": "pillar-3a-max",
-   "kind": "not_modelled",
+   "kind": "assumption",
    "target": 7258,
    "tolerance": 1,
    "weight": 1,
-   "status": "to_verify",
-   "source": "Maximum pillar 3a contribution for employees with a pension fund, CHF/year (2025); check the 2026 value",
-   "url": "https://www.estv.admin.ch"
+   "status": "verified",
+   "source": "Art. 7 BVV 3: 8% of the BVG upper limit = CHF 7,258 (2026). A legal rule (modelled since #48 items 2 and 4): a regression guard, never searched",
+   "url": "https://www.fedlex.admin.ch/eli/cc/1985/1778_1778_1778/de#art_7",
+   "param": "pillar3a_max"
   },
   {
    "id": "epfl-tuition",

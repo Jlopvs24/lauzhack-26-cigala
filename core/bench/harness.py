@@ -211,6 +211,8 @@ def model_quantity(q: dict, A: dict, tax_table) -> float | None:
         xs = [p[0] for p in tax_table]
         ys = [p[1] for p in tax_table]
         return float(np.interp(q["annual_income_chf"], xs, ys)) * A.get("income_tax_scale", 1.0)
+    if kind == "real_return":  # the model's real investment return, like-for-like with a real series
+        return (1.0 + A["investment_return_mean"]) / (1.0 + A["inflation_mean"]) - 1.0
     return None  # quantity not modelled yet (improvement list)
 
 
