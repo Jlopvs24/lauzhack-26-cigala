@@ -2,11 +2,13 @@
 
 # Cigala: every choice grows a different tree
 
-**A financial twin for students. See what each life decision does to your next ten years before you take it. A tested, deterministic engine produces every number. Lumi, the guide, explains the numbers and never recommends.**
+**A financial twin for students. See what each life decision does to your next ten years before you take it, then tell it what is different about *your* life and watch that branch re-grow. A tested, deterministic engine produces every number. Lumi, the guide, explains the numbers and never recommends.**
 
 LauzHack 2026 (EPFL) · team cigala · challenges: **UBS AI Financial Twin** (main), **AXA Frugal multimodal AI**, **IMC Tech for Good**.
 
 > TODO (team): the product name is not final. Title options are in [`docs/submission/form.md`](docs/submission/form.md).
+
+> **Every engine figure on this page comes from [`scripts/pitch_figures.py`](scripts/pitch_figures.py)** (engine `core-1.1`, Alexia's demo profile, default assumptions, Sat 21 Nov 20:50). The engine is still being improved tonight, so re-run `python scripts/pitch_figures.py` before submitting and update the numbers here, in [`docs/pitch.md`](docs/pitch.md) and in [`docs/submission/`](docs/submission/).
 
 ## In 30 seconds
 
@@ -16,48 +18,53 @@ Cigala draws her situation as a **tree of life**:
 
 - **Roots** are who she is. Fill them in with a short questionnaire, by dropping a payslip photo, bank statement or rental contract into a frugal multimodal pipeline, or by voice.
 - **Trunk** is today.
-- **Branches** are her decisions. Each branch is a fully specified *if this, then that* world, simulated month by month for 120 months.
+- **Branches** are her decisions. Each branch is a fully specified *if this, then that* world, simulated month by month for 120 months with Swiss payroll deductions and the official 2026 income tax of her city.
 - **Weather** is what she doesn't choose: recession, inflation, a market crash or job loss, run as named stress tests.
 
-She picks a branch and the camera flies into it. Its sub-choices grow, and the branches she passed stay greyed out so she can compare. On every node she can ask *what would have to be true*: break-even salary, goal-seek, the smallest shock that breaks the plan, the cost of waiting a year, and which assumption matters most. Every assumption is visible, sourced and editable, and the tree recomputes when she changes one. At the end of a branch she opens a path report with 12 sections. It is an exploration, not a forecast, and never advice.
+She picks a branch and the camera flies into it. Its sub-choices grow, and the branches she passed stay greyed out so she can compare. Each card shows a **plan check** (does it hold?) and **what it trades** against its siblings. On every node she can ask *what would have to be true*: break-even salary, goal-seek, the smallest shock that breaks the plan, the cost of waiting a year, and which assumption matters most.
+
+Then she makes it hers. She tells it, by voice or text, *"I'd get a CHF 600/month scholarship"*. A small model turns her words into a change the engine can simulate, using only numbers she said. She confirms, and that branch and everything below it re-grow, either as a change to the branch or as a new branch to compare. At the end of a branch she opens a visual path report she can save as a PDF. It is an exploration, not a forecast, and never advice.
 
 ## Screenshots
 
-> TODO (team): capture these from the demo laptop (`http://127.0.0.1:5175`) and save them in `docs/submission/screenshots/`.
+> TODO (team): capture these on the demo laptop (`http://127.0.0.1:5175`) and save them in `docs/submission/screenshots/`.
 
 | | |
 |---|---|
-| ![Start portal](docs/submission/screenshots/01-portal.png) *Start portal* | ![Roots review with provenance](docs/submission/screenshots/02-roots-review.png) *Roots read from documents, with source and confidence per field* |
-| ![The tree, master's branch](docs/submission/screenshots/03-tree-master.png) *Branches with plan check; pruned paths greyed* | ![What would have to be true](docs/submission/screenshots/04-exploration.png) *Levers, break-even, reverse stress, timing* |
-| ![Path report](docs/submission/screenshots/05-report.png) *Path report: stress scenarios side by side* | ![Lumi answering](docs/submission/screenshots/06-lumi-chat.png) *Lumi answers by voice; session API cost shown* |
+| ![Start portal](docs/submission/screenshots/01-portal.png) *Start portal* | ![The tree, master's branch](docs/submission/screenshots/02-tree-master.png) *Branch cards: plan check and what it trades; past paths greyed* |
+| ![What would have to be true](docs/submission/screenshots/03-exploration.png) *Levers, break-even, reverse stress, timing* | ![Make it mine](docs/submission/screenshots/04-make-it-mine.png) *Make it mine: her own condition, confirmed, re-grows the branch* |
+| ![Path report](docs/submission/screenshots/05-report.png) *Visual path report, with her conditions and the stress scenarios* | ![Verified panel](docs/submission/screenshots/06-verified.png) *Verified: six live engine checks* |
 
 ## How it works
 
 ```mermaid
 flowchart LR
   subgraph B["Browser: web/ (React, Vite, GSAP)"]
-    P["Start portal"] --> T["Tree scene: 14 matched stills, camera zoom"]
+    P["Start portal"] --> T["Tree scene: matched stills, camera zoom, level-3 close-ups"]
     T --> L["Lumi: bubble + voice"]
-    T --> R["Path report (12 sections)"]
+    T --> MM["Make it mine: own conditions"]
+    T --> R["Visual path report + PDF"]
+    V["Verified panel: 6 live checks"]
     C["Chat panel: type, voice note, call"]
-    STT["Browser speech recognition"]
   end
 
   subgraph A["api/ (FastAPI)"]
-    TR["/tree/expand, /tree/explore, /simulate"]
-    RP["/report"]
+    TR["/tree/expand, /tree/explore, /simulate, /report"]
+    PZ["/tree/personalize: small LLM parses, numbers must be the user's"]
     VA["/validation"]
     AG["/agent/ask: LLM narrates, numbers checked"]
     EX["/profiles/extract"]
     TTS["/voice/tts: Kokoro-82M, local, cost 0"]
+    BG["Daily LLM budget guard"]
   end
 
   subgraph E["core/ (Python, numpy)"]
     SIM["Deterministic monthly engine, 120 months"]
+    TAX["Payroll gross to net, ESTV 2026 income tax, pillar 3a"]
     EXP["Exploration: levers, break-even, goal-seek, reverse stress, timing"]
+    PER["Personal conditions: node patches and custom nodes"]
     W["Weather: 4 named stress tests"]
     PC["Plan check and constraints"]
-    MC["Optional uncertainty lens (Monte Carlo, off by default)"]
   end
 
   subgraph M["multimodal/ (frugal chain)"]
@@ -68,28 +75,46 @@ flowchart LR
 
   B -->|"HTTP /api proxy"| A
   TR --> E
-  RP --> E
   VA --> E
+  PZ -->|"proposal, user confirms"| TR
   AG -->|"tool calls"| E
   EX --> M
-  STT --> C
   C --> AG
   L --> TTS
+  PZ --- BG
+  AG --- BG
 ```
 
-- **`core/`** produces every number. It holds the monthly state (cash, investments, fixed-payment loans), income tax, inflation, wage growth, one-offs and auto-liquidation. Accounting identities are checked on every run. Pure functions, JSON in and JSON out. See [`core/README.md`](core/README.md).
-- **`api/`** is a thin FastAPI layer. Lumi's agent calls engine tools (`get_node`, `compare_nodes`, `what_if`, `get_exploration`, `what_would_have_to_be_true`). Every number in an answer is checked against tool outputs. A guard rewrites forecast phrasing and drops sentences that recommend, and an answer that fails a check falls back to a template built from engine results. See [`api/README.md`](api/README.md).
+- **`core/`** produces every number. It covers cash, investments, a locked pillar 3a account and fixed-payment loans; Swiss payroll deductions; the official ESTV 2026 income tax for the city, canton and household, including moves of tax residence; inflation and wage growth; and one-off costs and incomes. Accounting identities are checked on every run. Personal conditions arrive as `node_patches` (a change to a branch that its whole subtree inherits) or `custom_nodes` (a new option to compare). Pure functions, JSON in and JSON out. See [`core/README.md`](core/README.md) and the honest self-audit in [`core/ENGINE_AUDIT.md`](core/ENGINE_AUDIT.md).
+- **`api/`** is a thin FastAPI layer. `/tree/personalize` turns a sentence or voice clip into a proposal: one patch or new branch, or one clarifying question. Its numbers must appear in the user's words and are range-checked. Lumi's agent calls engine tools. Every number in an answer is checked against tool outputs, a scope gate and an injection guard sit in front, and a guard rewrites forecast phrasing and drops sentences that recommend. Every paid LLM call goes through a daily budget guard and falls back to a template. See [`api/README.md`](api/README.md).
 - **`multimodal/`** turns documents, text and voice into the shared `Profile`, with per-field provenance. See [`multimodal/README.md`](multimodal/README.md).
-- **`web/`** is the cinematic tree, Lumi, the chat panel and the report, in EN, ES, FR and DE with light and dark modes. See [`web/README.md`](web/README.md).
+- **`web/`** is the cinematic tree, Lumi, *Make it mine*, the chat side panel, the visual path report and the *Verified* panel, in EN, ES, FR and DE with light and dark modes. See [`web/README.md`](web/README.md).
 - Shared JSON shapes are in [`docs/contracts.md`](docs/contracts.md).
 
 ## What each challenge gets, with evidence
 
 ### UBS: AI Financial Twin
 
-The UBS draft rubric weights modelling correctness 25, scenario exploration 20, technical execution and validation 15, UX 15, innovation 15 and responsible design 10. Our answer to each:
+The UBS draft rubric weights modelling correctness 25, scenario exploration 20, technical execution and validation 15, UX 15, innovation 15 and responsible design 10.
 
-**1. A deterministic engine reproduces the UBS starter kit exactly.** Under the kit's own assumptions (cash only), `core.starter` returns the kit's three scenarios to the franc:
+**1. Personal conditions: the twin becomes yours.** The tree starts from Alexia's synthetic profile, but every branch accepts the user's own situation. On *Do a master's* she says *"I'd get a CHF 600/month scholarship"*. `/tree/personalize` proposes `+CHF 600/month income, months 1–24`, checks that 600 appears in her words, and she confirms it:
+
+| | Before | With her condition |
+|---|---|---|
+| Do a master's | Needs financing: funding gap of CHF 18,553 from month 7 | Needs financing: funding gap of CHF 3,914 from month 13 |
+| Real 10-year net worth, master's | CHF 102,596 | CHF 115,944 |
+| Break-even salary after the master's, against starting work | CHF 4,959.51 a month | CHF 4,768.19 a month |
+| Study loan of CHF 15,000 (a child of the master's) | Needs financing: gap of CHF 3,538 from month 21 | **Holds: no funding gap, debt within the limit, goals met; holds in 4 of 4 stress scenarios** |
+
+With *Add as a new branch*, the same condition becomes *"Do a master's: Scholarship"*, a new option next to the original ones, compared like any other.
+
+**2. A real Swiss engine that still reproduces the UBS starter kit exactly.**
+
+- **Payroll.** A gross salary is converted to net with the employee's AHV/IV/EO, ALV, NBU and BVG deductions (2026 rates from BSV and BVG Art. 16).
+- **Income tax.** Official ESTV 2026 effective rates (federal + cantonal + communal) for 12 cities × 3 household types, plus tax-residence moves (*Job in Zurich* is taxed in Zurich from month 36; *Move abroad* at a stated flat rate).
+- **Pillar 3a.** A capped, tax-deductible contribution, counted as locked in net worth.
+
+Under the starter kit's own assumptions (cash only), the engine returns the kit's three scenarios to the franc:
 
 | Scenario | Closing cash | Lowest cash | Cash runs short |
 |---|---:|---:|---|
@@ -97,51 +122,55 @@ The UBS draft rubric weights modelling correctness 25, scenario exploration 20, 
 | Master's degree | CHF 144,600 | CHF −18,600 | month 7 |
 | Move abroad | CHF 97,500 | CHF 2,300 | never |
 
-With the kit downloaded, one more test compares the engine with the kit's code month by month (`core/tests`, skipped without the kit).
-
-**2. Six live validation checks.** We ran `core.validation()` on engine `core-1.1` on 21 Nov: 6/6 passed in 1.8 s. The API serves the same data at `GET /validation`, cached for 60 s:
+**3. Six live validation checks**, shown in the app's *Verified* panel and served at `GET /validation`. On Sat 21 Nov 20:50, `core.validation()` passed 6/6:
 
 | Check | What it proves |
 |---|---|
-| Accounting identities | 40 nodes × 8 checks (cash flow, net-worth change, balance sheet, investment account, debt never negative, investments never negative, ordered bands, every assumption sourced); largest error CHF 0.00 |
+| Accounting identities | 40 nodes × 9 checks (cash flow, net-worth change, balance sheet, pillar 3a account, investment account, debt never negative, investments never negative, ordered bands, every assumption sourced); largest error CHF 0.00 |
 | Reproducibility | Same inputs and seed give the same trace id. Another seed changes only the optional uncertainty bands, never the deterministic path |
-| Monotonicity | Raising the master's tuition never raises cash, in any month (5 levels across its sourced range) |
-| Isolation | Changing the cost of moving abroad leaves "Start working" untouched. The riskier portfolio in 1.2.3 does not leak into its sibling 1.2.1 |
+| Monotonicity | Raising the master's tuition never raises cash, in any month |
+| Isolation | Changing the cost of moving abroad leaves "Start working" untouched. The riskier portfolio in 1.2.3 does not leak into 1.2.1 |
 | UBS starter kit | The three scenarios above, matched exactly |
-| Search verified | The break-even salary found by bisection (CHF 4,844.64) is re-simulated: at it the master's ends level with working or ahead; CHF 1 lower, it ends behind |
+| Search verified | The break-even salary found by bisection (CHF 4,959.51) is re-simulated: at it the master's ends level with working or ahead; CHF 1 lower, it ends behind |
 
-The engine and API test suites (`python -m pytest core/tests api/tests -q`) cover the same ground. TODO (team): paste the final pass count from the demo laptop here.
+Test suites: TESTS_LINE. A calibration harness ([`core/bench/`](core/bench/)) checks the engine against the UBS synthetic ledgers (identities on 1,200 profiles × 24 months, maximum error CHF 0.00) and scores parameters against public Swiss targets only. It never tunes the engine to the synthetic data.
 
-**3. Exploration, not prediction.** UBS asked us to explore possibilities rather than predict, so the core is deterministic and Monte Carlo is an optional lens that stays off by default. For every node the engine re-runs itself with one input moved:
+**4. Exploration, not prediction.** UBS asked us to explore possibilities rather than predict, so the core is deterministic and Monte Carlo is an optional lens that stays off by default. For every node, the engine re-runs itself with one input moved:
 
-- **levers**: which sourced assumption, moved across its range, changes the outcome most;
-- **break-even**: against each sibling, the month this branch pulls ahead, and the salary at which both branches end level;
-- **goal-seek**: the extra monthly income needed to meet each dated goal;
-- **reverse stress**: the smallest one-off cost in month 0 that breaks the plan;
+- **levers**: which sourced assumption matters most;
+- **break-even**: the salary at which two branches end level, and when one pulls ahead;
+- **goal-seek**: the extra income needed to meet each dated goal;
+- **reverse stress**: the smallest one-off cost that breaks the plan;
 - **timing**: the same decision 12 or 24 months later;
+- **pillar 3a**: paying into 3a, compared with investing or keeping cash;
 - **weather**: recession, high inflation, market crash and job loss, each run as a named deterministic what-if;
-- **plan check, feasibility first**: any funding gap makes the branch "Needs financing", whatever its score. Constraints (no funding gap, debt-service limit, liquidity buffer, goals) report their margin, first breach month and months in breach.
+- **plan check, feasibility first**: any funding gap makes the branch "Needs financing", whatever its score. Constraints show their margin, first breach month and months in breach.
 
-Alexia, engine `core-1.1`, default assumptions, all amounts in CHF:
+Alexia, default assumptions, all amounts in CHF:
 
 | Branch | Plan check | Under this branch's assumptions |
 |---|---|---|
-| Do a master's | Needs financing: funding gap of 18,835 from month 7 | Holds in 0 of 4 stress scenarios. Biggest lever: the net salary after the master's, which moves 10-year net worth from 69,435 to 189,269 across its range. Break-even salary against starting work: 4,844.64 a month in today's prices. Starting a year later lowers 10-year net worth by 18,789 |
-| … with a study loan of 15,000 | Needs financing: gap of 3,820 from month 20 | The loan pushes the gap back and shrinks it, but doesn't close it |
-| … part-time with a 60% job | Holds, below the 3-month buffer target | No funding gap. Holds in 4 of 4 stress scenarios. A one-off shock larger than 5,642.51 in month 0 would break it |
-| … part-time, employer pays the tuition | Holds: no funding gap, debt within the limit, goals met | Real 10-year net worth 128,570 as planned and 96,535 under high inflation |
+| Today (stay a student) | Needs financing: gap of 22,056 from month 28 | – |
+| Start working | Holds, below the 3-month buffer target | Real 10-year net worth 113,708; holds in 4 of 4 stress scenarios. With 604.83 a month into pillar 3a (the 7,258 yearly cap), nominal net worth rises from 125,605 to 151,820 and tax falls by 22,745, but only 75,521 stays liquid |
+| Do a master's | Needs financing: gap of 18,553 from month 7 | Holds in 0 of 4 stress scenarios. Biggest lever: the salary after the master's (4,200 → 5,600 a month moves 10-year net worth from 69,754 to 175,811), and even at the top of that range the cash gap remains. Break-even against working: 4,959.51 a month. Starting a year later: −17,628 |
+| … part-time with a 60% job | Holds, below the buffer target | No funding gap; holds in 4 of 4 stress scenarios |
+| Move abroad | Does not hold: the "Career transition" goal is missed by 506 | Real 10-year net worth 47,979 |
 
-**4. Transparent by construction.** The 40-node Alexia tree is editable data ([`core/data/trees/alexia.json`](core/data/trees/alexia.json)). Each node is grounded in UBS scenario-catalog ids. Every assumption carries a source. Figures we could not verify are flagged openly: 8 of the 15 Swiss defaults ([`core/data/assumptions_ch.json`](core/data/assumptions_ch.json)) and 18 of the 24 tree-specific values are marked `verified: false`. The path report has the 12 sections in [`docs/report-spec.md`](docs/report-spec.md), up to *Validation and reproducibility* (seed, engine version, trace id) and *Limitations and responsible design*. No LLM produces a number.
+**5. Transparent by construction.** The 40-node Alexia tree is editable data, grounded in UBS scenario-catalog ids. Every assumption carries a source, and figures not checked against a primary source are flagged `verified: false`. The payroll rates and tax tables are official and marked verified. The visual path report states the question and scope, each decision and what it changed, the user's own conditions, the alternatives, stress scenarios, limits and breaches, validation (seed, engine version, trace id) and limitations. No LLM produces a number.
 
 ### AXA: frugal multimodal AI
 
-Roots can come from **images and PDFs** (payslip, bank statement, rental contract), **voice** and free text. Instead of sending every image to a frontier model, we run a chain that escalates only when a check fails:
+Roots come from **images and PDFs** (payslip, bank statement, rental contract), **voice** and free text. Personal conditions come from **speech or text**. At every step we use the smallest thing that works:
 
-PDF text layer or on-device OCR (RapidOCR) → `mistral-small-24b` fills a fixed JSON schema (about 800 tokens) → deterministic checks (every number must literally appear in the document; gross − deductions = net; rent + charges ≤ total) → only if a check fails or OCR confidence is low, that one document goes to `gemini-3.1-flash-lite`.
+- **Documents.** The PDF text layer or on-device OCR (RapidOCR) feeds `mistral-small-24b`, which fills a fixed schema (about 800 tokens). Deterministic checks follow: every number must literally appear in the document, and gross − deductions must equal net. Only if a check fails or OCR confidence is low does that one document go to `gemini-3.1-flash-lite`.
+- **Personal conditions.** `qwen3.7-flash` turns *"I would get a CHF 600/month scholarship during the master"* into one intervention, in 2.5 s for USD 0.00008 (measured once on the shared API). Its numbers are checked against the user's words.
+- **Lumi's answers.** A frugal default chain (`qwen3.7-flash`, about USD 0.0001 per answer), with number grounding and a template fallback. The streaming path uses `claude-haiku-5.5` for a first sentence in about 1.4 s (about USD 0.0008 per answer).
+- **Voice.** Speech recognition runs in the browser. TTS is Kokoro-82M running locally: cost 0, streamed sentence by sentence.
+- **Cost is visible and capped.** The session's API cost is shown in the chat panel, every paid call is logged with its cost, and a daily LLM budget guard (default USD 2) switches every route to templates when it is reached. Engine routes and TTS are never affected.
 
-Measured on 60 synthetic Swiss documents with known ground truth (20 UBS profiles × 3 document types; FR, DE, IT and EN; clean PDF, scan, phone photo, low-res and deliberately hard captures). Cost is what OpenRouter billed. Full results: [`multimodal/benchmark/RESULTS.md`](multimodal/benchmark/RESULTS.md).
+Benchmark on 60 synthetic Swiss documents with known ground truth (20 UBS profiles × 3 document types; FR, DE, IT and EN; clean PDF, scan, phone photo, low-res and deliberately hard captures). Cost is what OpenRouter billed. Full results: [`multimodal/benchmark/RESULTS.md`](multimodal/benchmark/RESULTS.md).
 
-| Strategy | Field accuracy | USD per 1,000 docs | Images sent to a cloud model |
+| Strategy | Field accuracy | USD per 1,000 docs | Documents sent to a cloud vision model |
 |---|---:|---:|---:|
 | **Frugal chain (ours)** | **97.7%** | **0.19** | **27%** |
 | Same chain without escalation | 83.3% | 0.03 | 0% |
@@ -149,27 +178,24 @@ Measured on 60 synthetic Swiss documents with known ground truth (20 UBS profile
 | Small open VLM on every image (gemma-3-12b) | 77.7% | 0.16 | 100% |
 | Frontier VLM on every image (claude-fable-5.2) | 99.4% | 28.76 | 100% |
 
-- **154× cheaper than the frontier model, for 1.7 points of accuracy.** 73% of documents never need a vision model.
-- **Privacy follows from frugality.** 73% of images never leave the laptop; for those, only text snippets reach the small model.
-- **Alexia's own three documents** (a payslip photo, a bank-statement PDF and a scanned rental contract, all in French) were read at 100% field accuracy with no escalation, for about USD 0.0001 in total.
-- **Voice is frugal too.** Speech recognition runs in the browser. TTS is Kokoro-82M running locally (cost 0, first sentence in 0.7–1.6 s, measured in [`api/VOICE.md`](api/VOICE.md)). A chat answer costs about USD 0.0001.
-- **The session's API cost is shown in the UI**, and every paid call is logged with its cost. All benchmark experiments together cost USD 2.14.
-- **Where we still lose:** tiny, blurred bank statements (90.6% vs 97.9% for the frontier model on the hard set). There we would rather ask for a better photo than pay 150× on every document.
+- **154× cheaper than the frontier model, for 1.7 points of accuracy.** 73% of documents never need a vision model, and for those only text snippets leave the laptop.
+- **Alexia's own three documents** (a payslip photo, a bank-statement PDF and a scanned rental contract, all in French) were read at 100% field accuracy with no escalation, for USD 0.0001 in total.
+- **Where we still lose:** tiny, blurred bank statements. There we would rather ask for a better photo than pay 150× on every document. All benchmark experiments together cost USD 2.14.
 
 ### IMC: Tech for Good
 
-The people who most need someone to check their plan, such as students, first-generation students and exchange students, are the least likely to have that someone. Cigala is free and works in EN, ES, FR and DE, with a voice that matches the language. Users can talk to Lumi instead of typing: they can dictate, send a voice note or call. Its core (the questionnaire plus the engine) needs no paid model.
+The people who most need someone to check their plan, such as students, first-generation students and exchange students, are the least likely to have that someone. Cigala is free and works in EN, ES, FR and DE, with a voice that matches the language. Users can talk to it instead of typing, and they can describe their own situation in their own words. Its core (the questionnaire plus the engine) needs no paid model.
 
 Our sourced impact case is in [`docs/impact/README.md`](docs/impact/README.md), checked on 21 Nov 2026:
 
 - **Evidence, with its scope stated.** In the ESN XV ESNsurvey, 35.63% of exchange students reported insufficient funding for living costs, and 62.7% received their grant after departure. A grant is not a budget.
 - **A concrete deployment.** An Erasmus Student Network section offers a ten-minute pre-departure session in which a volunteer and a student compare rent and funding choices before the student signs a lease. Unresolved funding gaps are referred to the university's international office. **ESN has not been contacted, and no partnership exists.**
-- **A reproducible case.** Nora, a fictional student on exchange at ETH, is a fixture the engine can run. Under the reference room her cash goes negative in January (−CHF 563.46). A confirmed cheaper room or extra funding closes the gap. A Python snippet in the doc re-checks every figure.
+- **A reproducible case.** Nora, a fictional student on exchange at ETH, is a fixture the engine can run. Under the reference room her cash goes negative in month 5 (−CHF 563.46 by January). A confirmed cheaper room or extra funding closes the gap.
 - **A falsifiable pilot metric.** With 30 students, does the share who can correctly explain their funding gap rise after ten minutes? A 20-point gain is a target, not a result. No pilot has been run.
 
 ## Run it
 
-Requirements: Python 3.12, Node 22.12+ (or 24), and an OpenRouter key for extraction and the LLM agent. Without the key, the engine, tree, report and local TTS still work, and Lumi answers from templates.
+Requirements: Python 3.12, Node 22.12+ (or 24), and an OpenRouter key for extraction, personal conditions and the LLM agent. Without the key, the engine, tree, report, validation and local TTS still work, and Lumi answers from templates.
 
 ```bash
 git clone https://github.com/Jlopvs24/lauzhack-26-cigala && cd lauzhack-26-cigala
@@ -186,49 +212,61 @@ python -m uvicorn api.main:app --port 8000          # API docs: http://127.0.0.1
 cd web && npm ci && npm run dev       # http://127.0.0.1:5175 (proxies /api to :8000)
 ```
 
+Checks and figures:
+
+```bash
+python -m pytest core/tests api/tests -q            # engine + API
+cd web && npm test                                   # web unit tests
+python scripts/pitch_figures.py                     # every figure quoted in these docs, from the engine (--tests adds pass counts)
+```
+
 Optional, with access to the UBS kit:
 
 ```bash
 bash scripts/fetch_ubs_kit.sh                        # into vendor/ubs-kit (gitignored, never committed)
+python -m core.bench                                 # calibration and benchmark harness
 python -m multimodal.gen.generate --people 20       # regenerate the synthetic documents
 python -m multimodal.benchmark.run --strategies frugal ocr_llm vlm_cheap vlm_small vlm_large   # paid, about USD 2
-```
-
-Checks:
-
-```bash
-python -m pytest core/tests api/tests -q            # engine + API
-python -c "import core, json; print(json.dumps(core.validation(), indent=1))"   # the 6 live checks
-cd web && npm test                                   # web unit tests
 ```
 
 ## Data and licensing
 
 - **UBS starter kit**: "all rights reserved". `scripts/fetch_ubs_kit.sh` downloads it into `vendor/`, which is gitignored, and none of its files are in this repository. We use its Alexia persona, its scenario catalog (cited by id in the tree) and its synthetic profiles. To verify reproduction, `core/validation.py` contains the three scenarios' inputs and published results.
-- **Synthetic documents** (`data/synthetic/`, 60 files + `manifest.jsonl`): rendered by our generator ([`multimodal/gen/`](multimodal/gen/)) from UBS synthetic profiles. Names, employers, addresses, IBANs and line items are invented; amounts follow the profiles. **TODO (team): confirm with UBS before the repo goes public that documents derived from their synthetic profiles may be published.**
-- **Assumptions**: Swiss defaults with source and date in `core/data/assumptions_ch.json`; tree-specific ones in `core/data/trees/alexia.json`. Unverified figures are flagged `verified: false`.
+- **Synthetic documents** (`data/synthetic/`, 60 files + `manifest.jsonl`): rendered by our generator ([`multimodal/gen/`](multimodal/gen/)) from UBS synthetic profiles. Names, employers, addresses, IBANs and line items are invented; amounts follow the profiles.
+- **Swiss figures**:
+  - ESTV 2026 tax tables in `core/data/tax_ch_2026.json`, fetched from the official ESTV calculator with `python -m core.bench.fetch_estv`;
+  - 2026 payroll rates from BSV and the BVG, with sources;
+  - other defaults in `core/data/assumptions_ch.json`, and the source list in [`core/bench/SOURCES.md`](core/bench/SOURCES.md).
+
+  Unverified figures are flagged `verified: false`.
 - **Impact sources**: OECD PISA 2022, ESN XV ESNsurvey, the University of Zurich and ETH Zurich pages, all linked and dated in [`docs/impact/README.md`](docs/impact/README.md).
-- **Imagery**: the photoreal tree stills were generated with `google/gemini-3.1-flash-image` from our own prompts and crops (USD 2.30, pipeline in [`web/tree-pipeline/`](web/tree-pipeline/)). Lumi is an original character ([`web/assets/character/STYLE.md`](web/assets/character/STYLE.md)).
+- **Imagery**: the photoreal tree stills were generated with `google/gemini-3.1-flash-image` from our own prompts and crops; the pipeline and its cost log are in [`web/tree-pipeline/`](web/tree-pipeline/). Lumi is an original character ([`web/assets/character/STYLE.md`](web/assets/character/STYLE.md)).
 - **Third-party software and models**: FastAPI, numpy, React, Vite, GSAP, RapidOCR (ONNX), Kokoro-82M (Apache-2.0), pypdfium2, OpenCV; models through OpenRouter (mistral-small-24b, gemini-3.1-flash-lite, qwen3.7-flash, claude-haiku-5.5).
-- **License of this code**: TODO (team): no `LICENSE` file yet.
+- **License**: the repository does not include an open-source license file yet.
 
 ## Limitations and responsible AI
 
-- **Not advice, not a forecast.** Every result reads "if… then…, under these assumptions". Lumi explains trade-offs and never recommends: the agent drops sentences that recommend and rewrites forecast phrasing, and Lumi never points at a branch as "the best".
-- **The LLM never computes.** Numbers come from engine tools, and every number in an answer is checked against tool outputs. An answer that fails falls back to a template built from engine results. Known limit: the check verifies numbers, not every qualitative claim.
-- **Deliberate model simplifications**, listed in [`core/README.md`](core/README.md): one effective income-tax table (single person, Lausanne) with no wealth tax or pillar 2/3a; one currency; independent shocks; a simplified unemployment-insurance rule; non-financial assets treated as costs.
-- **The plan check comes first and the score second.** A funding gap or breached constraint marks a branch "Needs financing" whatever its score. Negative cash is shown as an unfunded need, never as an automatic loan. The health-score weights are a value judgement and are shown openly.
+- **Not advice, not a forecast.** Every result reads "if… then…, under these assumptions". Lumi explains trade-offs and never recommends: the agent drops sentences that recommend and rewrites forecast phrasing.
+- **The LLM never computes.** Numbers come from engine tools, and every number in an answer is checked against tool outputs, with a template fallback. Personal conditions use only numbers that appear in the user's own words. If an amount or duration is missing, the parser asks one question instead of guessing. Known limit: the checks verify numbers, not every qualitative claim.
+- **The model's simplifications are documented** in [`core/README.md`](core/README.md), and [`core/ENGINE_AUDIT.md`](core/ENGINE_AUDIT.md) lists the weaknesses a judge could attack. Examples:
+  - tax is paid in the same month, with no arrears; wealth tax and church tax are ignored;
+  - abroad uses one assumed tax rate and constant-rate CHF amounts;
+  - unemployment rules are simplified;
+  - shocks in the optional lens are independent;
+  - pillar 2 (BVG) is reported but not counted in net worth.
+- **The plan check comes first and the score second.** A funding gap or breached constraint marks a branch "Needs financing" whatever its score. Negative cash is shown as an unfunded need, never as an automatic loan.
 - **The uncertainty lens is opt-in.** Monte Carlo results are shares of simulated paths under stated assumptions, labelled "not real-world probabilities".
-- **Synthetic data.** The extraction benchmark uses our own rendered documents, and real documents are messier. On the hard captures we would rather ask for a better photo.
-- **Privacy.** For most documents only text leaves the device (73% of images stay local). The live pilot proposal uses synthetic documents and makes no promise that browser speech services keep data on the device. Paid-API caps are not enforced automatically.
+- **Synthetic data.** The extraction benchmark uses our own rendered documents, and real documents are messier.
+- **Privacy.** For most documents only text leaves the device. Personal conditions are kept in the browser session only. Browser speech recognition may use the browser vendor's servers.
 
 ## What we built at LauzHack (rule 30)
 
-**Built during the hackathon** (Sat 21 Nov 12:00 – Sun 22 Nov 12:00): everything in `core/`, `api/`, `multimodal/` and `web/`; the 40-node decision tree and its assumptions; the synthetic document generator and the AXA benchmark; the tree imagery pipeline and the 14 stills; Lumi; the impact case; and these docs. Before kickoff the repository held only the board kit and team rules (commits `5656b87` and `92cd931`, Sat 09:48–09:58). All product code came after 12:00.
+**Built during the hackathon** (Sat 21 Nov 12:00 – Sun 22 Nov 12:00): everything in `core/`, `api/`, `multimodal/` and `web/`; the 40-node decision tree and its assumptions; personal conditions; the payroll, tax and pillar 3a models; the calibration harness; the synthetic document generator and the AXA benchmark; the tree imagery pipeline and stills; Lumi; the impact case; and these docs. Before kickoff the repository held only the board kit and team rules (commits `5656b87` and `92cd931`, Sat 09:48–09:58). All product code came after 12:00.
 
 **Existing resources we used:**
 
-- **UBS starter kit**: a cash-only scenario script with three scenarios. We used it as a reference our engine must reproduce, not as code. Our engine adds income tax, inflation, wage growth, investments, loans, weather, constraints and exploration analyses.
+- **UBS starter kit**: a cash-only scenario script with three scenarios. We used it as a reference our engine must reproduce, not as code.
+- **Public data**: ESTV, BSV and the BVG for Swiss rates and tables.
 - **Open-source libraries and models**, listed above, used as they are.
 - **The multi-agent message-board kit** (`tools/board`, `.claude/hooks`), adapted from [azizu06/hackathon-agent-board](https://github.com/azizu06/hackathon-agent-board), which we used to coordinate. It is not part of the product.
 
@@ -236,7 +274,7 @@ cd web && npm test                                   # web unit tests
 
 | Who | Role |
 |---|---|
-| Juan ([@Jlopvs24](https://github.com/Jlopvs24)) | Lead; engine v1, API and agent, voice, multimodal roots and AXA benchmark, cinematic tree, Lumi, delivery |
-| Lluc ([@llucliment](https://github.com/llucliment)) | Financial engine (`core/`) from Sat 16:45: the exploration-first redesign, plan check, branch headlines, report data, live validation; roots, chat and voice UI; IMC impact case |
+| Juan ([@Jlopvs24](https://github.com/Jlopvs24)) | Lead; engine v1, API and agent, personal conditions, voice, multimodal roots and AXA benchmark, cinematic tree, path report, Lumi, delivery |
+| Lluc ([@llucliment](https://github.com/llucliment)) | Financial engine (`core/`) from Sat 16:45: the exploration-first redesign, plan check, live validation, engine audit and calibration, payroll, ESTV tax and pillar 3a; roots, chat and voice UI; IMC impact case |
 
 We built Cigala with AI coding agents (Claude Code, Codex, Antigravity) working in parallel and coordinating through GitHub issues and a pinned message-board issue ([`AGENTS.md`](AGENTS.md)). The humans made the product and modelling decisions ([`docs/plan.md`](docs/plan.md)) and reviewed and merged every PR.

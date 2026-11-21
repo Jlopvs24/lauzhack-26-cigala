@@ -108,6 +108,7 @@ def engine_figures():
     def be(e):
         return {r["compared_to"]: r["salary_threshold"].get("value") for r in e["break_even"]}
 
+    p3a = core.explore(None, ["1"])["exploration"].get("pillar_3a") or {}
     rep = core.report_data(None, leaf_path, node_patches=PATCH)
     stress = [{"weather": s["weather"], "plan_check": s["summary"].get("plan_check"),
                "final_net_worth_real": s["summary"].get("final_net_worth_real"), "min_cash": s["summary"].get("min_cash")}
@@ -132,6 +133,9 @@ def engine_figures():
             "timing_delta_nw": {t["delay_months"]: t.get("delta_final_net_worth") for t in ex["timing"]},
             "reverse_stress": {"status": ex["reverse_stress"]["status"], "value": ex["reverse_stress"]["value"]},
         },
+        "pillar_3a_node_1": {"monthly_amount": p3a.get("monthly_amount"), "annual_cap": p3a.get("annual_cap"),
+                             "options": {o["option"]: {k: o.get(k) for k in ("final_net_worth", "final_liquid", "tax_saved_by_3a")}
+                                         for o in p3a.get("options", [])}},
         "personal_condition": {
             "intervention": SCHOLARSHIP,
             "patch": {k: patched[k] for k in ("2", "2.1", "2.2", "2.3")},
@@ -140,8 +144,9 @@ def engine_figures():
             "leaf_path": leaf_path, "leaf": leaf[leaf_path[-1]], "leaf_stress": stress,
             "report_personal": rep.get("personal"),
         },
-        "lumi": {nid: lumi_line(top[nid] if nid in top else master[nid], nodes[nid].get("description", ""), kids(nid))
-                 for nid in ("0", "2")},
+        "lumi": {**{nid: lumi_line(top[nid], nodes[nid].get("description", ""), kids(nid)) for nid in ("0", "2")},
+                 **{f"{nid} (with the condition)": lumi_line(leaf[nid], nodes[nid].get("description", ""), kids(nid))
+                    for nid in ("2.2", "2.2.1")}},
         "seconds": round(time.perf_counter() - t0, 1),
     }
 
@@ -191,7 +196,7 @@ def test_counts(run: bool):
     for suite in ("core/tests", "api/tests"):
         cmd = py + ([suite] if run else ["--collect-only", suite])
         try:
-            p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=900 if run else 120)
+            p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900 if run else 120)
             tail = (p.stdout.strip().splitlines() or [""])[-1]
         except subprocess.TimeoutExpired:
             tail = "timed out"
@@ -199,8 +204,8 @@ def test_counts(run: bool):
     web = sorted((ROOT / "web/src").rglob("*.test.js"))
     if run:
         try:
-            p = subprocess.run("npm test --silent", cwd=ROOT / "web", capture_output=True, text=True, timeout=600, shell=True)
-            res["web"] = " · ".join(l.strip("# ").strip() for l in p.stdout.splitlines() if re.match(r"# (tests|pass|fail)\b", l)) or "no summary (run npm ci?)"
+            p = subprocess.run("npm test --silent", cwd=ROOT / "web", capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, shell=True)
+            res["web"] = " · ".join(l.strip("# ").strip() for l in (p.stdout or "").splitlines() if re.match(r"# (tests|pass|fail)\b", l)) or "no summary (run npm ci?)"
         except subprocess.TimeoutExpired:
             res["web"] = "timed out"
     else:
@@ -266,6 +271,10 @@ def main():
     print(show_row(pc["leaf"]))
     print("  leaf under stress: " + "; ".join(f"{s['weather']} {s['plan_check']} (real NW {chf(s['final_net_worth_real'])})" for s in pc["leaf_stress"]))
     print(f"  report shows personal conditions: {pc['report_personal']}")
+    p3 = e["pillar_3a_node_1"]
+    print(f"\n## Pillar 3a lever on Start working (1): CHF {p3['monthly_amount']}/month, cap CHF {p3['annual_cap']}/year")
+    for k, o in p3["options"].items():
+        print(f"  {k}: 10y net worth {chf(o['final_net_worth'])} · liquid {chf(o['final_liquid'])} · tax saved {chf(o['tax_saved_by_3a'])}")
     print("\n## Lumi's English bubbles (template, from engine fields)")
     for nid, line in e["lumi"].items():
         print(f"  [{nid}] {line}")
