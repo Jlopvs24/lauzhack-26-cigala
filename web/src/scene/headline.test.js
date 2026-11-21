@@ -34,3 +34,13 @@ test('works before core-1.2 (no headline / plan_check): computed from metrics wi
   assert.match(cardHeadline(old, 'en').a.text, /Funding gap CHF 18’835 from month 7/);
   assert.equal(planCheck(old, 'en').level, 'needs_financing');
 });
+
+test('#103: under a macro outlook slot B says how much it moves the card, in every language', () => {
+  const r = { headline: { slot_a: null, slot_b: { metric: 'final_net_worth_real', unit: 'CHF', value: 89787, vs_parent: 5, vs_neutral: -23921 } } };
+  assert.match(cardHeadline(r, 'en').b.vs, /^−CHF 23’921 vs the neutral outlook$/);
+  assert.match(cardHeadline(r, 'es').b.vs, /perspectiva neutral/);
+  assert.match(cardHeadline(r, 'fr').b.vs, /perspective neutre/);
+  assert.match(cardHeadline(r, 'de').b.vs, /neutralen Perspektive/);
+  const same = { headline: { slot_b: { ...r.headline.slot_b, vs_neutral: 0.2 } } };
+  assert.equal(cardHeadline(same, 'en').b.vs, 'same as the neutral outlook');
+});

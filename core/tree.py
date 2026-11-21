@@ -471,6 +471,15 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
                                         sensitivity=sensitivity and is_cur, include_flows=include_flows or is_cur,
                                         uncertainty=uncertainty, exploration=exploration and is_cur)
 
+    # #103: under a non-neutral weather each card also gets its own no-weather result (cached), so the
+    # card can say how much the outlook moves it
+    neutral: dict[str, dict] = {}
+    if any(not (e.get("type") == "scenario" and e.get("level") == "neutral") for e in wx):
+        for node, _, _ in vis:
+            nid = str(node["node_id"])
+            neutral[nid] = _cached_simulate(prof, tree, nid, aset, [], n_paths, seed, sensitivity=False,
+                                            include_flows=False, uncertainty=False, exploration=False)
+
     group: dict[str | None, list[tuple[str, str | None]]] = {}
     for node, _, parent in vis:
         group.setdefault(parent, []).append((str(node["node_id"]), parent))
@@ -505,7 +514,7 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
             # copy: cached results are shared, the headline depends on which siblings are visible
             "result": {**res, "headline": pl.headline(res, [results[o] for o, p in group.get(parent, [])
                                                             if o != nid and o in results],
-                                                      results.get(parent))},
+                                                      results.get(parent), neutral.get(nid))},
         })
     return {
         "tree_id": tree.get("tree_id"),

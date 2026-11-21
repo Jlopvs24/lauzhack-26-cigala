@@ -223,7 +223,7 @@ def _delta_text(key: str, d, before=None) -> str:
     return f"{'later' if d > 0 else 'earlier'} by {abs(d)} months vs before this choice"
 
 
-def slot_b(result: dict, siblings: list[dict], parent: dict | None) -> dict:
+def slot_b(result: dict, siblings: list[dict], parent: dict | None, neutral: dict | None = None) -> dict:
     """What it trades: the metric that differs most from its siblings (gap to the sibling
     median over the sibling spread), with the matching change vs the parent."""
     me = slot_b_values(result)
@@ -241,6 +241,8 @@ def slot_b(result: dict, siblings: list[dict], parent: dict | None) -> dict:
         if z > best_z + 1e-12:
             best, best_z = key, z
     basis = "siblings" if best else "default"
+    if neutral is not None:  # #103: under a weather, show what it moves: net worth vs the neutral outlook
+        best, basis = None, "weather"
     key = best or "final_net_worth_real"
     pv = slot_b_values(parent)[key] if parent else None
     delta = (me[key] - pv) if (pv is not None and me[key] is not None) else None
@@ -248,10 +250,23 @@ def slot_b(result: dict, siblings: list[dict], parent: dict | None) -> dict:
     return {"metric": key, "label": label, "unit": unit, "higher_is_better": higher, "value": me[key],
             "basis": basis, "normalised_gap": round(best_z, 3) if best else None,
             "vs_parent": None if delta is None else (round(delta, 2) if unit != "month" else int(delta)),
-            "text": f"{label}: {_fmt(key, me[key])}", "vs_parent_text": None if parent is None else _delta_text(key, delta, pv)}
+            "text": f"{label}: {_fmt(key, me[key])}", "vs_parent_text": None if parent is None else _delta_text(key, delta, pv),
+            **_vs_neutral(key, me[key], neutral)}
 
 
-def headline(result: dict, siblings: list[dict] | None = None, parent: dict | None = None) -> dict:
+def _vs_neutral(key: str, value, neutral: dict | None) -> dict:
+    """The same metric without any weather (#103), so a macro outlook visibly moves every card."""
+    if neutral is None:
+        return {}
+    nv = slot_b_values(neutral)[key]
+    d = None if (nv is None or value is None) else round(value - nv, 2)
+    return {"vs_neutral": d, "vs_neutral_text": None if d is None else (
+        "same as the neutral outlook" if abs(d) < 0.5 else f"{'+' if d > 0 else '-'}CHF {abs(d):,.0f} vs the neutral outlook")}
+
+
+def headline(result: dict, siblings: list[dict] | None = None, parent: dict | None = None,
+             neutral: dict | None = None) -> dict:
+    """``neutral``: this node's result without weather; given only when a non-neutral weather is on."""
     a = result["headline"]["slot_a"] if result.get("headline") else None
-    b = slot_b(result, siblings or [], parent)
+    b = slot_b(result, siblings or [], parent, neutral)
     return {"slot_a": a, "slot_b": b, "metric_key": b["metric"]}
