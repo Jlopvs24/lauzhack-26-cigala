@@ -74,6 +74,8 @@ export function buildFromLevels(levels, { profile, path, assumptions = [], uncer
     validation: { checks: leafRes?.checks || [], seed: leafRes?.seed, engine_version: leafRes?.engine_version, trace_id: leafRes?.trace_id,
       reproduce: { route: 'POST /report', body: { path, assumptions, uncertainty, ...(profile ? { profile: '(the profile in "Starting point")' } : {}) } } },
     assumptions: last.assumptions || [],
+    // macro perspective + qualitative factors (core #87): the request, the engine's applied events, the catalog
+    outlook: { selected: Array.isArray(last.weather) ? last.weather : [], applied: leafRes?.weather_assumptions || leafRes?.weather || [], options: last.weather_options || {} },
   };
 }
 

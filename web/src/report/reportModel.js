@@ -140,7 +140,7 @@ export function stressRows(data, lang) {
   return (data.stress || []).map((x) => {
     const s = x.summary || {};
     const holds = x.weather === 'none' ? s.first_negative_month == null && (s.goals_met ?? 0) >= (s.goals_total ?? 0) : !!s.holds;
-    return { key: x.weather, name: L.weather[x.weather] || x.weather, holds, min_cash: s.min_cash, short: month1(s.first_negative_month), final_net_worth: s.final_net_worth };
+    return { key: x.weather, name: weatherName(x.weather, lang, data.outlook?.options), holds, min_cash: s.min_cash, short: month1(s.first_negative_month), final_net_worth: s.final_net_worth };
   });
 }
 
@@ -262,4 +262,39 @@ export function timingStrip(ts, lang = 'en') {
   const allHold = rows.every((r) => r.tone !== 'bad');
   const latest = ts.latest_start_that_holds;
   return { rows, text: Number.isFinite(latest) ? (allHold && latest === rows.at(-1).delay ? L.tmAlways : L.tmLatest(latest)) : L.tmNever };
+}
+
+// The user's macro perspective and qualitative factors (core #87), in plain words with no magnitudes, plus the
+// engine's internal assumptions behind each (for the collapsed assumptions section). null when none is selected.
+const OL_KEY = (w) => (w && typeof w === 'object' && w.type && w.level ? `${w.type}:${w.level}` : null);
+function plainAssumptions(a) {
+  if (a == null) return [];
+  if (typeof a === 'string') return [a];
+  if (Array.isArray(a)) return a.flatMap(plainAssumptions);
+  if (typeof a === 'object') {
+    const t = a.text || a.label || a.description;
+    if (t && Object.keys(a).length <= 3) return [`${t}${a.value != null ? `: ${a.value}${a.unit ? ' ' + a.unit : ''}` : ''}`];
+    return Object.entries(a).filter(([, v]) => v != null && typeof v !== 'object').map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`);
+  }
+  return [String(a)];
+}
+export function outlook(data, lang = 'en') {
+  const L = ri(lang), o = data?.outlook;
+  const picked = (o?.selected || []).filter((w) => OL_KEY(w));
+  if (!picked.length) return null;
+  const opts = o.options || {};
+  const items = picked.map((w) => {
+    const key = OL_KEY(w), opt = opts[key] || {};
+    const type = L.olType[w.type] || opt.type_label || w.type, level = L.olLevel[w.level] || opt.level_label || w.level;
+    const applied = (o.applied || []).filter((e) => OL_KEY(e) === key || e.source_key === key || e.from === key);
+    return { key, type, level, text: `${type}: ${level}`, scenario: w.type === 'scenario',
+      assumptions: plainAssumptions(opt.assumptions ?? opt.internal_assumptions).concat(applied.flatMap((e) => plainAssumptions(e.assumptions ?? e.applied ?? null))),
+      source: opt.source || '', verified: opt.verified === true };
+  });
+  return { items, line: items.map((i) => i.text).join(' · ') };
+}
+// A stress row's name: the UI's own words, else the engine's label for that weather (new scenario names).
+export function weatherName(key, lang, options = {}) {
+  const L = ri(lang);
+  return L.weather[key] || options[key]?.label || (typeof options[key] === 'string' ? options[key] : '') || key;
 }
