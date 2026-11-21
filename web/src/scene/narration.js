@@ -1,0 +1,43 @@
+// What Lumi says about a node, from engine numbers only (no LLM), and the memory that keeps it from
+// re-reading a bubble it already spoke.
+import { STORY, NODES, UI } from './i18n.js';
+
+// Node text in the UI language; `known` = false when we only have the engine's English text.
+export function translateNode(n, lang) {
+  const x = NODES[n.label]?.[lang];
+  if (lang === 'en' || x) return { label: x ? x[0] : n.label, desc: x ? x[1] : n.description || '', known: true };
+  return { label: n.label, desc: n.description || '', known: false };
+}
+
+export function storyFor(data, lang, who = 'Alexia') {
+  const S = STORY[lang] || STORY.en;
+  const cur = data.nodes.find((n) => n.node_id === data.current);
+  const m = cur.result?.metrics || {}, h = cur.result?.health || {};
+  const cash = m.first_negative_month != null ? S.short(m.first_negative_month + 1) : S.ok;
+  const c = translateNode(cur, lang);
+  // say only what we can say in this language (unknown engine text stays on screen, not in the voice)
+  const kids = data.nodes.filter((n) => n.status === 'child').map((n) => translateNode(n, lang)).filter((x) => x.known).map((x) => x.label);
+  const n = { who, label: c.known ? c.label : '', desc: c.known ? c.desc.replace(/([^.])$/, '$1.') : '', score: Math.round(h.score ?? 0) };
+  if (data.current === '0') return S.root(n, cash, kids);
+  const dh = cur.delta_vs_parent?.health_score;
+  return S.node(n, cash, kids, dh == null ? '' : S.delta(dh)).replace(/^\. /, '');
+}
+
+// Returns {text, speak}: the bubble text and what to say aloud. A node already narrated in this
+// language (and profile) shows its bubble again but only says "Back at …".
+export function createNarrator() {
+  const done = new Set();
+  return {
+    next(data, lang, profileKey = 'demo', who) {
+      const text = storyFor(data, lang, who);
+      const key = `${lang}|${profileKey}|${data.current}`;
+      if (!done.has(key)) { done.add(key); return { text, speak: text, revisit: false }; }
+      const cur = data.nodes.find((n) => n.node_id === data.current), c = translateNode(cur, lang);
+      const S = STORY[lang] || STORY.en;
+      return { text, speak: c.known ? S.back(c.label.replace(/^./, (x) => x.toLowerCase())) : '', revisit: true };
+    },
+    reset() { done.clear(); },
+  };
+}
+
+export const t = (lang, key) => (UI[lang] || UI.en)[key] ?? UI.en[key];
