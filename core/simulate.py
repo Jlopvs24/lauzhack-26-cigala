@@ -10,7 +10,7 @@ import numpy as np
 
 from . import analysis as an
 from .assumptions import AssumptionSet, build_assumptions
-from .engine import FLOW_KEYS, run, run_batch
+from .engine import FLOW_KEYS, PAYROLL_KEYS, run, run_batch
 from .models import Profile, parse_interventions
 from .schedule import build_schedule
 from .explore import explore_node, levers
@@ -26,13 +26,39 @@ ENGINE_VERSION = "core-1.1"
 def _prepare(profile: Profile, interventions: list[dict], aset: AssumptionSet, weather: list[dict] | None):
     A = aset.with_node_values(interventions).values()
     ivs = parse_interventions(interventions, A, profile.horizon_months)
-    sched = build_schedule(profile, ivs)
+    sched = build_schedule(profile, ivs, A)
     w = build_weather(weather, profile.horizon_months)
     return A, sched, w
 
 
 def _run(profile, sched, A, aset, w, **kw):
     return run(sched, profile.cash, profile.investments, A, profile.tax_table(aset), w, **kw)
+
+
+def _payroll_summary(prof: Profile, sched, f: dict, A: dict) -> dict | None:
+    """Gross -> net view (#48 item 2), or None when no month is paid from a gross salary.
+
+    ``payslip`` is the first paid month at today's prices; ``totals`` are the deterministic
+    path's sums (with wage growth, zero while unemployed). The BVG balance is pillar-2 savings
+    (opening ``pension_bvg`` assets + employee and employer credits + minimum interest); it is
+    locked until retirement and is NOT part of cash, investments or net worth."""
+    if sched.gross is None:
+        return None
+    m = int(np.argmax(sched.gross > 0))
+    social = sched.social[m]
+    pay = {"month": m, "gross": an.r2(sched.gross[m]), "social_contributions": an.r2(social),
+           "bvg_employee": an.r2(sched.bvg_employee[m]), "bvg_employer": an.r2(sched.bvg_employer[m]),
+           "net": an.r2(sched.gross[m] - social - sched.bvg_employee[m])}
+    g = (1.0 + A["payroll_bvg_interest"]) ** (1.0 / 12.0)
+    credits = f["bvg_employee"] + f["bvg_employer"]
+    bal = np.empty(len(credits) + 1)
+    bal[0] = prof.pension_bvg
+    for t, c in enumerate(credits):
+        bal[t + 1] = bal[t] * g + c
+    return {"payslip": pay,
+            "totals": {k: an.r2(f[k].sum()) for k in PAYROLL_KEYS},
+            "bvg_balance": an.series(bal), "bvg_balance_final": an.r2(bal[-1]),
+            "in_net_worth": False}
 
 
 def simulate_node(profile: dict | Profile, interventions: list[dict] | None = None, *,
@@ -111,6 +137,8 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
     }
     if include_flows:
         deterministic["flows"] = {k: an.series(f[k]) for k in FLOW_KEYS}
+        if sched.gross is not None:
+            deterministic["flows"].update({k: an.series(f[k]) for k in PAYROLL_KEYS})
 
     tornado = sensitivity_analysis(prof, interventions, aset, weather, seed) if (sensitivity or exploration) else None
     result = {
@@ -124,6 +152,7 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
         "mode": "deterministic",
         "horizon_months": prof.horizon_months,
         "income_basis": prof.income_basis,
+        "payroll": _payroll_summary(prof, sched, f, A),
         "deterministic": deterministic,
         "bands": {key: an.bands(getattr(mc, key)) if uncertainty else {p: [] for p in ("p10", "p50", "p90")}
                   for key in ("cash", "net_worth")},

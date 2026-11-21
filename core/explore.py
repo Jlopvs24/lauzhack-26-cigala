@@ -103,7 +103,7 @@ def explore_node(profile, interventions, own_interventions, aset, weather, compa
 
     def run_cases(cases):
         values = [a.with_node_values(ivs).values() for ivs, a in cases]
-        schedules = [build_schedule(profile, parse_interventions(ivs, v, H)) for (ivs, _), v in zip(cases, values)]
+        schedules = [build_schedule(profile, parse_interventions(ivs, v, H), v) for (ivs, _), v in zip(cases, values)]
         return run_batch(schedules, values, profile.cash,
                          profile.investments, profile.tax_table(aset), wx, stochastic=False)
 
