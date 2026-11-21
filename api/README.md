@@ -3,7 +3,8 @@
 FastAPI bridge between the engine (`core/`), multimodal input (`multimodal/`) and the web (`web/`).
 
 ```bash
-pip install -r api/requirements.txt
+pip install -r api/requirements.txt -r multimodal/requirements.txt
+python -m api.fetch_models --fp32                 # local TTS model, once
 uvicorn api.main:app --reload --port 8000      # from the repo root
 # docs: http://localhost:8000/docs
 python -m pytest api/tests -q
@@ -26,7 +27,7 @@ Keys are read from `.env.local` at the repo root (`OPENROUTER_API_KEY`, `TOGETHE
 | GET | `/assumptions` | – | `{assumptions: [Assumption]}` |
 | POST | `/tree/expand` | `{profile?, path, assumptions?, weather?}` | visible tree (below) |
 | POST | `/simulate` | `{profile?, node, assumptions?, weather?}` | `{result: SimulationResult}` |
-| POST | `/profiles/extract` | multipart `files[]`, `text` | `{profile, extractor}` (mock until thread 3) |
+| POST | `/profiles/extract` | multipart `files[]` (PDF/JPG/PNG, audio also accepted), `text?`, `audio?`, `base_profile?` (JSON string) | `{profile (with per-field provenance), extractor, cost_usd, latency_ms, missing_fields, checks, documents, transcripts}` via `multimodal.extract`; mock (`extractor: "mock"`, `mock_reason`) only if multimodal deps are missing |
 | POST | `/agent/ask` | `{question, context}` | answer + traces (below) |
 | POST | `/voice/stt` | multipart `audio` (WAV/MP3), `language?` | `{text, language, cost_usd, model}` |
 | POST | `/voice/ask` | multipart `audio`, `context` (JSON string), `language?` | `/agent/ask` response + `transcript`, `stt` |

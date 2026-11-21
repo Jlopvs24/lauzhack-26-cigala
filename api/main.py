@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import time
 from typing import Any
 
@@ -20,6 +21,7 @@ from api import engine
 from api.env import load_env
 
 load_env()
+log = logging.getLogger("api")
 
 from api import agent, voice  # noqa: E402  (need env loaded)
 
@@ -106,16 +108,61 @@ def assumptions():
     return {"assumptions": engine.assumptions()}
 
 
-@app.post("/profiles/extract")
-async def profiles_extract(files: list[UploadFile] | None = File(None), text: str | None = Form(None)):
-    """Placeholder until multimodal/ (thread 3) ships: returns Alexia with provenance marked as mock."""
-    t0 = time.perf_counter()
-    received = [f.filename for f in files or []]
+_AUDIO_EXT = {"wav": "wav", "mp3": "mp3", "ogg": "ogg", "oga": "ogg", "webm": "ogg", "m4a": "m4a", "flac": "flac"}
+
+
+def _extract_mock(names: list[str], text: str | None, reason: str) -> dict:
     profile = json.loads(json.dumps(ALEXIA))
-    profile["provenance"] = {k: {"source": "mock", "confidence": 0.0}
+    profile["provenance"] = {k: {"source": "mock", "method": "mock", "extractor": "mock", "confidence": 0.0,
+                                 "grounded": False}
                              for k in ("cash", "monthly_net_income", "monthly_rent", "monthly_other_expenses")}
-    return {"profile": profile, "received_files": received, "received_text": bool(text),
-            "extractor": "mock", **_meta(t0, model="mock")}
+    return {"profile": profile, "extractor": "mock", "mock_reason": reason, "received_files": names,
+            "received_text": bool(text), "missing_fields": [], "checks": [], "documents": [], "transcripts": []}
+
+
+@app.post("/profiles/extract")
+def profiles_extract(files: list[UploadFile] | None = File(None), text: str | None = Form(None),
+                     audio: UploadFile | None = File(None), base_profile: str | None = Form(None),
+                     strategy: str = Form("frugal")):
+    """Documents (payslip, bank statement, rental contract: PDF/JPG/PNG), free text and/or a voice note
+    -> Profile with per-field provenance, via multimodal.extract (thread 3).
+    Audio can come as `audio` or among `files` (by extension/content type).
+    Falls back to the mock (extractor "mock", `mock_reason`) only if multimodal's deps are missing."""
+    t0 = time.perf_counter()
+    docs, audio_bytes, audio_fmt = [], None, "wav"
+    for f in files or []:
+        name = f.filename or "upload"
+        ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+        data = f.file.read()
+        if (f.content_type or "").startswith("audio/") or ext in _AUDIO_EXT:
+            audio_bytes, audio_fmt = data, _AUDIO_EXT.get(ext, "wav")
+        else:
+            docs.append((name, data))
+    if audio is not None:
+        name = audio.filename or "voice.wav"
+        audio_bytes = audio.file.read()
+        audio_fmt = _AUDIO_EXT.get(name.rsplit(".", 1)[-1].lower(), "wav")
+    text = (text or "").strip() or None
+    if not docs and not text and not audio_bytes:
+        raise HTTPException(422, "send at least one of: files, text, audio")
+    try:
+        base = json.loads(base_profile) if base_profile else None
+    except json.JSONDecodeError as e:
+        raise HTTPException(422, "base_profile must be a JSON object") from e
+
+    try:
+        from multimodal import extract
+        out = extract(files=docs, text=text, audio=audio_bytes, audio_format=audio_fmt, strategy=strategy,
+                      base_profile=base)
+    except ImportError as e:  # multimodal deps not installed on this machine
+        log.warning("multimodal unavailable, using mock: %s", e)
+        out = _extract_mock([n for n, _ in docs], text, f"multimodal unavailable: {e}")
+        return {**out, **_meta(t0, model="mock")}
+    except Exception as e:  # noqa: BLE001
+        log.exception("extract failed")
+        raise HTTPException(502, f"extraction failed: {type(e).__name__}: {e}") from e
+    return {**out, "cost_usd": round(float(out.get("cost_usd") or 0), 6),
+            "latency_ms": int((time.perf_counter() - t0) * 1000), "model": out.get("extractor")}
 
 
 @app.post("/agent/ask")
