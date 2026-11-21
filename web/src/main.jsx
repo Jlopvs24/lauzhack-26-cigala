@@ -19,7 +19,7 @@ import PathReport from './report/PathReport.jsx';
 import Verified from './Verified.jsx';
 import { MakeItMine, YourConditions, personalFields, personalStore, PROPOSAL_EVENT, CHANGE_EVENT } from './personalize/index.js';
 import WeatherControl from './weather/WeatherControl.jsx';
-import { CompareRoot, CompareOptionsButton, cardCompareHTML, compareSiblings, compareStore, pinHTML } from './compare/index.js';
+import { CompareRoot, CompareOptionsButton, cardCompareHTML, cardStripEnabled, compareSiblings, compareStore, pinHTML } from './compare/index.js';
 import { eventDetail, stormLine, stormSummary } from './weather/weatherModel.js';
 import { UI, LANGS } from './scene/i18n.js';
 import './app.css';
@@ -49,7 +49,9 @@ function tagMeta(n, lang, cmp = {}) {
   const dot = `<i class="pc-dot ${c.level}" aria-hidden="true"></i>`;
   const list = `<ul class="plain">${c.bullets.map((b) => `<li>${escHTML(b)}</li>`).join('')}</ul>`;
   const pin = cmp.path ? pinHTML(n.status === 'child' ? [...cmp.path, n.node_id] : [...cmp.path.slice(0, -1), n.node_id], translateNode(n, lang).label, lang) : '';
-  return dot + list + pin;
+  // the position strip is opt-in (?strip=1); by default the comparison view carries position and deltas
+  const strip = cmp.sib && cardStripEnabled() ? cardCompareHTML(n, cmp.nodes, { lang, label: (id, l) => translateNode({ node_id: id, label: l }, lang).label, cmp: cmp.sib }) : '';
+  return dot + list + strip + pin;
 }
 
 function BackButton({ className, onClick, label }) {

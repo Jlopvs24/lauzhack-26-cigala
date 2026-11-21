@@ -158,3 +158,14 @@ test('#103: cards say what the position means in plain words, not "1 of 3"', () 
   const same = compareSiblings([{ node_id: 'a', status: 'child', parent_id: 'p', result: res(1000, 10) }, { node_id: 'b', status: 'child', parent_id: 'p', result: res(1000, 10) }]);
   assert.equal(same.a.place, 'same'); assert.equal(placeLabel(same.a, 'en'), 'Same net worth as the others');
 });
+
+test('card position strip is opt-in: off by default, on with ?strip=1 or localStorage', async () => {
+  const { cardStripEnabled, CARD_STRIP_KEY } = await import('./model.js');
+  const mem = (v) => ({ getItem: (k) => (k === CARD_STRIP_KEY ? v : null) });
+  assert.equal(cardStripEnabled({ search: '', storage: mem(null) }), false);
+  assert.equal(cardStripEnabled({ search: '', storage: mem('1') }), true);
+  assert.equal(cardStripEnabled({ search: '?strip=1', storage: mem(null) }), true);
+  assert.equal(cardStripEnabled({ search: '?lang=en&strip=0', storage: mem('1') }), false);
+  assert.equal(cardStripEnabled({ search: '', storage: { getItem() { throw new Error('blocked'); } } }), false);
+  assert.equal(cardStripEnabled({ search: '', storage: undefined }), false);
+});
