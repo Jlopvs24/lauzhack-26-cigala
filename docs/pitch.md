@@ -105,7 +105,7 @@ A child applies on top of its ancestors, and a user's condition is appended to t
 - Feasibility comes first: a funding gap or a broken hard limit makes the plan check "Needs financing" or "Does not hold", whatever the score.
 - Negative cash is an unfunded need, never an automatic loan.
 - Each constraint shows its margin, first breach month and months in breach: no funding gap, debt payments ≤ 33% of income, a 3-month buffer, and each goal.
-- The levers, the children and the user's own conditions show what would fix it. A loan alone narrows the gap; with the scholarship, the loan branch holds.
+- The levers, the children and the user's own conditions show what would fix it. For the master's, the smallest change that closes the gap is +CHF 761.93 a month of income, CHF 765.54 less rent a month, or CHF 18,531.27 once in month 0. A loan alone narrows the gap; with the scholarship, the loan branch holds.
 
 **What would you improve next?** (from the ranked list in `core/ENGINE_AUDIT.md`)
 

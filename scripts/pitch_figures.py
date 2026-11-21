@@ -109,6 +109,10 @@ def engine_figures():
         return {r["compared_to"]: r["salary_threshold"].get("value") for r in e["break_even"]}
 
     p3a = core.explore(None, ["1"])["exploration"].get("pillar_3a") or {}
+    smallest = []
+    if hasattr(core, "smallest_change"):   # #48 item 6
+        sc = core.smallest_change(None, ["2"], target="no_funding_gap")
+        smallest = [{"lever": c["label"], "value": c.get("value"), "unit": c.get("unit"), "status": c["status"]} for c in sc["changes"]]
     rep = core.report_data(None, leaf_path, node_patches=PATCH)
     stress = [{"weather": s["weather"], "plan_check": s["summary"].get("plan_check"),
                "final_net_worth_real": s["summary"].get("final_net_worth_real"), "min_cash": s["summary"].get("min_cash")}
@@ -132,6 +136,7 @@ def engine_figures():
             "break_even_salary_vs": be(ex),
             "timing_delta_nw": {t["delay_months"]: t.get("delta_final_net_worth") for t in ex["timing"]},
             "reverse_stress": {"status": ex["reverse_stress"]["status"], "value": ex["reverse_stress"]["value"]},
+            "smallest_change_no_funding_gap": smallest,
         },
         "pillar_3a_node_1": {"monthly_amount": p3a.get("monthly_amount"), "annual_cap": p3a.get("annual_cap"),
                              "options": {o["option"]: {k: o.get(k) for k in ("final_net_worth", "final_liquid", "tax_saved_by_3a")}
@@ -259,6 +264,8 @@ def main():
     print(f"  break-even salary after the master's vs node: {me['break_even_salary_vs']} (CHF/month, today's prices)")
     print(f"  timing, change in 10-year net worth if started later (months: CHF): {me['timing_delta_nw']}")
     print(f"  reverse stress: {me['reverse_stress']}")
+    for c in me["smallest_change_no_funding_gap"]:
+        print(f"  smallest change that closes the gap: {c['lever']}: {c['value']} {c['unit']} ({c['status']})")
     pc = e["personal_condition"]
     print(f"\n## Personal condition on node 2 (Make it mine): {pc['intervention']}")
     print("  mode 'Apply to this branch' (node_patches):")

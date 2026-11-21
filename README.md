@@ -27,7 +27,7 @@ Then she makes it hers. She tells it, by voice or text, *"I'd get a CHF 600/mont
 
 ## Screenshots
 
-> TODO (team): capture these on the demo laptop (`http://127.0.0.1:5175`) and save them in `docs/submission/screenshots/`.
+> TODO (team): capture these on the demo laptop (`http://127.0.0.1:5175`) and save them in `docs/submission/screenshots/`. Add the 2-minute backup video link here (shot list: [`docs/submission/video.md`](docs/submission/video.md)).
 
 | | |
 |---|---|
@@ -152,9 +152,9 @@ Alexia, default assumptions, all amounts in CHF:
 |---|---|---|
 | Today (stay a student) | Needs financing: gap of 22,056 from month 28 | – |
 | Start working | Holds, below the 3-month buffer target | Real 10-year net worth 113,708; holds in 4 of 4 stress scenarios. With 604.83 a month into pillar 3a (the 7,258 yearly cap), nominal net worth rises from 125,605 to 151,820 and tax falls by 22,745, but only 75,521 stays liquid |
-| Do a master's | Needs financing: gap of 18,553 from month 7 | Holds in 0 of 4 stress scenarios. Biggest lever: the salary after the master's (4,200 → 5,600 a month moves 10-year net worth from 69,754 to 175,811), and even at the top of that range the cash gap remains. Break-even against working: 4,959.51 a month. Starting a year later: −17,628 |
+| Do a master's | Needs financing: gap of 18,553 from month 7 | Holds in 0 of 4 stress scenarios. Biggest lever: the salary after the master's (4,200 → 5,600 a month moves 10-year net worth from 69,754 to 175,811), and even at the top of that range the cash gap remains. Break-even against working: 4,959.51 a month. Starting a year later: −17,628. Smallest change that closes the gap: +761.93 a month of income, or 18,531.27 once in month 0 |
 | … part-time with a 60% job | Holds, below the buffer target | No funding gap; holds in 4 of 4 stress scenarios |
-| Move abroad | Does not hold: the "Career transition" goal is missed by 506 | Real 10-year net worth 47,979 |
+| Move abroad (now in EUR, converted at the ECB rate) | Does not hold: the "Career transition" goal (CHF 39,366 by month 96) is missed | Real 10-year net worth 48,039 |
 
 **5. Transparent by construction.** The 40-node Alexia tree is editable data, grounded in UBS scenario-catalog ids. Every assumption carries a source, and figures not checked against a primary source are flagged `verified: false`. The payroll rates and tax tables are official and marked verified. The visual path report states the question and scope, each decision and what it changed, the user's own conditions, the alternatives, stress scenarios, limits and breaches, validation (seed, engine version, trace id) and limitations. No LLM produces a number.
 
@@ -257,7 +257,7 @@ python -m multimodal.benchmark.run --strategies frugal ocr_llm vlm_cheap vlm_sma
 - **The plan check comes first and the score second.** A funding gap or breached constraint marks a branch "Needs financing" whatever its score. Negative cash is shown as an unfunded need, never as an automatic loan.
 - **The uncertainty lens is opt-in.** Monte Carlo results are shares of simulated paths under stated assumptions, labelled "not real-world probabilities".
 - **Synthetic data.** The extraction benchmark uses our own rendered documents, and real documents are messier.
-- **Privacy.** For most documents only text leaves the device. Personal conditions are kept in the browser session only. Browser speech recognition may use the browser vendor's servers.
+- **Privacy.** For most documents only text leaves the device. A personal condition's sentence goes to a small model through OpenRouter for parsing, and confirmed conditions are stored only in the browser session. Browser speech recognition may use the browser vendor's servers.
 
 ## What we built at LauzHack (rule 30)
 
