@@ -128,6 +128,16 @@
 .vr-chip.warn { background: var(--vr-warn-soft); color: var(--vr-warn-ink); }
 .vr-chip.asm { background: var(--vr-raise); border: 1px solid var(--vr-line); }
 .vr-chip.obs { background: var(--vr-accent-wash); color: var(--vr-accent-ink); }
+.vr-chip.own { background: transparent; border: 1px dashed var(--vr-accent); color: var(--vr-accent-ink); max-width: 100%; }
+.vr-node-chips .vr-chip.own { display: inline-block; overflow: hidden; text-overflow: ellipsis; }
+.vr-kv span::first-letter { text-transform: uppercase; }
+.vr-chip.own.solid { background: var(--vr-accent); border-style: solid; color: #fff; }
+.vr-node.custom .vr-node-card { border: 1.5px dashed var(--vr-accent); }
+.vr-own { list-style: none; margin: 6px 0 10px; padding: 0; display: grid; gap: 8px; }
+.vr-own li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border-radius: 12px; background: var(--vr-raise); border-left: 3px solid var(--vr-accent); }
+.vr-own b { font-weight: 600; }
+.vr-own small { color: var(--vr-muted); }
+.vr-own-d { display: block; margin-top: 2px; color: var(--vr-ink-2) !important; }
 
 /* ---------- stepper ---------- */
 .vr-stepper { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
