@@ -1,3 +1,4 @@
+import './freshStart.js'; // #118: first, so no store reads a previous page's session
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import gsap from 'gsap';
