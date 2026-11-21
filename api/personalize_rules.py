@@ -49,7 +49,16 @@ MOVE = re.compile(r"\b(?:move|moving|relocate|live|mudar(?:me|ía)?|irme|ir[ií]
                   r"d[eé]m[eé]nagerais|habiter|vivre|ziehen|umziehen|wohnen|leben)\b", re.I)
 # Only an explicit alternative makes a new branch; "instead of the studio" replaces something on this branch.
 INSTEAD = re.compile(r"\b(?:another option|other option|as an option|alternative|compare|otra opci[oó]n|"
-                     r"como opci[oó]n|alternativa|autre option|comme option|andere option|als option)\b", re.I)
+                     r"como opci[oó]n|alternativa|autre option|comme option|andere option|als option|"
+                     r"new branch|new option|nueva rama|nueva opci[oó]n|nouvelle branche|nouvelle option|"
+                     r"neue[rn]? (?:zweig|ast|option))\b", re.I)
+# Chat (#117 follow-up): a what-if QUESTION grows a new branch beside this one (nothing the user had changes);
+# a statement about themselves ("my rent is 1300") or "on this branch" changes this branch.
+WHATIF_Q = re.compile(r"\bwhat if\b|\bwhat happens if\b|\bwhat would happen if\b|\bqu[eé] pasa(?:r[ií]a)? si\b|"
+                      r"\by si\b|\bet si\b|\bque se passe(?:rait)?[- ]t?[- ]?il si\b|\bwas (?:w[äa]re|passiert)\b.{0,3}"
+                      r"\bwenn\b|\bund wenn\b", re.I)
+THIS_BRANCH = re.compile(r"\b(?:this branch|this option|apply it|esta rama|esta opci[oó]n|apl[ií]ca(?:lo)?|"
+                         r"cette branche|cette option|applique|diesen zweig|diese option|wende)\b", re.I)
 DURING = re.compile(r"\b(?:during|while)\b.{0,20}\b(?:master|study|studies|studying)|durante (?:el )?m[aá]ster|"
                     r"mientras estudi|pendant (?:le |mon )?master|pendant mes [eé]tudes|w[äa]hrend (?:des |dem |meines )?"
                     r"(?:master|studium)", re.I)
@@ -171,7 +180,7 @@ def parse(text: str, ctx: dict) -> dict | None:
     money condition without an amount, or None (not recognised: use the LLM)."""
     t = " " + (text or "").strip() + " "
     H = ctx["horizon_months"]
-    mode = "new_branch" if INSTEAD.search(t) else "patch"
+    mode = "new_branch" if INSTEAD.search(t) or (WHATIF_Q.search(t) and not THIS_BRANCH.search(t)) else "patch"
     amounts = _amounts(t)
     first_month = 12 if NEXT_YEAR.search(t) else 0
 

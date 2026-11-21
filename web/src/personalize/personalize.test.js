@@ -135,3 +135,23 @@ test('slow server: own timeout, friendly states, manual numbers', async () => {
   assert.deepEqual(manualFromGuess({ proposal: { interventions: [{ param: 'monthly_net_income', op: 'add', value: 600, from_month: 0, to_month: 24 }] } }), { kind: 'income', amount: 600, per: 'month', from: 1, to: 24 });
   assert.equal(manualFromGuess(null).amount, '');
 });
+
+test('a change asked in the chat goes straight onto the tree (no confirm step)', async () => {
+  const { applyFromChat } = await import('./fromChat.js');
+  const { createPersonalStore } = await import('./store.js');
+  const mem = new Map(); const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  const store = createPersonalStore({ storage, target: null });
+  const iv = { param: 'monthly_investment_contribution', op: 'set', value: 300, from_month: 0, to_month: 120, label: 'Invest CHF 300 a month' };
+  const branch = applyFromChat({ proposal: { mode: 'new_branch', parent_id: '1.2', node_id: '1.2.c1', label: 'Invest CHF 300 a month', interventions: [iv] } },
+    { node_id: '1.2', nodeLabel: 'Invest CHF 500 a month', store });
+  assert.equal(branch.mode, 'branch');
+  assert.equal(branch.custom_node.parent_id, '1.2');
+  assert.equal(branch.custom_node.node_id, '1.2.c1');
+  const patch = applyFromChat({ proposal: { mode: 'patch', node_id: '2', label: 'New rent', interventions: [{ param: 'monthly_rent', op: 'set', value: 1300, from_month: 0, to_month: 120 }] } },
+    { node_id: '2', store });
+  assert.equal(patch.mode, 'patch');
+  assert.equal(store.list().length, 2);
+  assert.deepEqual(Object.keys(store.requestFields()).sort(), ['custom_nodes', 'node_patches']);
+  assert.equal(applyFromChat({ clarifying_question: 'How much?' }, { node_id: '2', store }), null);
+  assert.equal(store.list().length, 2);
+});

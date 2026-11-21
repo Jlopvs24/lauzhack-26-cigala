@@ -1023,3 +1023,17 @@ def agent_ask(q, path):
 def test_non_whatif_questions_still_take_the_normal_path():
     j = agent_ask("Why does the master's need financing?", ["2"])
     assert j["mode"] in ("llm", "template") and not j.get("personalize")
+
+
+def test_chat_changes_the_tree_directly_question_grows_a_branch_statement_patches():
+    """Lluc: no Make-it-mine confirm. A what-if question -> a new branch under this node; a statement or
+    'on this branch' -> this branch. The answer says what changed (and keeps the engine's numbers)."""
+    j = agent_ask("Add a new branch where I invest 300 a month", ["1", "1.2"])
+    assert j["mode"] == "whatif" and j["personalize"]["proposal"]["mode"] == "new_branch"
+    assert "new option" in j["answer"]
+    j = agent_ask("What happens if I invest 300 instead of 500?", ["1", "1.2"])
+    assert j["personalize"]["proposal"]["mode"] == "new_branch"
+    j = agent_ask("My rent is 1300 francs a month", ["2"])
+    assert j["mode"] == "whatif" and j["personalize"]["proposal"]["mode"] == "patch" and "recomputed" in j["answer"]
+    j = agent_ask("¿Qué pasa si invierto 300 en vez de 500 en esta rama?", ["1", "1.2"])
+    assert j["personalize"]["proposal"]["mode"] == "patch" and "recalculado" in j["answer"]
