@@ -5,15 +5,20 @@
 :root{--bg:#F6F3EA;--card:#FFFDF7;--ink:#1F2B4D;--muted:#69708A;--line:#E4DFD0}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;padding:24px 16px}
-h1{font-size:22px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 18px;max-width:860px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:26px 0 4px}.sub{color:var(--muted);margin:0 0 18px;max-width:860px}
 .stage{position:relative;height:340px;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:14px}
 .stage .ground{position:absolute;left:0;right:0;bottom:40px;border-top:3px solid #D9D2BF}
 .stage .leaf{position:absolute;right:24px;top:40px;width:210px;padding:12px 14px;border-radius:14px;background:#fff;border:1px solid var(--line);font-size:13px;color:var(--muted)}
 .stage .leaf b{color:var(--ink)}
 #lumi{position:absolute;left:24px;top:110px}
-.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
-button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center}
+button,.file{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.file input{display:none}
 button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.dock{position:relative;height:220px;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:14px}
+.dock .chatline{position:absolute;left:16px;right:16px;bottom:14px;height:40px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:13px;display:flex;align-items:center;padding:0 16px}
+.dock .slot{position:absolute;bottom:64px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted)}
+.meter{width:160px;height:8px;border-radius:999px;background:var(--line);overflow:hidden}.meter i{display:block;height:100%;width:0;background:#5CC39A}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
 figure{margin:0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center}
 figure svg{width:100%;max-width:120px;height:auto}
@@ -85,6 +90,37 @@ figcaption{font-size:12px;color:var(--muted)}
 .guide-say[hidden] {
   display: none;
 }
+/* anchored to the near screen edge (set by say() when centred would overflow) */
+.guide-say--end {
+  left: auto;
+  right: 0;
+  transform: none;
+  animation-name: guide-say-in-edge;
+}
+.guide-say--end::after {
+  left: auto;
+  right: 18%;
+  transform: translate(50%, -6px) rotate(45deg);
+}
+.guide-say--start {
+  left: 0;
+  transform: none;
+  animation-name: guide-say-in-edge;
+}
+.guide-say--start::after {
+  left: 18%;
+}
+/* docked (small host): tighter bubble */
+.guide--compact .guide-say {
+  bottom: 100%;
+  max-width: min(260px, 70vw);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+@keyframes guide-say-in-edge {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
 
 .g-sparks path {
   transform-box: fill-box;
@@ -119,6 +155,23 @@ figcaption{font-size:12px;color:var(--muted)}
   <button id="explain">Explain the leaf</button>
   <button id="say">say(...)</button>
 </div>
+
+<h2>Lip sync, docked at 64 / 80 / 96 px</h2>
+<p class="sub">The mouth follows the voice: a WebAudio analyser reads the loudness of an audio element, node or stream; speechSynthesis has no amplitude, so the mouth flaps on word boundaries (or a syllable timer). Blinking continues while it talks.</p>
+<div class="dock">
+  <div class="slot" style="right:236px"><div id="d64" style="width:64px"></div>64 px</div>
+  <div class="slot" style="right:128px"><div id="d80" style="width:80px"></div>80 px</div>
+  <div class="slot" style="right:16px"><div id="d96" style="width:96px"></div>96 px</div>
+  <div class="chatline">Ask Lumi about your tree…</div>
+</div>
+<div class="controls">
+  <button id="synth">Speech-like audio (AnalyserNode)</button>
+  <button id="tts">speechSynthesis (word boundaries)</button>
+  <label class="file">Play an audio file (audio element)<input id="file" type="file" accept="audio/*"></label>
+  <span class="meter" aria-hidden="true"><i id="meter"></i></span>
+</div>
+
+<h2>All states</h2>
 <div class="grid">
 <figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide">
 <defs><radialGradient id="g-healthy-idle-halo"><stop offset="0" stop-color="hsla(150.0, 66.0%, 78%, 0.550)"/><stop offset="0.42" stop-color="hsla(150.0, 66.0%, 76%, 0.180)"/><stop offset="0.68" stop-color="hsla(150.0, 66.0%, 76%, 0.000)"/></radialGradient><radialGradient id="g-healthy-idle-body" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="hsla(150.0, 56.0%, 95%, 1.000)"/><stop offset="0.6" stop-color="hsla(150.0, 56.0%, 87%, 1.000)"/><stop offset="1" stop-color="hsla(150.0, 44.8%, 73%, 1.000)"/></radialGradient><radialGradient id="g-healthy-idle-shade" cx="36%" cy="30%" r="78%"><stop offset="0.55" stop-color="hsla(150.0, 45.0%, 46%, 0.000)"/><stop offset="1" stop-color="hsla(150.0, 45.0%, 46%, 0.400)"/></radialGradient>
@@ -135,7 +188,11 @@ figcaption{font-size:12px;color:var(--muted)}
   <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
   <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
   <g class="g-eyes" transform="translate(0 0)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-5.5" width="6.5" height="11" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-2.9" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-5.5" width="6.5" height="11" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-2.9" r="1.35" fill="#fff"/></g></g>
-  <g class="g-mouth-pos" transform="translate(0 13)"><path class="g-mouth" d="M-6.5,0 Q0,3.00 6.5,0 Q0,5.00 -6.5,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
+  <g class="g-mouth-pos" transform="translate(0 13)">
+   <clipPath id="g-healthy-idle-mclip"><path class="g-mclip" d="M-6.5,0 Q0,3.00 6.5,0 Q0,5.00 -6.5,0 Z"/></clipPath>
+   <path class="g-mouth" d="M-6.5,0 Q0,3.00 6.5,0 Q0,5.00 -6.5,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/>
+   <ellipse class="g-tongue" clip-path="url(#g-healthy-idle-mclip)" cx="0" cy="2.5" rx="3.2" ry="0.30" fill="#E4798F" opacity="0"/>
+  </g>
  </g>
 </g>
 <g class="g-sparks" fill="hsla(150.0, 66.0%, 66%, 1.000)" opacity="0"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
@@ -155,7 +212,11 @@ figcaption{font-size:12px;color:var(--muted)}
   <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
   <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
   <g class="g-eyes" transform="translate(4.5 -1.5)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-6" width="6.5" height="12" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-3.4" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-6" width="6.5" height="12" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-3.4" r="1.35" fill="#fff"/></g></g>
-  <g class="g-mouth-pos" transform="translate(2.6999999999999997 13)"><path class="g-mouth" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
+  <g class="g-mouth-pos" transform="translate(2.6999999999999997 13)">
+   <clipPath id="g-healthy-explaining-mclip"><path class="g-mclip" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z"/></clipPath>
+   <path class="g-mouth" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/>
+   <ellipse class="g-tongue" clip-path="url(#g-healthy-explaining-mclip)" cx="0" cy="3.25" rx="3.2" ry="1.35" fill="#E4798F" opacity="1"/>
+  </g>
  </g>
 </g>
 <g class="g-sparks" fill="hsla(150.0, 66.0%, 66%, 1.000)" opacity="1"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
@@ -175,7 +236,11 @@ figcaption{font-size:12px;color:var(--muted)}
   <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
   <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
   <g class="g-eyes" transform="translate(0 0)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-4.75" width="6.5" height="9.5" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-2.15" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-4.75" width="6.5" height="9.5" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-2.15" r="1.35" fill="#fff"/></g></g>
-  <g class="g-mouth-pos" transform="translate(0 13)"><path class="g-mouth" d="M-6.5,0 Q0,-0.20 6.5,0 Q0,1.80 -6.5,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
+  <g class="g-mouth-pos" transform="translate(0 13)">
+   <clipPath id="g-fair-idle-mclip"><path class="g-mclip" d="M-6.5,0 Q0,-0.20 6.5,0 Q0,1.80 -6.5,0 Z"/></clipPath>
+   <path class="g-mouth" d="M-6.5,0 Q0,-0.20 6.5,0 Q0,1.80 -6.5,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/>
+   <ellipse class="g-tongue" clip-path="url(#g-fair-idle-mclip)" cx="0" cy="0.9" rx="3.2" ry="0.30" fill="#E4798F" opacity="0"/>
+  </g>
  </g>
 </g>
 <g class="g-sparks" fill="hsla(44.0, 82.0%, 66%, 1.000)" opacity="0"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
@@ -195,7 +260,11 @@ figcaption{font-size:12px;color:var(--muted)}
   <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
   <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
   <g class="g-eyes" transform="translate(4.5 -1.5)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-5.25" width="6.5" height="10.5" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-2.65" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-5.25" width="6.5" height="10.5" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-2.65" r="1.35" fill="#fff"/></g></g>
-  <g class="g-mouth-pos" transform="translate(2.6999999999999997 13)"><path class="g-mouth" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
+  <g class="g-mouth-pos" transform="translate(2.6999999999999997 13)">
+   <clipPath id="g-fair-explaining-mclip"><path class="g-mclip" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z"/></clipPath>
+   <path class="g-mouth" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/>
+   <ellipse class="g-tongue" clip-path="url(#g-fair-explaining-mclip)" cx="0" cy="3.25" rx="3.2" ry="1.35" fill="#E4798F" opacity="1"/>
+  </g>
  </g>
 </g>
 <g class="g-sparks" fill="hsla(44.0, 82.0%, 66%, 1.000)" opacity="1"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
@@ -215,7 +284,11 @@ figcaption{font-size:12px;color:var(--muted)}
   <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
   <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
   <g class="g-eyes" transform="translate(0 1.5)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-3.5" width="6.5" height="7" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-0.8999999999999999" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-3.5" width="6.5" height="7" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-0.8999999999999999" r="1.35" fill="#fff"/></g></g>
-  <g class="g-mouth-pos" transform="translate(0 13)"><path class="g-mouth" d="M-6.5,0 Q0,-4.00 6.5,0 Q0,-2.00 -6.5,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
+  <g class="g-mouth-pos" transform="translate(0 13)">
+   <clipPath id="g-weak-idle-mclip"><path class="g-mclip" d="M-6.5,0 Q0,-4.00 6.5,0 Q0,-2.00 -6.5,0 Z"/></clipPath>
+   <path class="g-mouth" d="M-6.5,0 Q0,-4.00 6.5,0 Q0,-2.00 -6.5,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/>
+   <ellipse class="g-tongue" clip-path="url(#g-weak-idle-mclip)" cx="0" cy="-1" rx="3.2" ry="0.30" fill="#E4798F" opacity="0"/>
+  </g>
  </g>
 </g>
 <g class="g-sparks" fill="hsla(28.0, 24.0%, 66%, 1.000)" opacity="0"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
@@ -235,13 +308,18 @@ figcaption{font-size:12px;color:var(--muted)}
   <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
   <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
   <g class="g-eyes" transform="translate(4.5 -1.5)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-4" width="6.5" height="8" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-1.4" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-4" width="6.5" height="8" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-1.4" r="1.35" fill="#fff"/></g></g>
-  <g class="g-mouth-pos" transform="translate(2.6999999999999997 13)"><path class="g-mouth" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
+  <g class="g-mouth-pos" transform="translate(2.6999999999999997 13)">
+   <clipPath id="g-weak-explaining-mclip"><path class="g-mclip" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z"/></clipPath>
+   <path class="g-mouth" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/>
+   <ellipse class="g-tongue" clip-path="url(#g-weak-explaining-mclip)" cx="0" cy="3.25" rx="3.2" ry="1.35" fill="#E4798F" opacity="1"/>
+  </g>
  </g>
 </g>
 <g class="g-sparks" fill="hsla(28.0, 24.0%, 66%, 1.000)" opacity="1"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
 </svg><figcaption>weak · explaining</figcaption></figure>
 </div>
 <script>
+const { createGuide } = (() => {
 // Lumi, the guide: a soft glowing orb that floats next to the tree and explains it.
 // It never recommends or decides. Framework-free ES module; use it from React with a ref:
 //
@@ -254,9 +332,16 @@ figcaption{font-size:12px;color:var(--muted)}
 //   lumi.pointAt(leafElement);        // look, lean and sparkle toward an Element or {x, y}
 //   lumi.pointAt(null);               //   ({x, y} in viewport px, as getBoundingClientRect)
 //   lumi.moveTo(x, y);                // glide (px, relative to where the element sits)
-//   lumi.setTalking(true);            // mouth moves while your own audio plays
+//   lumi.setSpeaking(true);           // mouth talks (on its own rhythm until a level arrives)
+//   lumi.setMouthLevel(0.6);          // 0..1 loudness, e.g. from attachAudio() in lipsync.js
 //   lumi.react("happy");              // short reaction: "happy" | "curious" | "surprised"
 //   lumi.destroy();
+//
+// Lip sync with real audio: import { attachAudio } from "./lipsync.js";
+//   const detach = attachAudio(lumi, audioElement | audioNode | mediaStream | utterance);
+//
+// Small sizes (docked, ~64-96 px wide): the host switches to a tight layout by itself below
+// 120 px (option compact: true | false | "auto").
 //
 // Alive on its own: it bobs, blinks and glances around; watches the cursor and slightly dodges
 // it when it gets close; smiles on hover; on click (or Enter) it spins a full turn (the face
@@ -322,6 +407,25 @@ const GRAD_POS = { halo: "", body: ' cx="50%" cy="50%" r="50%"', shade: ' cx="36
 const mouthPath = (w, curve, open) =>
   `M${-w},0 Q0,${(curve - open).toFixed(2)} ${w},0 Q0,${(curve + open).toFixed(2)} ${-w},0 Z`;
 
+const smoothstep = (a, b, x) => {
+  const t = clamp((x - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * Speaking mouth from a loudness level (0..1) and a vowel roundness (0 = wide "e/i", 1 = round
+ * "o/u"). Returns lens parameters plus the tongue: closed and resting near 0, a narrow slit for
+ * quiet consonants, wide for mid levels, tall and rounder when loud.
+ */
+function mouthShape(level, roundness = 0.3, restCurve = 2) {
+  const L = clamp(level, 0, 1);
+  const wide = 4 * L * (1 - L); // peaks at mid loudness
+  const w = 6.5 + 2.8 * wide * (1 - 0.5 * roundness) - 2 * smoothstep(0.6, 1, L) * roundness - 0.8 * (1 - smoothstep(0, 0.18, L));
+  const open = 0.9 + 9 * L * (1 - 0.15 * (1 - roundness));
+  const curve = restCurve * (1 - 0.65 * smoothstep(0, 0.5, L)) + 0.8 * L;
+  return { w, open, curve, tongue: smoothstep(0.35, 0.8, L) };
+}
+
 function star(x, y, s) {
   return `<path d="M${x},${y - s} Q${x + s * 0.15},${y - s * 0.15} ${x + s},${y} Q${x + s * 0.15},${y + s * 0.15} ${x},${y + s} Q${x - s * 0.15},${y + s * 0.15} ${x - s},${y} Q${x - s * 0.15},${y - s * 0.15} ${x},${y - s} Z"/>`;
 }
@@ -369,7 +473,11 @@ function guideSVG({ health = "healthy", pose = "idle", talking = false, id = "lu
   <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="${BLUSH}" opacity="${c.blush}"/>
   <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="${BLUSH}" opacity="${c.blush}"/>
   <g class="g-eyes" transform="translate(${gaze[0]} ${gaze[1]})">${eye(-1)}${eye(1)}</g>
-  <g class="g-mouth-pos" transform="translate(${gaze[0] * 0.6} 13)"><path class="g-mouth" d="${mouthPath(explaining ? 6 : 6.5, curve, open)}" fill="${INK}" stroke="${INK}" stroke-width="1.1" stroke-linejoin="round"/></g>
+  <g class="g-mouth-pos" transform="translate(${gaze[0] * 0.6} 13)">
+   <clipPath id="${id}-mclip"><path class="g-mclip" d="${mouthPath(explaining ? 6 : 6.5, curve, open)}"/></clipPath>
+   <path class="g-mouth" d="${mouthPath(explaining ? 6 : 6.5, curve, open)}" fill="${INK}" stroke="${INK}" stroke-width="1.1" stroke-linejoin="round"/>
+   <ellipse class="g-tongue" clip-path="url(#${id}-mclip)" cx="0" cy="${(curve + open) / 2}" rx="3.2" ry="${(open * 0.3).toFixed(2)}" fill="#E4798F" opacity="${open > 3 ? 1 : 0}"/>
+  </g>
  </g>
 </g>
 <g class="g-sparks" fill="${hsl(c.h, c.s + 10, 66)}" opacity="${explaining ? 1 : 0}">${star(176, 84, 7)}${star(190, 62, 4.5)}${star(164, 58, 3.5)}</g>
@@ -380,7 +488,7 @@ function guideSVG({ health = "healthy", pose = "idle", talking = false, id = "lu
 
 let uid = 0;
 
-function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}) {
+function createGuide(el, { mood, health = "healthy", pose = "idle", onTap, compact = "auto" } = {}) {
   if (mood !== undefined) health = mood;
   health = moodToHealth(health);
   const id = `lumi${++uid}`;
@@ -410,6 +518,8 @@ function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}
     glints: qa(".g-glint"),
     mouthPos: q(".g-mouth-pos"),
     mouth: q(".g-mouth"),
+    mclip: q(".g-mclip"),
+    tongue: q(".g-tongue"),
     blush: qa(".g-blush"),
     sparks: q(".g-sparks"),
     stops: Object.fromEntries(Object.keys(STOPS).map((k) => [k, qa(`#${id}-${k} stop`)])),
@@ -439,7 +549,26 @@ function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}
     dx: 0, dy: 0, // dodge offset, px
     point: null, // Element or {x, y} it is pointing at
     sayTimer: 0, sayDone: null,
+    // lip sync: the latest external level, and the smoothed level the mouth actually uses
+    levelIn: 0, levelAt: -1e9,
+    level: 0,
+    round: 0.3, roundTo: 0.3, syllable: false, // vowel shape, re-picked at each syllable onset
+    faceScale: FACE,
   };
+
+  // Tight layout for small hosts (docked ~64-96 px): crop the empty margin, enlarge the face.
+  const WIDE_BOX = "0 0 200 240";
+  const TIGHT_BOX = "26 40 148 178";
+  function setCompact(on) {
+    el.classList.toggle("guide--compact", on);
+    dom.svg.setAttribute("viewBox", on ? TIGHT_BOX : WIDE_BOX);
+    s.faceScale = on ? FACE * 1.2 : FACE;
+  }
+  let ro = null;
+  if (compact === "auto" && typeof ResizeObserver !== "undefined") {
+    ro = new ResizeObserver(([e]) => setCompact(e.contentRect.width < 120));
+    ro.observe(el);
+  } else setCompact(compact === true);
 
   function react(emo, ms = 1100) {
     s.flash = emo;
@@ -449,7 +578,8 @@ function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}
   // orb centre and radius in viewport px (without the dodge offset, so dodging never feeds back)
   const center = () => {
     const b = dom.svg.getBoundingClientRect();
-    return { x: b.left + (b.width * CX) / 200 - s.dx, y: b.top + (b.height * CY) / 240 - s.dy, r: (b.width * R) / 200 };
+    const [vx, vy, vw, vh] = (s.faceScale > FACE ? TIGHT_BOX : WIDE_BOX).split(" ").map(Number);
+    return { x: b.left + ((CX - vx) / vw) * b.width - s.dx, y: b.top + ((CY - vy) / vh) * b.height - s.dy, r: (R / vw) * b.width };
   };
 
   // -------------------------------------------------------------- input
@@ -533,9 +663,20 @@ function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}
     for (const key of ["eyeL", "eyeR", "happy", "curve", "open", "tilt", "blush"]) face[key] = lerp(face[key], F[key], k(10));
     face.sparks = lerp(face.sparks, explaining ? 1 : 0, k(6));
 
-    // talking: lips open and close on a syllable-like rhythm (two unrelated waves)
-    const flap = target.talking ? 0.3 + 0.7 * Math.abs(Math.sin(T * 12.5) * Math.sin(T * 6.9 + 0.6)) : 0;
-    s.talk = lerp(s.talk, flap, k(25));
+    // speaking: a fresh external level (lip sync) wins; otherwise its own syllable-like rhythm
+    let raw = 0;
+    if (target.talking) {
+      raw = now - s.levelAt < 300 ? s.levelIn : 0.12 + 0.68 * Math.abs(Math.sin(T * 12.5) * Math.sin(T * 6.9 + 0.6));
+      if (reduced) raw *= 0.45; // subtle: still readable, no big jaw moves
+    }
+    // fast attack, slower release: reads like real lips, never jittery
+    s.level = lerp(s.level, raw, k(raw > s.level ? (reduced ? 18 : 32) : reduced ? 8 : 13));
+    if (s.level > 0.38 && !s.syllable) {
+      s.syllable = true; // a new syllable: pick its vowel shape
+      s.roundTo = [0.1, 0.35, 0.6, 0.9][Math.floor(Math.random() * 4)];
+    } else if (s.level < 0.22) s.syllable = false;
+    s.round = lerp(s.round, s.roundTo, k(14));
+    s.talk = s.level;
 
     // gaze: what it points at; else the cursor when close (or just came back); else glances
     let gx, gy;
@@ -633,7 +774,8 @@ function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}
     const cos = Math.cos(s.spin);
     const fx = CX + s.gx * 5 + sin * 34;
     const fy = CY + 10 + s.gy * 4;
-    dom.face.setAttribute("transform", `translate(${fx.toFixed(2)} ${fy.toFixed(2)}) scale(${(Math.max(0.02, Math.abs(cos)) * FACE).toFixed(3)} ${FACE})`);
+    const fs = s.faceScale;
+    dom.face.setAttribute("transform", `translate(${fx.toFixed(2)} ${fy.toFixed(2)}) scale(${(Math.max(0.02, Math.abs(cos)) * fs).toFixed(3)} ${fs})`);
     dom.face.setAttribute("opacity", clamp(cos * 3, 0, 1).toFixed(3));
     dom.eyes.setAttribute("transform", `translate(${(s.gx * 5).toFixed(2)} ${(s.gy * 3.2).toFixed(2)})`);
     [face.eyeL, face.eyeR].forEach((h0, i) => {
@@ -649,15 +791,36 @@ function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}
       dom.glints[i].setAttribute("cy", (-h / 2 + 2.6).toFixed(2));
       dom.glints[i].setAttribute("r", h > 5 && face.happy < 0.5 ? "1.35" : "0");
     });
-    const open = face.open + s.talk * 4.5;
-    const curve = face.curve * (1 - s.talk * 0.5);
-    dom.mouthPos.setAttribute("transform", `translate(${(s.gx * 2.4).toFixed(2)} ${(13 + s.gy * 1.5).toFixed(2)})`);
-    dom.mouth.setAttribute("d", mouthPath(6.5 + s.talk, curve, open));
+    // mouth: mood shape when quiet, blended into the speaking shape by the level
+    const L = s.level;
+    const sp = mouthShape(L, s.round, face.curve);
+    const mix = smoothstep(0, 0.08, L);
+    const mw = lerp(6.5, sp.w, mix);
+    const mOpen = lerp(face.open, Math.max(face.open, sp.open), mix);
+    const mCurve = lerp(face.curve, sp.curve, mix);
+    const jaw = L * 1.4; // the mouth drops a touch as it opens
+    dom.mouthPos.setAttribute("transform", `translate(${(s.gx * 2.4).toFixed(2)} ${(13 + jaw + s.gy * 1.5).toFixed(2)})`);
+    const md2 = mouthPath(mw, mCurve, mOpen);
+    dom.mouth.setAttribute("d", md2);
+    dom.mclip.setAttribute("d", md2);
+    const tongue = sp.tongue * mix;
+    dom.tongue.setAttribute("opacity", tongue.toFixed(3));
+    if (tongue > 0.01) {
+      dom.tongue.setAttribute("cy", ((mCurve + mOpen) / 2).toFixed(2));
+      dom.tongue.setAttribute("rx", (mw * 0.5).toFixed(2));
+      dom.tongue.setAttribute("ry", (mOpen * 0.32).toFixed(2));
+    }
     for (const b of dom.blush) b.setAttribute("opacity", face.blush.toFixed(3));
 
     raf = requestAnimationFrame(frame);
   }
   raf = requestAnimationFrame(frame);
+
+  function setSpeaking(on) {
+    target.talking = !!on;
+    if (on) s.lastInput = performance.now();
+    else s.levelIn = 0;
+  }
 
   function hideBubble() {
     dom.bubble.hidden = true;
@@ -688,7 +851,12 @@ function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}
       const t = String(text ?? "").trim();
       if (!t) return Promise.resolve();
       dom.bubble.textContent = t;
+      dom.bubble.classList.remove("guide-say--start", "guide-say--end");
       dom.bubble.hidden = false;
+      // docked in a corner: keep the bubble on screen by anchoring it to the near edge
+      const b = dom.bubble.getBoundingClientRect();
+      if (b.right > innerWidth - 8) dom.bubble.classList.add("guide-say--end");
+      else if (b.left < 8) dom.bubble.classList.add("guide-say--start");
       target.talking = true;
       s.lastInput = performance.now();
       const ms = duration ?? clamp(t.length * 55, 2200, 12000);
@@ -705,10 +873,16 @@ function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}
       else s.point = null;
       s.lastInput = performance.now();
     },
-    setTalking(on) {
-      target.talking = !!on;
-      if (on) s.lastInput = performance.now();
+    /** Speaking on/off. While on, the mouth follows setMouthLevel(); without levels it uses its own rhythm. */
+    setSpeaking,
+    /** Loudness 0..1 for lip sync (call every frame or on each analysis tick). Smoothed inside. */
+    setMouthLevel(v) {
+      const x = Number(v);
+      s.levelIn = Number.isFinite(x) ? clamp(x, 0, 1) : 0;
+      s.levelAt = performance.now();
     },
+    /** Old name of setSpeaking. */
+    setTalking: setSpeaking,
     react,
     tap,
     moveTo(x, y) {
@@ -721,6 +895,7 @@ function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}
     },
     destroy() {
       cancelAnimationFrame(raf);
+      ro?.disconnect();
       clearTimeout(s.sayTimer);
       hideBubble();
       removeEventListener("pointermove", onMove);
@@ -734,10 +909,284 @@ function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}
   };
 }
 
+return { createGuide };
+})();
+const { attachAudio, unlockLipSync } = (() => {
+// Lip sync for Lumi: drives lumi.setSpeaking() and lumi.setMouthLevel() from real audio.
+//
+//   import { attachAudio } from "../assets/character/guide/lipsync.js";
+//   const detach = attachAudio(lumi, source);   // returns detach(): stops listening, mouth closes
+//
+// `source` can be:
+//   - an <audio>/<video> element (or new Audio(url)): routed through a WebAudio AnalyserNode,
+//     loudness from the waveform. Speaking follows play/pause/ended.
+//   - a WebAudio AudioNode (e.g. a MediaElementSource or a gain node you already play through):
+//     tapped with an analyser; speaking while it is loud enough.
+//   - a MediaStream (e.g. a WebRTC voice call): same, through a MediaStreamSource.
+//   - a SpeechSynthesisUtterance: the browser gives no amplitude, so the mouth flaps on the
+//     word boundaries it reports (onboundary), or on a syllable timer for voices that report none.
+//     Attach before speechSynthesis.speak(utterance).
+//
+// If WebAudio is unavailable or the audio is cross-origin without CORS (the analyser then only
+// reads silence), Lumi still talks on its own rhythm while the audio plays.
+
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+/** RMS of a time-domain buffer (floats in -1..1). */
+function rms(samples) {
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+  return Math.sqrt(sum / (samples.length || 1));
+}
+
+/**
+ * Loudness 0..1 from an RMS value: a noise gate, then a log (dB) scale so quiet consonants still
+ * move the lips and loud vowels open them wide. -48 dBFS -> 0, -14 dBFS -> 1.
+ */
+function levelFromRms(r, { floorDb = -48, topDb = -14 } = {}) {
+  if (!(r > 0)) return 0;
+  const db = 20 * Math.log10(r);
+  return clamp((db - floorDb) / (topDb - floorDb), 0, 1);
+}
+
+/**
+ * Syllable envelope for speech without amplitude: given syllable onset times (ms) it returns the
+ * mouth level at time t: a quick open (40 ms) and a softer close (~140 ms) per syllable.
+ */
+function syllableLevel(onsets, t) {
+  let v = 0;
+  for (const o of onsets) {
+    const d = t - o.at;
+    if (d < 0 || d > 400) continue;
+    const env = d < 40 ? d / 40 : Math.exp(-(d - 40) / 110);
+    v = Math.max(v, env * o.peak);
+  }
+  return v;
+}
+
+/** Rough syllable count of a word (vowel groups), at least 1. */
+function syllables(word) {
+  const groups = String(word).toLowerCase().match(/[aeiouyàáâäèéêëìíîïòóôöùúûü]+/g);
+  return Math.max(1, groups ? groups.length : Math.ceil(String(word).length / 3));
+}
+
+let sharedCtx = null;
+const mediaSources = new WeakMap(); // an element can be wired into WebAudio only once
+
+function audioContext() {
+  if (sharedCtx) return sharedCtx;
+  const AC = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
+  if (!AC) return null;
+  try {
+    sharedCtx = new AC();
+  } catch {
+    sharedCtx = null;
+  }
+  return sharedCtx;
+}
+
+const raf = (f) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(f) : setTimeout(() => f(performance.now()), 16));
+const caf = (id) => (typeof cancelAnimationFrame === "function" ? cancelAnimationFrame(id) : clearTimeout(id));
+
+/** Analyser loop: reads loudness every frame and hands it to `onLevel`. */
+function analyse(ctx, input, onLevel) {
+  const an = ctx.createAnalyser();
+  an.fftSize = 1024;
+  an.smoothingTimeConstant = 0.2;
+  input.connect(an);
+  const buf = new Float32Array(an.fftSize);
+  let id = 0;
+  let alive = true;
+  const tick = () => {
+    if (!alive) return;
+    an.getFloatTimeDomainData(buf);
+    onLevel(rms(buf));
+    id = raf(tick);
+  };
+  id = raf(tick);
+  return () => {
+    alive = false;
+    caf(id);
+    try {
+      input.disconnect(an);
+    } catch {
+      /* already gone */
+    }
+  };
+}
+
+function attachMediaElement(lumi, el) {
+  const ctx = audioContext();
+  let source = mediaSources.get(el) || null;
+  // Wiring an element into WebAudio is permanent and it then only sounds while the context runs.
+  // So it is wired only when the context is already running (never risk muting the voice);
+  // otherwise this clip talks on Lumi's own rhythm and the context is resumed for the next one.
+  const wire = () => {
+    if (source || !ctx) return source;
+    if (ctx.state !== "running") {
+      ctx.resume?.().catch(() => {});
+      return null;
+    }
+    try {
+      source = ctx.createMediaElementSource(el);
+      source.connect(ctx.destination); // keep it audible: the element now plays through WebAudio
+      mediaSources.set(el, source);
+    } catch {
+      source = null; // e.g. already wired elsewhere
+    }
+    return source;
+  };
+  let heard = false; // true once real signal arrives (cross-origin audio stays silent)
+  let stopAnalyse = null;
+  const onLevel = (r) => {
+    if (el.paused) return;
+    if (r > 0.002) heard = true;
+    if (heard) lumi.setMouthLevel(levelFromRms(r));
+  };
+  const start = () => {
+    lumi.setSpeaking(true);
+    if (wire() && !stopAnalyse) stopAnalyse = analyse(ctx, source, onLevel);
+  };
+  const stop = () => {
+    lumi.setMouthLevel(0);
+    lumi.setSpeaking(false);
+    stopAnalyse?.();
+    stopAnalyse = null;
+  };
+  const events = [["play", start], ["playing", start], ["pause", stop], ["ended", stop], ["emptied", stop], ["error", stop]];
+  for (const [e, f] of events) el.addEventListener(e, f);
+  if (!el.paused && !el.ended) start();
+  return () => {
+    for (const [e, f] of events) el.removeEventListener(e, f);
+    stop();
+  };
+}
+
+function attachNode(lumi, node) {
+  const ctx = node.context;
+  let quietSince = performance.now();
+  let speaking = false;
+  const stopAnalyse = analyse(ctx, node, (r) => {
+    const level = levelFromRms(r);
+    const now = performance.now();
+    if (level > 0.08) {
+      quietSince = now;
+      if (!speaking) lumi.setSpeaking((speaking = true));
+    } else if (speaking && now - quietSince > 350) lumi.setSpeaking((speaking = false)); // hold over short pauses
+    if (speaking) lumi.setMouthLevel(level);
+  });
+  return () => {
+    stopAnalyse();
+    lumi.setMouthLevel(0);
+    lumi.setSpeaking(false);
+  };
+}
+
+function attachStream(lumi, stream) {
+  const ctx = audioContext();
+  if (!ctx) return () => {};
+  ctx.state === "suspended" && ctx.resume().catch(() => {});
+  const src = ctx.createMediaStreamSource(stream);
+  const detach = attachNode(lumi, src);
+  return () => {
+    detach();
+    try {
+      src.disconnect();
+    } catch {
+      /* ignore */
+    }
+  };
+}
+
+function attachUtterance(lumi, u) {
+  const rate = Number(u.rate) || 1;
+  const syl = 170 / rate; // ms per syllable at this speaking rate
+  let onsets = [];
+  let speaking = false;
+  let gotBoundary = false;
+  let paused = false;
+  let id = 0;
+  let nextTimer = 0;
+  const push = (at, peak) => {
+    onsets.push({ at, peak });
+    if (onsets.length > 24) onsets = onsets.slice(-24);
+  };
+  // a word: one quick open per syllable, louder on the first
+  const word = (w, at) => {
+    const n = Math.min(4, syllables(w));
+    for (let i = 0; i < n; i++) push(at + i * syl, (i === 0 ? 0.85 : 0.6) + Math.random() * 0.15);
+  };
+  const tick = () => {
+    if (!speaking) return;
+    const now = performance.now();
+    if (!paused && !gotBoundary && now >= nextTimer) {
+      // no boundary events from this voice: a plausible syllable rhythm with short word gaps
+      push(now, 0.5 + Math.random() * 0.4);
+      nextTimer = now + syl * (Math.random() < 0.2 ? 2.2 : 0.8 + Math.random() * 0.5);
+    }
+    lumi.setMouthLevel(paused ? 0 : syllableLevel(onsets, now));
+    id = raf(tick);
+  };
+  const onStart = () => {
+    speaking = true;
+    paused = false;
+    onsets = [];
+    nextTimer = performance.now() + 250; // give boundary events a moment to show up
+    lumi.setSpeaking(true);
+    caf(id);
+    id = raf(tick);
+  };
+  const onBoundary = (e) => {
+    if (e.name && e.name !== "word") return;
+    gotBoundary = true;
+    const text = String(u.text || "");
+    const from = e.charIndex || 0;
+    const len = e.charLength || (text.slice(from).match(/^\S+/) || [""])[0].length;
+    word(text.slice(from, from + len) || "a", performance.now());
+  };
+  const onEnd = () => {
+    speaking = false;
+    caf(id);
+    lumi.setMouthLevel(0);
+    lumi.setSpeaking(false);
+  };
+  const onPause = () => (paused = true);
+  const onResume = () => (paused = false);
+  const events = [["start", onStart], ["boundary", onBoundary], ["end", onEnd], ["error", onEnd], ["pause", onPause], ["resume", onResume]];
+  for (const [e, f] of events) u.addEventListener(e, f);
+  return () => {
+    for (const [e, f] of events) u.removeEventListener(e, f);
+    onEnd();
+  };
+}
+
+/**
+ * Call once from a user gesture (e.g. the click that turns the voice on): creates/resumes the
+ * shared AudioContext so the very first clip can already be analysed.
+ */
+function unlockLipSync() {
+  const ctx = audioContext();
+  return ctx?.resume ? ctx.resume().catch(() => {}) : Promise.resolve();
+}
+
+/** Drive Lumi's mouth from a media element, AudioNode, MediaStream or SpeechSynthesisUtterance. Returns detach(). */
+function attachAudio(lumi, source) {
+  if (!lumi || !source) return () => {};
+  if (typeof HTMLMediaElement !== "undefined" && source instanceof HTMLMediaElement) return attachMediaElement(lumi, source);
+  if (typeof SpeechSynthesisUtterance !== "undefined" && source instanceof SpeechSynthesisUtterance) return attachUtterance(lumi, source);
+  if (typeof MediaStream !== "undefined" && source instanceof MediaStream) return attachStream(lumi, source);
+  if (typeof AudioNode !== "undefined" && source instanceof AudioNode) return attachNode(lumi, source);
+  throw new TypeError("attachAudio: expected an audio element, AudioNode, MediaStream or SpeechSynthesisUtterance");
+}
+
+return { attachAudio, unlockLipSync };
+})();
+
+// ---- main stage
 const el = document.getElementById("lumi");
 const lumi = createGuide(el, { mood: 85 });
 document.querySelectorAll("[data-score]").forEach((b) => b.onclick = () => {
-  lumi.setMood(Number(b.dataset.score));
+  for (const g of [lumi, ...docked]) g.setMood(Number(b.dataset.score));
   document.querySelectorAll("[data-score]").forEach((x) => x.setAttribute("aria-pressed", x === b));
 });
 let away = false;
@@ -752,5 +1201,58 @@ document.getElementById("explain").onclick = async (e) => {
   if (away) lumi.pointAt(null);
 };
 document.getElementById("say").onclick = () => lumi.say("Hi! I explain your tree. You decide.");
+
+// ---- docked guides + lip sync (all three follow the same audio)
+const docked = ["d64", "d80", "d96"].map((id) => createGuide(document.getElementById(id), { mood: 85 }));
+const meter = document.getElementById("meter");
+const all = { setSpeaking: (on) => docked.forEach((g) => g.setSpeaking(on)), setMouthLevel: (v) => { meter.style.width = (v * 100).toFixed(0) + "%"; docked.forEach((g) => g.setMouthLevel(v)); } };
+let detach = () => {};
+
+// speech-like test signal: a buzzy voice with syllable-shaped loudness and short word gaps
+document.getElementById("synth").onclick = async () => {
+  detach();
+  await unlockLipSync();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ctx.createOscillator(); osc.type = "sawtooth"; osc.frequency.value = 150;
+  const filt = ctx.createBiquadFilter(); filt.type = "lowpass"; filt.frequency.value = 900;
+  const amp = ctx.createGain(); amp.gain.value = 0;
+  osc.connect(filt).connect(amp).connect(ctx.destination);
+  let t = ctx.currentTime + 0.05;
+  for (let w = 0; w < 9; w++) {
+    const n = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+      const peak = 0.12 + Math.random() * 0.22;
+      amp.gain.setValueAtTime(0.0001, t);
+      amp.gain.linearRampToValueAtTime(peak, t + 0.04);
+      amp.gain.exponentialRampToValueAtTime(0.002, t + 0.16 + Math.random() * 0.06);
+      osc.frequency.setValueAtTime(130 + Math.random() * 60, t);
+      t += 0.19;
+    }
+    t += 0.12 + Math.random() * 0.15;
+  }
+  osc.start(); osc.stop(t + 0.1);
+  detach = attachAudio(all, amp);
+  osc.onended = () => { detach(); ctx.close(); };
+};
+
+document.getElementById("tts").onclick = () => {
+  detach();
+  if (!("speechSynthesis" in window)) return alert("speechSynthesis is not available in this browser");
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance("Hi! I am Lumi. In the median path, cash runs out in month seven. You decide what to do.");
+  u.lang = "en-US";
+  detach = attachAudio(all, u);
+  speechSynthesis.speak(u);
+};
+
+document.getElementById("file").onchange = async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  detach();
+  await unlockLipSync();
+  const a = new Audio(URL.createObjectURL(f));
+  detach = attachAudio(all, a);
+  a.play();
+};
 </script>
 </body></html>
