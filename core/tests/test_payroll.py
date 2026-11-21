@@ -106,6 +106,21 @@ def test_invalid_combinations_are_rejected():
         Profile.from_dict({**BASE, "monthly_gross_income": 7000, "income_basis": "take_home"})
     with pytest.raises(ValueError, match="age"):
         core.simulate_node({k: v for k, v in BASE.items() if k != "age"} | {"monthly_gross_income": 7000})
+    with pytest.raises(ValueError, match="take_home"):  # also via a node's intervention
+        core.simulate_node({**BASE, "income_basis": "take_home", "monthly_net_income": 3000},
+                           [{"param": "monthly_gross_income", "op": "set", "value": 7000, "from_month": 6}])
+    with pytest.raises(ValueError, match="not both"):
+        Profile.from_dict({**BASE, "monthly_gross_income": 7000, "monthly_net_income": 5000})
+
+
+def test_gross_salary_through_the_batched_paths():
+    """Exploration, tornado and the uncertainty lens run many schedules at once (run_batch)."""
+    r = core.simulate_node({**BASE, "monthly_gross_income": 7000},
+                           [{"param": "monthly_gross_income", "op": "set", "value": 8000, "from_month": 12}],
+                           exploration=True, uncertainty=True, sensitivity=True, n_paths=200)
+    assert all(c["passed"] for c in r["checks"]), r["checks"]
+    rows = {row["assumption_id"] for row in r["sensitivity"] if row["delta_final_net_worth"]}
+    assert rows & {"AS-nbu-rate", "AS-bvg-employee-share"}, rows  # payroll assumptions reach the batch
 
 
 def test_tree_profile_is_unchanged():

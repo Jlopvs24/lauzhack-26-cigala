@@ -120,6 +120,8 @@ def build_schedule(profile: Profile, interventions: list[Intervention], A: dict 
             raise ValueError("a gross salary needs the assumption values (payroll rates)")
         if profile.age is None:
             raise ValueError("a gross salary needs the profile's age (BVG age credits)")
+        if profile.income_basis == "take_home":
+            raise ValueError("a gross salary is converted to net before income tax; it cannot be used with income_basis 'take_home'")
         pay = payroll(gross, profile.age + np.arange(H) / 12.0, A)
         m = gross > 0
         series["monthly_net_income"][m] = np.maximum(pay["net"][m] * mul_adj[m] + add_adj[m], 0.0)

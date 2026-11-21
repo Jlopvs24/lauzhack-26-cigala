@@ -124,6 +124,8 @@ class Profile:
         basis = str(d.get("income_basis", "net_before_tax"))
         if basis not in INCOME_BASES:
             raise ValueError(f"income_basis must be one of {INCOME_BASES}, got {basis!r}")
+        if d.get("monthly_gross_income") and d.get("monthly_net_income"):
+            raise ValueError("give either monthly_net_income or monthly_gross_income, not both")
         if basis == "take_home" and d.get("monthly_gross_income"):
             raise ValueError("monthly_gross_income is converted to net before income tax; it cannot be used with income_basis 'take_home'")
         investments = 0.0
