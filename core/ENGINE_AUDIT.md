@@ -136,7 +136,7 @@ T = transparency 10) against effort (S < 1 h, M 1-3 h, L > 3 h). Ranked for toni
 | 1 | ✅ Payroll layer: gross → net with AHV/IV/EO, ALV, NBU, BVG (#48 item 2) | C+++ T+ | M | done; see the design note for what changed |
 | 2 | ✅ Tax by city/canton/household + abroad tax, ESTV 2026 tables (#48 item 3); arrears timing not done | C+++ | M-L | done; see the design note |
 | 3 | ✅ Pillar 3a lever (+ tax deduction, locked asset), #48 item 4 | C++ E++ | M | done; see the design note |
-| 4 | Combined decisions + 2-lever surfaces + constraint-targeted search | E+++ | M | "what if master's AND share a flat", "what salary AND rent keep the plan feasible" |
+| 4 | ✅ Combined decisions + 2-lever surfaces + constraint-targeted search + timing scan (#48 item 6, `core/surfaces.py`) | E+++ | M | done; see the design note |
 | 5 | ✅ Currency for move abroad (EUR + EURCHF path + FX weather), #48 item 5 | C++ E+ | M | done; see the design note |
 | 6 | Unemployment eligibility, cap, 520 days, inflow hazard | C+ | S-M | cheap, fixes a known conceptual error |
 | 7 | Category inflation (health premiums, rent reference rate) | C+ | S-M | small code, sourced parameters |
@@ -225,6 +225,13 @@ engine already accepts custom nodes on any parent), with conflict rules (later w
 cell) and the break-even contour; (c) constraint-targeted search: smallest income / largest rent
 such that `plan_check.level` holds (reuse the k-ary search with a 0/1 margin); (d) timing scan:
 plan check and final net worth for start months 0..36, the latest start that still holds.
+
+*Done (#48 item 6), `core/surfaces.py`:* `combine`, `surface`, `smallest_change`, `timing_scan`
+as designed, all batched and judged by the same constraints as `plan_check` (new
+`plan.plan_level`, which `plan_check` now uses too). Contract in docs/contracts.md. The surface
+returns the peer difference per cell rather than a computed contour line (the UI draws where it
+changes sign). The search moves one lever at a time, from month 0 to the horizon; levers in
+combination are what the surface is for.
 
 **5. Currency.** Node-level `currency: "EUR"` on income/expense interventions + assumption
 `EURCHF` path (constant by default, a weather `chf_strengthens` / `chf_weakens` as a shift);

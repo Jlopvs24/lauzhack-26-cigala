@@ -112,6 +112,18 @@ def weather_resilience(profile, sched, A, aset, weather, goals) -> dict:
             "holds_means": "no funding gap and every dated goal met"}
 
 
+def plan_level(cons: list[dict]) -> str:
+    """needs_financing > infeasible > holds_below_target > holds (the first that applies)."""
+    by = {c["name"]: c for c in cons}
+    if not by["no_funding_gap"]["passed"]:
+        return "needs_financing"
+    if any(not c["passed"] for c in cons if c["kind"] in ("hard", "goal")):
+        return "infeasible"
+    if any(not c["passed"] for c in cons if c["kind"] == "target"):
+        return "holds_below_target"
+    return "holds"
+
+
 def plan_check(cons: list[dict], resilience: dict, health: dict, exploration: dict | None = None) -> dict:
     by = {c["name"]: c for c in cons}
     gap = by["no_funding_gap"]
