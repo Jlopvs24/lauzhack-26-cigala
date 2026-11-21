@@ -107,6 +107,31 @@ def visible_nodes(tree: dict, path: list[str] | str | None) -> list[tuple[dict, 
     return out
 
 
+def pruned_nodes(tree: dict, path: list[str] | str | None) -> list[dict]:
+    """Ghost nodes: siblings of every ANCESTOR of the current node on the chosen path
+    (the branches the user turned away from earlier). They stay drawn in grey with
+    their label only: never simulated, no ``result`` (cost ~0). The current node's own
+    siblings are not here; they are ``status: "sibling"`` in ``nodes``."""
+    idx = _index(tree)
+    path = normalise_path(tree, path)
+    out = []
+    for nid in path[:-1]:  # ancestors of the current node (the root has no siblings)
+        parent = idx[nid][1]
+        for sib in idx[parent][0].get("children", []) or []:
+            sid = str(sib["node_id"])
+            if sid == nid:
+                continue
+            out.append({
+                "node_id": sid,
+                "parent_id": parent,
+                "label": sib.get("label", sid),
+                "status": "pruned",
+                "depth": len(lineage(tree, sid)) - 1,
+                "has_children": bool(sib.get("children")),
+            })
+    return out
+
+
 def describe_intervention(iv: dict, values: dict[str, float]) -> str:
     def val(v: Any) -> float:
         if isinstance(v, dict) and "assumption" in v:
@@ -155,6 +180,8 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
     weather: ``["recession", ...]`` or ``[{"type": "recession", "start_month": 6}]``; applied to
     every visible node so comparisons stay like-for-like.
     Sensitivity (tornado) and monthly flows are computed for the current node only.
+    ``pruned_nodes`` lists the branches turned away from earlier (siblings of every
+    ancestor), label only, never simulated.
     """
     tree = tree or load_tree()
     profile = profile or load_profile()
@@ -207,6 +234,7 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
         "path": [root_id] + path,
         "back_path": path[:-1] if path else None,
         "nodes": nodes,
+        "pruned_nodes": pruned_nodes(tree, path),
         "weather": wx,
         "weather_options": {w["type"]: w["description"] for w in weather_catalog()},
         "assumptions": aset.to_list(),
