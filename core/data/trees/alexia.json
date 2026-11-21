@@ -267,7 +267,7 @@
       "editable": true,
       "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Canton of Vaud study loans: interest-free during the studies and for 5 years after them; after that, 5%/year late interest (vd.ch repayment FAQ, https://www.vd.ch/formation/aides-financieres-aux-etudes-et-a-la-formation-professionnelle-bourses-ou-prets/informations-principales/questions-frequentes/remboursement). Node 2.2.3 ('rate rises to 5%') is that late-interest case"
+      "source": "Canton of Vaud study loans: interest-free during the studies and for 5 years after them; after that, 5%/year late interest (vd.ch repayment FAQ, https://www.vd.ch/formation/aides-financieres-aux-etudes-et-a-la-formation-professionnelle-bourses-ou-prets/informations-principales/questions-frequentes/remboursement). Node 2.2.3 is a separate what-if: a 5% rate from graduation, not the Vaud late-interest rule"
     },
     {
       "id": "AS-alexia-scholarship",
