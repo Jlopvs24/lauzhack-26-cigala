@@ -6,7 +6,7 @@ import '../assets/character/guide/guide.css';
 import { apiRequest } from './api.js';
 import { pathToNode, validateTree } from './tree.js';
 import Roots from './Roots.jsx';
-import Chat from './Chat.jsx';
+import Dock from './Dock.jsx';
 import { Assumptions } from './NodeDetail.jsx';
 import { createScene } from './scene/scene.js';
 import { visibleNodes, greyCodes } from './scene/geometry.js';
@@ -42,7 +42,8 @@ function App() {
   const [muted, setMuted] = useState(false);
   const [lens, setLens] = useState(false);
   const [lensPending, setLensPending] = useState(false);
-  const [question, setQuestion] = useState('');
+  const [messages, setMessages] = useState([]); // the session's conversation, never reset by navigation
+  const [convOpen, setConvOpen] = useState(false);
   const [cost, setCost] = useState(0);
 
   const worldRef = useRef(null), labelsRef = useRef(null), lumiRef = useRef(null), introRef = useRef(null);
@@ -52,6 +53,8 @@ function App() {
   const state = useRef({}); // latest values for imperative callbacks
   state.current = { tree, lang, profile, overrides, lens, busy };
 
+  // dev-only hook for the browser check (visits every node directly); stripped from production builds
+  if (import.meta.env?.DEV) window.__cigala = { go: (p) => go(p, { force: true }), begin: () => begin(null), get busy() { return state.current.busy; } };
   const addCost = (c) => { if (Number.isFinite(c) && c > 0) setCost((x) => x + c); };
   const path = tree ? pathToNode(tree.nodes, tree.current) : [];
 
@@ -66,6 +69,7 @@ function App() {
     createScene({ world: worldRef.current, labels: labelsRef.current, onTagClick: (id, status) => onTag(id, status) }).then(async (s) => {
       if (disposed) { s.destroy(); return; }
       scene.current = s;
+      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.dock'), document.querySelector('.nav-back')] }));
       await s.intro();
       if (introRef.current) gsap.from(introRef.current.children, { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: 'power3.out' });
     });
@@ -183,28 +187,6 @@ function App() {
     return () => { removeEventListener('keydown', onKey); removeEventListener('wheel', onWheel); };
   });
 
-  async function ask(e) {
-    e.preventDefault();
-    const q = question.trim();
-    if (!q || !tree) return;
-    voice.current?.unlock();
-    setQuestion('');
-    say(t(lang, 'thinking'), '');
-    try {
-      const out = await apiRequest('/agent/ask', { body: { question: q, context: { profile, path, node_id: tree.current, assumptions: overrides, language: lang } } });
-      addCost(out.cost_usd);
-      say(out.answer || t(lang, 'noAnswer'));
-    } catch { say(t(lang, 'noEngine')); }
-  }
-  function dictateAsk() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { say(t(lang, 'noMic')); return; }
-    const rec = new SR();
-    rec.lang = { en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE' }[lang];
-    voice.current?.stop();
-    rec.onresult = (ev) => setQuestion([...ev.results].map((r) => r[0].transcript).join(''));
-    rec.start();
-  }
 
   const cur = tree?.nodes.find((n) => n.node_id === tree.current);
   const crumbs = tree ? tree.path.map((id) => tree.nodes.find((n) => n.node_id === id)).filter(Boolean) : [];
@@ -227,7 +209,6 @@ function App() {
           <button key={k} type="button" aria-pressed={k === lang} onClick={() => setLang(k)}>{v}</button>)}</div>
         <button className="ghost-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? t(lang, 'light') : t(lang, 'dark')}</button>
         <button className="ghost-btn" aria-pressed={muted} onClick={() => { voice.current?.unlock(); setMuted(!muted); }}>{muted ? t(lang, 'soundOff') : t(lang, 'soundOn')}</button>
-        {tree && <button className={`ghost-btn ${panel === 'chat' ? 'on' : ''}`} onClick={() => setPanel(panel === 'chat' ? null : 'chat')}>{t(lang, 'chat')}</button>}
         {tree && <button className={`ghost-btn ${panel === 'report' ? 'on' : ''}`} onClick={() => setPanel(panel === 'report' ? null : 'report')}>{t(lang, 'report')}</button>}
       </div>
     </header>
@@ -257,16 +238,12 @@ function App() {
 
     <aside className="narration" aria-live="polite">
       <div id="lumi" ref={lumiRef} />
-      {bubble && <div className="say-card"><p>{bubble}</p></div>}
+      {bubble && !convOpen && <div className="say-card"><p>{bubble}</p></div>}
     </aside>
 
-    {started && <form className="ask" autoComplete="off" onSubmit={ask}>
-      <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t(lang, 'ask')} aria-label={t(lang, 'ask')} />
-      <button type="button" className="icon-btn" aria-label="Speak your question" onClick={dictateAsk}>
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></button>
-      <button type="submit" className="icon-btn send" aria-label="Send">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
-    </form>}
+    {started && <Dock t={(k) => t(lang, k)} lang={lang} messages={messages} setMessages={setMessages} open={convOpen} setOpen={setConvOpen}
+      disabled={!tree} context={{ profile, path, node_id: tree?.current, assumptions: overrides, weather: tree?.weather || [] }}
+      onAnswer={(text) => say(text)} onCost={addCost} callUrl={CALL_URL} onUnlock={() => voice.current?.unlock()} />}
 
     {panel === 'report' && cur && <aside className="report drawer" aria-label="Report">
       <button className="close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
@@ -276,13 +253,6 @@ function App() {
         dangerouslySetInnerHTML={{ __html: reportHTML }} />
       <div className="drawer-inline"><Assumptions assumptions={tree.assumptions} busy={busy} onApply={(next) => go(path, { assumptions: next, force: true })} /></div>
       <p className="note">{t(lang, 'sessionCost')} USD {cost.toFixed(4)}</p>
-    </aside>}
-
-    {panel === 'chat' && cur && <aside className="drawer side" aria-label="Conversation">
-      <button className="close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
-      <Chat key={`${tree.current}|${lang}`} context={{ profile, path, node_id: tree.current, assumptions: overrides, weather: tree.weather || [], language: lang }}
-        disabled={busy} onCost={addCost} speak={(text) => say(text)} />
-      <p><a className="call-link" href={CALL_URL} target="_blank" rel="noreferrer">{t(lang, 'call')}</a></p>
     </aside>}
 
     {busy && started && <div className="loading" role="status">{t(lang, 'loading')}</div>}

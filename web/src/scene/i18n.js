@@ -8,6 +8,7 @@ export const SPEECH_LANG = { en: "en-GB", es: "es-ES", fr: "fr-FR", de: "de-DE" 
 
 export const UI = {
   en: {
+    conversation: "Conversation", openConv: "Open conversation", closeConv: "Close conversation", convEmpty: "Ask Lumi anything about this tree. Your questions and the answers stay here for this session.", you: "You", sources: "Calculation sources", record: "Record a voice note (sends when you stop)", stopRec: "Stop and send", recording: "Recording… press stop to send", preparing: "Preparing your voice note…", send: "Send",
     chat: "Conversation", call: "Call Lumi (live voice)", retry: "Retry", sessionCost: "Session API cost:",
     eyebrow: "A financial twin for students",
     h1a: "Every choice grows", h1b: "a different tree.",
@@ -34,6 +35,7 @@ export const UI = {
     noVoice: "No voice for this language on this device, so I'll stay silent. The text is all here.",
   },
   es: {
+    conversation: "Conversación", openConv: "Abrir la conversación", closeConv: "Cerrar la conversación", convEmpty: "Pregunta a Lumi lo que quieras sobre este árbol. Tus preguntas y las respuestas se quedan aquí durante la sesión.", you: "Tú", sources: "Fuentes del cálculo", record: "Grabar una nota de voz (se envía al parar)", stopRec: "Parar y enviar", recording: "Grabando… pulsa parar para enviar", preparing: "Preparando tu nota de voz…", send: "Enviar",
     chat: "Conversación", call: "Llamar a Lumi (voz en directo)", retry: "Reintentar", sessionCost: "Coste de API de la sesión:",
     eyebrow: "Un gemelo financiero para estudiantes",
     h1a: "Cada decisión hace crecer", h1b: "un árbol distinto.",
@@ -60,6 +62,7 @@ export const UI = {
     noVoice: "Este dispositivo no tiene voz en este idioma, así que me quedo en silencio. Todo está en el texto.",
   },
   fr: {
+    conversation: "Conversation", openConv: "Ouvrir la conversation", closeConv: "Fermer la conversation", convEmpty: "Posez à Lumi toute question sur cet arbre. Vos questions et les réponses restent ici pendant la session.", you: "Vous", sources: "Sources du calcul", record: "Enregistrer une note vocale (envoyée à l’arrêt)", stopRec: "Arrêter et envoyer", recording: "Enregistrement… appuyez sur stop pour envoyer", preparing: "Préparation de votre note vocale…", send: "Envoyer",
     chat: "Conversation", call: "Appeler Lumi (voix en direct)", retry: "Réessayer", sessionCost: "Coût API de la session :",
     eyebrow: "Un jumeau financier pour les étudiants",
     h1a: "Chaque choix fait pousser", h1b: "un autre arbre.",
@@ -86,6 +89,7 @@ export const UI = {
     noVoice: "Pas de voix pour cette langue sur cet appareil, je reste silencieux. Tout est dans le texte.",
   },
   de: {
+    conversation: "Gespräch", openConv: "Gespräch öffnen", closeConv: "Gespräch schließen", convEmpty: "Frag Lumi alles zu diesem Baum. Deine Fragen und die Antworten bleiben während der Sitzung hier.", you: "Du", sources: "Rechenquellen", record: "Sprachnachricht aufnehmen (wird beim Stoppen gesendet)", stopRec: "Stoppen und senden", recording: "Aufnahme… zum Senden stoppen", preparing: "Sprachnachricht wird vorbereitet…", send: "Senden",
     chat: "Gespräch", call: "Lumi anrufen (Live-Stimme)", retry: "Erneut versuchen", sessionCost: "API-Kosten der Sitzung:",
     eyebrow: "Ein finanzieller Zwilling für Studierende",
     h1a: "Jede Entscheidung lässt", h1b: "einen anderen Baum wachsen.",

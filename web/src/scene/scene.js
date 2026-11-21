@@ -133,14 +133,73 @@ export async function createScene({ world, labels, onTagClick }) {
       s.el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${(s.rect.w * v.z) / (s.base.width || 1)}, ${(s.rect.h * v.z) / (s.base.height || 1)})`;
     }
     const narrow = innerWidth < 720;
+    // reads first (no layout thrash): tag sizes (re-measured every 20 frames) and obstacle rects
+    frameNo++;
+    for (const t of tags.values()) if (!t.w || frameNo % 20 === 0) { t.w = t.el.offsetWidth; t.h = t.el.offsetHeight; }
+    const obstacles = readObstacles();
+    const placed = [];
     for (const t of tags.values()) {
       let [x, y] = toScreen(v, t.wx, t.wy);
       const mx = narrow ? 90 : 120;
       x = Math.min(Math.max(x, mx), innerWidth - mx); y = Math.min(Math.max(y, narrow ? 120 : 96), innerHeight - (narrow ? 260 : 150)); // keep off-screen branches reachable
-      t.el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+      placed.push({ t, x, y });
+    }
+    if (avoid.narration && obstacles.narration) chooseSide(placed, obstacles, narrow);
+    for (const p of placed) {
+      // still under Lumi, the bubble or the dock? lift the card above it; if it cannot fit, fade it
+      let { x, y } = p, hidden = false;
+      for (const o of obstacles.list) {
+        if (!hits(x, y, p.t, o)) continue;
+        const up = o.top - p.t.h / 2 - 10;
+        if (up >= 70 && !obstacles.list.some((q) => q !== o && hits(x, up, p.t, q))) y = up; else hidden = true;
+      }
+      if (p.t.occluded !== hidden) { p.t.occluded = hidden; p.t.el.classList.toggle('occluded', hidden); }
+      p.t.el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
     }
     raf = requestAnimationFrame(frame);
   }
+  // ---------- collision avoidance: Lumi + bubble + dock vs branch cards (screen space) ----------
+  const avoid = { narration: null, others: [] }; // refreshed every frame from the getters
+  let getAvoid = () => ({ narration: null, others: [] });
+  let frameNo = 0, side = 'left', sideSince = 0;
+  const pad = 8;
+  const hits = (x, y, t, o) => x + t.w / 2 + pad > o.left && x - t.w / 2 - pad < o.right && y + t.h / 2 + pad > o.top && y - t.h / 2 - pad < o.bottom;
+  function readObstacles() {
+    const g = getAvoid(); avoid.narration = g.narration || null; avoid.others = g.others || [];
+    const list = [];
+    let narration = null;
+    if (avoid.narration?.isConnected) {
+      const r = avoid.narration.getBoundingClientRect();
+      if (r.width && r.height) { narration = r; list.push(r); }
+    }
+    for (const el of avoid.others) if (el?.isConnected) { const r = el.getBoundingClientRect(); if (r.width && r.height) list.push(r); }
+    return { narration, list };
+  }
+  const overlapArea = (placed, r) => placed.reduce((sum, p) => {
+    const w = Math.min(p.x + p.t.w / 2, r.right) - Math.max(p.x - p.t.w / 2, r.left);
+    const h = Math.min(p.y + p.t.h / 2, r.bottom) - Math.max(p.y - p.t.h / 2, r.top);
+    return sum + (w > 0 && h > 0 ? w * h * (p.t.clickable ? 2 : 1) : 0);
+  }, 0);
+  // put Lumi and the bubble on the freer side of the current view (opposite to where cards cluster)
+  function chooseSide(placed, obstacles, narrow) {
+    const n = obstacles.narration;
+    if (narrow) { if (side !== 'left') setSide('left'); return; } // full-width on phones: nudge/fade only
+    const dock = avoid.others[0]?.getBoundingClientRect?.();
+    const w = n.width, h = n.height, gap = 28;
+    const left = { left: gap, right: gap + w, top: innerHeight - gap - h, bottom: innerHeight - gap };
+    const rb = dock && dock.height ? dock.top - 12 : innerHeight - gap;
+    const right = { left: innerWidth - gap - w, right: innerWidth - gap, top: rb - h, bottom: rb };
+    const cost = { left: overlapArea(placed, left), right: overlapArea(placed, right) };
+    const other = side === 'left' ? 'right' : 'left';
+    const now = performance.now();
+    if (cost[other] * 1.3 + 400 < cost[side] && now - sideSince > 900) setSide(other); // hysteresis: no flicker
+  }
+  function setSide(s) {
+    side = s; sideSince = performance.now();
+    avoid.narration.classList.toggle('right', s === 'right');
+    avoid.narration.closest?.('body')?.style.setProperty('--dock-h', `${(avoid.others[0]?.offsetHeight || 0) + 40}px`);
+  }
+
   const onMove = (e) => {
     if (e.pointerType !== 'mouse') return;
     look.tx = (e.clientX / innerWidth - 0.5) * 2;
@@ -213,6 +272,9 @@ export async function createScene({ world, labels, onTagClick }) {
       await camTo(geo.viewRect(current), { duration: deeper ? 2.0 : 1.6 });
     },
     setTags,
+    /** Elements cards must not hide behind: the narration (Lumi + bubble, moved to the freer side) and others (the dock). */
+    setAvoid(getter) { getAvoid = getter; },
+    get side() { return side; },
     refit(current) { jumpTo(geo.viewRect(current)); },
     destroy() {
       alive = false; cancelAnimationFrame(raf); removeEventListener('pointermove', onMove);
