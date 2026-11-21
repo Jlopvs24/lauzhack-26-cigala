@@ -48,7 +48,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tag:focus-visible .card { box-shadow: 0 0 0 2px var(--ink); }
 .tag.sibling .dot, .tag.pruned .dot { background: rgba(255, 255, 255, 0.55); box-shadow: none; }
 .tag.sibling .dot::after, .tag.pruned .dot::after, .tag.chosen .dot::after { display: none; }
-.tag.sibling .card { background: rgba(40, 44, 42, 0.32); }
+.tag.sibling .card { background: rgba(34, 38, 36, 0.62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .tag.sibling .name { color: var(--ink-soft); }
 .tag.pruned { pointer-events: none; }
 .tag.pruned .card { background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; min-width: 0; }
