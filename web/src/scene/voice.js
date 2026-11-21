@@ -25,7 +25,9 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
     seq++;
     for (const c of inflight) c.abort();
     inflight.clear();
-    if (audio) { const a = audio; audio = null; a.onerror = null; a.pause(); // onpause resolves the awaiting sentence a.removeAttribute('src'); a.load(); }
+    if (audio) { // pause() fires onpause, which resolves the sentence being awaited
+      const a = audio; audio = null; a.onerror = null; a.pause(); a.removeAttribute('src'); a.load();
+    }
     try { speechSynthesis.cancel(); } catch { /* not supported */ }
     onTalking(false);
   }
