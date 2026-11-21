@@ -1,7 +1,7 @@
 # Visual style: tree of life + character
 
 Owner: Juan's Claude thread 4 (`web/assets/character/`). Guide for the web app (`web/`, Lluc).
-Status: **proposal**. Character: Lumi, in `guide/` (open `guide/demo.html`).
+Status: **ready to integrate**. Character: Lumi, in `guide/` (open `guide/demo.html`).
 
 ## 1. Principles
 
@@ -73,13 +73,17 @@ Health mapping (same for tree and character): use the engine's health score, thr
 
 The character is **not a tree**: **Lumi** is a soft glowing orb that floats next to the tree (`guide/`). No outline: a pale pearly sphere with a white shine, a soft inner shade, a halo, small dark pill eyes (`#1F2B4D`), a tiny mouth and pink blush. It is the only element with gradients and glow, so it reads as "the guide", separate from the flat tree.
 
-- **Use it:** `import { createGuide } from ".../assets/character/guide/guide.js"` and `import ".../guide.css"`, then `createGuide(div, { health, onTap })`. API: `setHealth("healthy"|"fair"|"weak")`, `setPose("idle"|"explaining")`, `setTalking(bool)`, `react("happy"|"curious"|"surprised")`, `tap()`, `moveTo(x, y)`, `destroy()`. `onTap` is a good place to open the chat. Demo: open `guide/demo.html`.
-- **Alive on its own** (one `requestAnimationFrame` loop): bobs on two slow waves, blinks and glances around; follows the cursor with its eyes when it comes close (curious face); smiles and wobbles on hover; on click or Enter it spins a full turn (the face slides round the sphere), hops with a crouch first and sends a ripple of light; dozes off after 25 s without input (surprised when woken); slides aside if it covers a button you are reaching for (`makeWay: false` turns this off). Keyboard focusable.
+- **Use it:** `import { createGuide } from ".../assets/character/guide/guide.js"` and `import ".../guide/guide.css"`, then `const lumi = createGuide(div, { mood, onTap })`. API:
+  - `setMood(m)`: health of the selected node, as the engine's 0-100 `health.score`, its `level` (`strong`/`ok`/`fragile`) or `healthy`/`fair`/`weak`. Thresholds follow `core/analysis.py` (70 / 40).
+  - `say(text, { duration? })`: speech bubble above the orb plus talking mouth; returns a Promise that resolves when it hides. `say("")` hides it. Text is set with `textContent` (safe).
+  - `pointAt(target)`: look, lean and sparkle toward an Element (tracked live) or a viewport point `{x, y}`; `pointAt(null)` stops.
+  - `moveTo(x, y)` (glide, px relative to where the host sits), `setTalking(bool)` (for your own audio), `react("happy"|"curious"|"surprised")`, `tap()`, `destroy()`.
+  - `onTap` runs on click or Enter: a good place to open the chat. Demo: open `guide/demo.html`.
+- **Alive on its own** (one `requestAnimationFrame` loop, frame-rate independent): bobs on two slow waves, blinks and glances around; watches the cursor and **slightly dodges it** when it gets close; smiles on hover; on **click** it spins a full turn (the face slides round the sphere), hops with a crouch first and sends a ripple of light; dozes off after 25 s without input. Keyboard focusable. With `prefers-reduced-motion` it keeps face and colour changes but no bob, dodge, spin, hop or glide.
 - **Size:** set the host element width (default 140 px, 5:6 ratio); ~90 px on mobile.
 - **Health = health of the currently selected node.** Healthy: mint, smiling, bright halo. Fair: warm yellow, neutral mouth, slightly squashed. Weak: pale grey-beige, short worried eyes, sinks and flattens, dim halo. Health changes ease in over ~1 s (colour, glow, face and weight together).
-- **Explaining:** leans and looks toward the right, mouth open, sparkles. Place the leaf panel to its right (or mirror the host with `scaleX(-1)` if the panel is on the left; the face stays readable).
-- **Moving:** `moveTo` glides with a slight overshoot and a jelly stretch. Glide to the side of the leaf panel, explain, then come back next to the trunk.
-- Respects `prefers-reduced-motion` (no float, glide or squash).
+- **Explaining:** `pointAt(leafEl)` makes it lean and look toward the leaf, with sparkles on that side; pair it with `say(...)`.
+- **Moving:** `moveTo` glides with a slight overshoot and a jelly stretch. Glide to the side of the leaf panel, `pointAt` + `say`, then come back next to the trunk.
 - Static images of every state: `guide/states/lumi-<healthy|fair|weak>-<idle|explaining>.svg`. Regenerate states and demo with `node web/assets/character/guide/export.mjs`.
 
 ## 5. Type

@@ -3,18 +3,21 @@
 //
 //   import { createGuide } from "../assets/character/guide/guide.js";
 //   import "../assets/character/guide/guide.css";
-//   const lumi = createGuide(divRef.current, { health: "healthy", onTap: () => openChat() });
-//   lumi.setHealth("fair");        // "healthy" | "fair" | "weak"  (health of the selected node)
-//   lumi.setPose("explaining");    // "idle" | "explaining"        (leans and looks right, sparkles)
-//   lumi.setTalking(true);         // mouth moves while audio plays
-//   lumi.react("happy");           // short reaction: "happy" | "curious" | "surprised"
-//   lumi.moveTo(x, y);             // glide (px, relative to where the element sits)
+//   const lumi = createGuide(divRef.current, { mood: "healthy", onTap: () => openChat() });
+//   lumi.setMood(node.health.score);  // 0-100 score, engine level ("strong" | "ok" | "fragile")
+//                                     // or "healthy" | "fair" | "weak"
+//   await lumi.say("Cash runs out in month 7 in the median path.");  // bubble + talking mouth
+//   lumi.pointAt(leafElement);        // look, lean and sparkle toward an Element or {x, y}
+//   lumi.pointAt(null);               //   ({x, y} in viewport px, as getBoundingClientRect)
+//   lumi.moveTo(x, y);                // glide (px, relative to where the element sits)
+//   lumi.setTalking(true);            // mouth moves while your own audio plays
+//   lumi.react("happy");              // short reaction: "happy" | "curious" | "surprised"
 //   lumi.destroy();
 //
-// Alive on its own: it bobs, blinks and glances around; follows the cursor with its eyes when it
-// comes close; smiles and wobbles on hover; on click it spins a full turn (the face slides round
-// the sphere), hops with a crouch first and sends a ripple of light; it dozes off when nobody
-// moves for a while; and it slides out of the way of a button you are reaching for.
+// Alive on its own: it bobs, blinks and glances around; watches the cursor and slightly dodges
+// it when it gets close; smiles on hover; on click (or Enter) it spins a full turn (the face
+// slides round the sphere), hops with a crouch first and sends a ripple of light; it dozes off
+// when nobody moves for a while. With prefers-reduced-motion it only changes face and colour.
 //
 // guideSVG({ health, pose }) returns static SVG markup (used to export the state images).
 
@@ -31,6 +34,12 @@ const HEALTH = {
   fair: { h: 44, s: 72, halo: 0.8, blush: 0.3, eye: 9.5, curve: 0.8, drop: 3, flat: 0.4, bob: 0.8 },
   weak: { h: 28, s: 14, halo: 0.55, blush: 0.12, eye: 7, curve: -3, drop: 9, flat: 1.2, bob: 0.5 },
 };
+
+// Engine health levels (core/analysis.py): strong >= 70, ok >= 40, else fragile.
+export function moodToHealth(m) {
+  if (typeof m === "number" && Number.isFinite(m)) return m >= 70 ? "healthy" : m >= 40 ? "fair" : "weak";
+  return { strong: "healthy", ok: "fair", fragile: "weak" }[m] ?? (HEALTH[m] ? m : "healthy");
+}
 
 // Geometry, in a 200 x 240 viewBox
 const CX = 100;
@@ -77,10 +86,11 @@ function star(x, y, s) {
 
 /** Full SVG for one state. The live guide uses the same markup and then drives it every frame. */
 export function guideSVG({ health = "healthy", pose = "idle", talking = false, id = "lumi" } = {}) {
-  const c = HEALTH[health] ?? HEALTH.healthy;
+  const hname = moodToHealth(health);
+  const c = HEALTH[hname];
   const explaining = pose === "explaining";
   const tilt = explaining ? 9 : 0;
-  const gaze = explaining ? [4.5, -1.5] : [0, health === "weak" ? 1.5 : 0];
+  const gaze = explaining ? [4.5, -1.5] : [0, hname === "weak" ? 1.5 : 0];
   const eyeH = explaining ? c.eye + 1 : c.eye;
   const open = explaining || talking ? 4.5 : 1;
   const curve = explaining || talking ? 2 : c.curve;
@@ -126,19 +136,25 @@ export function guideSVG({ health = "healthy", pose = "idle", talking = false, i
 
 let uid = 0;
 
-export function createGuide(el, { health = "healthy", pose = "idle", onTap, makeWay = true } = {}) {
+export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}) {
+  if (mood !== undefined) health = mood;
+  health = moodToHealth(health);
   const id = `lumi${++uid}`;
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   el.classList.add("guide");
   el.tabIndex = 0;
   el.setAttribute("role", "button");
   el.setAttribute("aria-label", "Lumi, your guide");
-  el.innerHTML = `<div class="guide-nudge">${guideSVG({ health, pose, id })}</div>`;
+  el.innerHTML =
+    `<div class="guide-nudge">${guideSVG({ health, pose, id })}</div>` +
+    `<div class="guide-say" role="status" aria-live="polite" hidden></div>`;
 
-  const q = (s) => el.querySelector(s);
-  const qa = (s) => [...el.querySelectorAll(s)];
+  const q = (sel) => el.querySelector(sel);
+  const qa = (sel) => [...el.querySelectorAll(sel)];
   const dom = {
+    svg: q(".guide-svg"),
     nudge: q(".guide-nudge"),
+    bubble: q(".guide-say"),
     pose: q(".g-pose"),
     shadow: q(".g-shadow"),
     halo: q(".g-halo"),
@@ -154,29 +170,31 @@ export function createGuide(el, { health = "healthy", pose = "idle", onTap, make
     sparks: q(".g-sparks"),
     stops: Object.fromEntries(Object.keys(STOPS).map((k) => [k, qa(`#${id}-${k} stop`)])),
   };
-  dom.sparks.removeAttribute("opacity");
 
   const target = { health, pose, talking: false };
   const cur = { ...HEALTH[health] }; // health params, eased toward the target every frame
   const face = { eyeL: cur.eye, eyeR: cur.eye, happy: 0, curve: cur.curve, open: 1, tilt: 0, blush: cur.blush, sparks: pose === "explaining" ? 1 : 0 };
+  const now0 = performance.now();
   const s = {
-    t0: performance.now(),
-    last: performance.now(),
+    t0: now0,
+    last: now0,
     y: 0, vy: 0, // hop
     sq: 0, sqv: 0, // jelly: + squash, - stretch
     lean: 0,
     spin: 0, spinTo: 0,
     gx: 0, gy: 0, glance: [0, 0], nextGlance: 0,
-    nextBlink: performance.now() + rand(1500, 4000), blinkAt: -1e9,
+    nextBlink: now0 + rand(1500, 4000), blinkAt: -1e9,
     flash: null, flashUntil: 0,
     ringAt: -1e9,
-    mouse: { x: -1e4, y: -1e4, at: -1e4 },
-    lastInput: performance.now(),
+    mouse: { x: -1e4, y: -1e4, at: -1e9 },
+    lastInput: now0,
     noticeUntil: 0,
     talk: 0,
     colorKey: "",
     pos: { x: 0, y: 0 },
-    nudgeTimer: 0,
+    dx: 0, dy: 0, // dodge offset, px
+    point: null, // Element or {x, y} it is pointing at
+    sayTimer: 0, sayDone: null,
   };
 
   function react(emo, ms = 1100) {
@@ -184,19 +202,19 @@ export function createGuide(el, { health = "healthy", pose = "idle", onTap, make
     s.flashUntil = performance.now() + ms;
   }
 
-  // -------------------------------------------------------------- input
-  const svgEl = q(".guide-svg");
+  // orb centre and radius in viewport px (without the dodge offset, so dodging never feeds back)
   const center = () => {
-    const b = svgEl.getBoundingClientRect();
-    return { x: b.left + (b.width * CX) / 200, y: b.top + (b.height * CY) / 240, r: (b.width * R) / 200 };
+    const b = dom.svg.getBoundingClientRect();
+    return { x: b.left + (b.width * CX) / 200 - s.dx, y: b.top + (b.height * CY) / 240 - s.dy, r: (b.width * R) / 200 };
   };
+
+  // -------------------------------------------------------------- input
   const onMove = (e) => {
     const now = performance.now();
     if (now - s.mouse.at > 4000) s.noticeUntil = now + 1400; // you came back: it notices
     if (now - s.lastInput > 25000) react("surprised", 700); // woken up
     s.mouse = { x: e.clientX, y: e.clientY, at: now };
     s.lastInput = now;
-    if (makeWay) checkWay(e.clientX, e.clientY);
   };
   const onTapEvent = (e) => {
     if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
@@ -227,20 +245,6 @@ export function createGuide(el, { health = "healthy", pose = "idle", onTap, make
     }, 110);
   }
 
-  // If it sits on top of something clickable the cursor is reaching for, it slides aside.
-  function checkWay(x, y) {
-    const c = center();
-    if (Math.hypot(x - c.x, y - c.y) > c.r * 1.1) return;
-    const under = document.elementsFromPoint(x, y).find((n) => !el.contains(n));
-    if (!under?.closest("button, a, input, select, textarea, [role=button]")) return;
-    const dx = c.x - x || 1;
-    const dy = c.y - y;
-    const d = Math.hypot(dx, dy) || 1;
-    dom.nudge.style.transform = `translate(${(dx / d) * c.r * 1.8}px, ${(dy / d) * c.r * 1.8 - c.r * 0.4}px)`;
-    clearTimeout(s.nudgeTimer);
-    s.nudgeTimer = setTimeout(() => (dom.nudge.style.transform = ""), 1600);
-  }
-
   // -------------------------------------------------------------- frame
   let raf = 0;
   function frame() {
@@ -254,20 +258,32 @@ export function createGuide(el, { health = "healthy", pose = "idle", onTap, make
     const H = HEALTH[target.health];
     for (const key in cur) cur[key] = lerp(cur[key], H[key], k(2.5));
 
-    // emotion: a short reaction wins; otherwise dozing, curious about a close cursor, or calm
     const c = center();
     const md = Math.hypot(s.mouse.x - c.x, s.mouse.y - c.y);
-    const near = now - s.mouse.at < 2500 ? clamp(1 - md / (c.r * 3.2), 0, 1) : 0;
+    const recent = now - s.mouse.at < 2500;
+    const near = recent ? clamp(1 - md / (c.r * 3.2), 0, 1) : 0;
+
+    // pointing: at an Element (tracked live) or a viewport point
+    let pt = null;
+    if (s.point instanceof Element) {
+      const b = s.point.getBoundingClientRect();
+      pt = { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+    } else if (s.point) pt = s.point;
+    const pdx = pt ? pt.x - c.x : 1;
+    const pdy = pt ? pt.y - c.y : -0.35;
+    const pd = Math.hypot(pdx, pdy) || 1;
+    const explaining = target.pose === "explaining" || !!pt;
+
+    // emotion: a short reaction wins; otherwise dozing, curious about a close cursor, or calm
     let emo = "calm";
     if (s.flash && now < s.flashUntil) emo = s.flash;
-    else if (now - s.lastInput > 25000 && !target.talking && target.pose === "idle") emo = "sleepy";
-    else if (near > 0.15) emo = "curious";
+    else if (now - s.lastInput > 25000 && !target.talking && !explaining) emo = "sleepy";
+    else if (near > 0.15 && !explaining) emo = "curious";
 
-    const explaining = target.pose === "explaining";
     const F = { eyeL: cur.eye, eyeR: cur.eye, happy: 0, curve: cur.curve, open: 1, tilt: 0, blush: cur.blush, bob: cur.bob };
-    if (explaining) Object.assign(F, { tilt: 9, eyeL: cur.eye + 1, eyeR: cur.eye + 1 });
+    if (explaining) Object.assign(F, { tilt: 9 * Math.sign(pdx || 1), eyeL: cur.eye + 1, eyeR: cur.eye + 1 });
     if (emo === "happy") Object.assign(F, { happy: 1, curve: 5.5, open: 2.4, blush: Math.max(0.7, cur.blush) });
-    if (emo === "curious") Object.assign(F, { eyeL: cur.eye + 2, eyeR: cur.eye - 1, tilt: F.tilt + 10, open: 1.6, curve: Math.max(0.5, cur.curve * 0.5) });
+    if (emo === "curious") Object.assign(F, { eyeL: cur.eye + 2, eyeR: cur.eye - 1, tilt: 10, open: 1.6, curve: Math.max(0.5, cur.curve * 0.5) });
     if (emo === "surprised") Object.assign(F, { eyeL: cur.eye + 3, eyeR: cur.eye + 3, curve: 0, open: 3.6 });
     if (emo === "sleepy") Object.assign(F, { eyeL: 1.6, eyeR: 1.6, tilt: 5, open: 0.6, curve: 1, bob: 0.4 });
     for (const key of ["eyeL", "eyeR", "happy", "curve", "open", "tilt", "blush"]) face[key] = lerp(face[key], F[key], k(10));
@@ -277,9 +293,9 @@ export function createGuide(el, { health = "healthy", pose = "idle", onTap, make
     const flap = target.talking ? 0.3 + 0.7 * Math.abs(Math.sin(T * 12.5) * Math.sin(T * 6.9 + 0.6)) : 0;
     s.talk = lerp(s.talk, flap, k(25));
 
-    // gaze: the cursor when it is close (or just came back), else its own glances
+    // gaze: what it points at; else the cursor when close (or just came back); else glances
     let gx, gy;
-    if (explaining) [gx, gy] = [1, -0.35];
+    if (explaining) [gx, gy] = [pdx / pd, pdy / pd];
     else if (emo === "sleepy") [gx, gy] = [0, 0.4];
     else if (now < s.noticeUntil || near > 0) {
       const m = Math.min(1, md / (c.r * 2.2));
@@ -320,6 +336,20 @@ export function createGuide(el, { health = "healthy", pose = "idle", onTap, make
     }
     s.lean = lerp(s.lean, 0, k(3));
 
+    // dodge: when the cursor gets close it slips a little away from it, then drifts back
+    let ddx = 0;
+    let ddy = 0;
+    const zone = c.r * 2.3;
+    if (!reduced && recent && md < zone) {
+      const push = (1 - md / zone) * c.r * 0.7;
+      ddx = (-(s.mouse.x - c.x) / (md || 1)) * push;
+      ddy = (-(s.mouse.y - c.y) / (md || 1)) * push * 0.6;
+    }
+    const dodging = ddx !== 0 || ddy !== 0;
+    s.dx = lerp(s.dx, ddx, k(dodging ? 7 : 2.5));
+    s.dy = lerp(s.dy, ddy, k(dodging ? 7 : 2.5));
+    dom.nudge.style.transform = `translate(${s.dx.toFixed(1)}px, ${s.dy.toFixed(1)}px)`;
+
     const bob = reduced ? 0 : (Math.sin(T * 1.7) * 3.4 + Math.sin(T * 0.67 + 1.1) * 1.5) * F.bob;
     const lift = s.y + bob + cur.drop;
     const sq = clamp(s.sq * 0.06 + cur.flat * 0.06, -0.25, 0.3);
@@ -341,7 +371,11 @@ export function createGuide(el, { health = "healthy", pose = "idle", onTap, make
       dom.ring.setAttribute("stroke", hsl(cur.h, cur.s + 15, 70));
     }
     dom.halo.setAttribute("r", (R * 1.65 * (1 + 0.035 * Math.sin(T * 1.3) + 0.05 * s.talk)).toFixed(2));
+
+    // sparkles on the side it points to (drawn at about -35 deg, upper right)
+    const ang = (Math.atan2(pdy, pdx) * 180) / Math.PI + 35;
     dom.sparks.setAttribute("opacity", face.sparks.toFixed(3));
+    dom.sparks.setAttribute("transform", `rotate(${ang.toFixed(1)} ${CX} ${CY})`);
 
     // ripple of light on tap
     const rt = (now - s.ringAt) / 650;
@@ -367,9 +401,9 @@ export function createGuide(el, { health = "healthy", pose = "idle", onTap, make
       p.setAttribute("rx", (Math.min(EYE_W, h) / 2).toFixed(2));
       p.setAttribute("opacity", (1 - face.happy).toFixed(3));
       dom.arcs[i].setAttribute("opacity", face.happy.toFixed(3));
+      dom.glints[i].setAttribute("cx", (x + 1.1).toFixed(2));
       dom.glints[i].setAttribute("cy", (-h / 2 + 2.6).toFixed(2));
       dom.glints[i].setAttribute("r", h > 5 && face.happy < 0.5 ? "1.35" : "0");
-      dom.glints[i].setAttribute("cx", (x + 1.1).toFixed(2));
     });
     const open = face.open + s.talk * 4.5;
     const curve = face.curve * (1 - s.talk * 0.5);
@@ -381,15 +415,51 @@ export function createGuide(el, { health = "healthy", pose = "idle", onTap, make
   }
   raf = requestAnimationFrame(frame);
 
+  function hideBubble() {
+    dom.bubble.hidden = true;
+    target.talking = false;
+    const done = s.sayDone;
+    s.sayDone = null;
+    done?.();
+  }
+
   return {
     get state() {
-      return { ...target };
+      return { ...target, pointing: !!s.point };
+    },
+    /** Health of the selected node: 0-100 score, "strong"|"ok"|"fragile" or "healthy"|"fair"|"weak". */
+    setMood(m) {
+      target.health = moodToHealth(m);
     },
     setHealth(h) {
-      if (HEALTH[h]) target.health = h;
+      target.health = moodToHealth(h);
     },
     setPose(p) {
       if (POSES.includes(p)) target.pose = p;
+    },
+    /** Speech bubble + talking mouth. Resolves when it hides (after `duration` ms, or a reading-time guess). say("") hides it. */
+    say(text, { duration } = {}) {
+      clearTimeout(s.sayTimer);
+      hideBubble();
+      const t = String(text ?? "").trim();
+      if (!t) return Promise.resolve();
+      dom.bubble.textContent = t;
+      dom.bubble.hidden = false;
+      target.talking = true;
+      s.lastInput = performance.now();
+      const ms = duration ?? clamp(t.length * 55, 2200, 12000);
+      return new Promise((resolve) => {
+        s.sayDone = resolve;
+        s.sayTimer = setTimeout(hideBubble, ms);
+      });
+    },
+    /** Look, lean and sparkle toward an Element (tracked live) or a viewport point {x, y}; null stops. */
+    pointAt(p) {
+      if (p instanceof Element) s.point = p;
+      else if (Array.isArray(p)) s.point = { x: p[0], y: p[1] };
+      else if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) s.point = { x: p.x, y: p.y };
+      else s.point = null;
+      s.lastInput = performance.now();
     },
     setTalking(on) {
       target.talking = !!on;
@@ -407,13 +477,15 @@ export function createGuide(el, { health = "healthy", pose = "idle", onTap, make
     },
     destroy() {
       cancelAnimationFrame(raf);
-      clearTimeout(s.nudgeTimer);
+      clearTimeout(s.sayTimer);
+      hideBubble();
       removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerdown", onTapEvent);
       el.removeEventListener("keydown", onTapEvent);
       el.removeEventListener("pointerenter", onEnter);
       el.replaceChildren();
       el.classList.remove("guide");
+      el.style.transform = "";
     },
   };
 }
