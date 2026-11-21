@@ -148,10 +148,13 @@ export async function createScene({ world, labels, onTagClick }) {
     if (avoid.narration && obstacles.narration) chooseSide(placed, obstacles, narrow);
     // phones: when the options cannot all fit as full cards without covering each other, every option
     // becomes a name pill. Hysteresis: pills after ~0.3 s of overlap, full cards again after ~1.5 s clean.
-    const fresh = () => placed.map((p) => ({ t: p.t, x: p.x, y: p.y }));
-    let laid = layoutLabels(fresh(), obstacles.list, false);
-    if (!narrow) { pillMode = false; pillRun = 0; }
+    if (frameNo % 20 === 1 || !topLim) topLim = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-h')) || 76) + 10;
+    // the dot marks the branch tip: a phone card starts just above it
+    const fresh = () => placed.map((p) => ({ t: p.t, x: p.x, y: narrow ? p.y - p.t.h / 2 - 14 : p.y, ax: p.x, ay: p.y }));
+    let laid;
+    if (!narrow) { pillMode = false; pillRun = 0; laid = layoutWide(fresh(), obstacles.list); }
     else {
+      laid = layoutLabels(fresh(), obstacles.list, false);
       pillRun = laid.childOverlap ? Math.max(1, pillRun + 1) : Math.min(-1, pillRun - 1);
       if (!pillMode && pillRun >= 18) pillMode = true;
       else if (pillMode && pillRun <= -90) pillMode = false;
@@ -163,6 +166,19 @@ export async function createScene({ world, labels, onTagClick }) {
       if (p.t.occluded !== hidden) { p.t.occluded = hidden; p.t.el.classList.toggle('occluded', hidden); }
       if (p.t.edgeShown !== !!p.t.edge) { p.t.edgeShown = !!p.t.edge; p.t.el.classList.toggle('edge', !!p.t.edge); }
       p.t.el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0) translate(-50%, -50%)`;
+      // the dot stays on the branch; a thin leader joins it to the card when the card had to move
+      const dx = Math.round(p.ax - p.x), dy = Math.round(p.ay - (p.y + (p.compact ? p.t.hc : p.t.h) / 2));
+      const key = `${dx},${dy}`;
+      if (p.t.dotKey !== key) {
+        p.t.dotKey = key;
+        p.t.dot.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px)`;
+        const h = p.compact ? p.t.hc : p.t.h, up = dy < -h / 2; // dot above the card: the leader leaves from its top edge
+        const ly = up ? dy + h : dy, len = Math.hypot(dx, ly) - 8;
+        p.t.lead.style.top = up ? '0' : '100%';
+        p.t.lead.style.height = `${Math.max(0, len)}px`;
+        p.t.lead.style.transform = `rotate(${Math.atan2(-dx, ly)}rad)`;
+        p.t.lead.style.opacity = len > 10 ? 1 : 0;
+      }
     }
     raf = requestAnimationFrame(frame);
   }
@@ -173,7 +189,52 @@ export async function createScene({ world, labels, onTagClick }) {
   const PRIORITY = { child: 0, sibling: 1, pruned: 2 };
   const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
   const rectAt = (x, y, t) => ({ left: x - t.w / 2 - 4, right: x + t.w / 2 + 4, top: y - t.h / 2 - 4, bottom: y + t.h / 2 + 4 });
-  let pillMode = false, pillRun = 0, tagKey = '';
+  let pillMode = false, pillRun = 0, tagKey = '', topLim = 0;
+  // Desktop: every option card sits at its own branch tip (card bottom just above the dot), siblings
+  // share one top line when their branches are at similar heights, and cards that would touch are
+  // spread sideways just enough (never relocated far from their branch). Deterministic: no flicker.
+  function layoutWide(placed, fixed) {
+    const W2 = VW(), gap = 14, live = placed.filter((p) => !p.t.off && p.t.w);
+    for (const p of placed) { p.hidden = false; p.compact = false; }
+    if (!live.length) return placed;
+    const ys = live.map((p) => p.ay), spread = Math.max(...ys) - Math.min(...ys);
+    // a card sits just above its dot; with no room above (a branch tip near the header) it hangs just
+    // below it. Siblings whose tips are within ~90 px share one line.
+    const fitsAbove = (y) => y - 16 - Math.max(...live.map((p) => p.t.h)) >= topLim;
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const above = live.every((p) => fitsAbove(p.ay));
+    const line = spread <= 90 ? (above ? { bottom: minY - 16 } : fitsAbove(minY) ? { bottom: minY - 16 } : { top: maxY + 16 }) : null;
+    for (const p of live) {
+      const own = fitsAbove(p.ay) ? { bottom: p.ay - 16 } : { top: p.ay + 16 };
+      const l = line || own;
+      p.y = l.bottom != null ? l.bottom - p.t.h / 2 : l.top + p.t.h / 2;
+      p.y = Math.min(Math.max(p.y, topLim + p.t.h / 2), VH() - 8 - p.t.h / 2);
+      p.x = Math.min(Math.max(p.ax, p.t.w / 2 + 8), W2 - p.t.w / 2 - 8);
+    }
+    const box = (p) => ({ left: p.x - p.t.w / 2, right: p.x + p.t.w / 2, top: p.y - p.t.h / 2, bottom: p.y + p.t.h / 2 });
+    // side panels (weather rail, Lumi's bubble/dock): a card slides sideways out of one, at most 200 px
+    for (const p of live) for (const r of fixed) {
+      const b = box(p);
+      if (b.right <= r.left || b.left >= r.right || b.bottom <= r.top || b.top >= r.bottom) continue;
+      const right = r.right + 8 - b.left, left = r.left - 8 - b.right;
+      const d = Math.abs(left) < right ? left : right;
+      if (Math.abs(d) <= 200) p.x += d;
+    }
+    // siblings never touch: push overlapping neighbours apart, half each, then keep them on screen
+    const row = [...live].sort((a, b) => a.ax - b.ax);
+    for (let pass = 0; pass < 8; pass++) {
+      let moved = false;
+      for (let i = 0; i < row.length - 1; i++) for (let j = i + 1; j < row.length; j++) {
+        const a = row[i], b = row[j], A = box(a), B = box(b);
+        if (A.bottom + gap <= B.top || B.bottom + gap <= A.top) continue;
+        const need = (a.t.w + b.t.w) / 2 + gap - (b.x - a.x);
+        if (need > 0.5) { a.x -= need / 2; b.x += need / 2; moved = true; }
+      }
+      for (const p of row) p.x = Math.min(Math.max(p.x, p.t.w / 2 + 8), W2 - p.t.w / 2 - 8);
+      if (!moved) break;
+    }
+    return placed;
+  }
   function layoutLabels(placed, fixed, pills = false) {
     const order = [...placed].sort((a, b) => (PRIORITY[a.t.status] ?? 3) - (PRIORITY[b.t.status] ?? 3) || a.y - b.y);
     const taken = [], minY = VW() < 720 ? 110 : 70, maxY = VH() - 40;
@@ -289,12 +350,12 @@ export async function createScene({ world, labels, onTagClick }) {
       if (!t) {
         const el = document.createElement('button');
         el.type = 'button';
-        el.innerHTML = '<span class="card"><span class="name"></span><span class="meta"></span></span><span class="dot"></span>';
+        el.innerHTML = '<span class="card"><span class="name"></span><span class="meta"></span></span><span class="lead"></span><span class="dot"></span>';
         el.addEventListener('click', () => { if (t.clickable) onTagClick?.(it.id, t.status); });
         el.style.opacity = 0;
         labels.append(el);
         const [wx, wy] = geo.anchor(it.id);
-        t = { el, wx, wy };
+        t = { el, wx, wy, dot: el.querySelector('.dot'), lead: el.querySelector('.lead') };
         tags.set(it.id, t);
         gsap.to(el, { opacity: 1, duration: 0.8, delay: 0.25, ease: 'power2.out' });
       }
