@@ -1,32 +1,36 @@
-// Data for the full path report (docs/report-spec.md §3). Uses thread 2's POST /report when it exists;
-// until then builds the same shape as core.report_data from /tree/expand calls along the path.
+// Data for the path report (docs/report-spec.md §3), loaded in stages so the page never waits:
+//  1. loadLevels: one /tree/expand per level of the path, in parallel (cached by the API, ~30-150 ms).
+//     Enough for the hero, the stepper, every chart, the stress rows and the constraints.
+//  2. loadExploration: /tree/explore per step, in parallel (~0.2-0.4 s): "what would have to be true"
+//     and the tornado.
+//  3. loadSummary: POST /report in the background, only for the language model's wording of the summary
+//     (seconds). The page shows a deterministic template until it arrives and never blocks on it.
 import { apiRequest } from '../api.js';
-
-const LIMITATIONS = [
-  'Synthetic profile and illustrative figures (UBS starter kit); assumptions with verified=false are modelling choices.',
-  "Deterministic 'if these inputs hold, then...' paths under stated assumptions: not a forecast and not financial advice.",
-  "One effective income-tax table (Lausanne, single person) at today's prices; no wealth tax, deductions or pillar 2/3a.",
-  'One currency (CHF) with a constant exchange rate; non-financial assets (car, property) are not modelled.',
-  'Shocks in the optional uncertainty lens are independent; its shares of paths are not real-world probabilities.',
-  'Every number comes from the engine; the language model only words them and cannot compute new figures.',
-];
 
 export function summary(r) {
   const m = r?.metrics || {}, goals = r?.goals || [];
   return {
     final_net_worth_real: m.final_net_worth_real ?? null, final_net_worth: r?.deterministic?.final_net_worth ?? m.final_net_worth ?? null,
-    min_cash: m.min_cash ?? null, first_negative_month: m.first_negative_month ?? null, final_debt: m.final_debt ?? null,
+    min_cash: m.min_cash ?? null, min_cash_month: m.min_cash_month ?? null, first_negative_month: m.first_negative_month ?? null, final_debt: m.final_debt ?? null,
     liquidity_months: m.liquidity_months ?? null, goals_met: goals.filter((g) => g.met_deterministic).length, goals_total: goals.length,
     plan_check: r?.plan_check?.level ?? null, plan_check_label: r?.plan_check?.label ?? null,
   };
 }
 
 const delta = (a, b, k) => (a?.metrics?.[k] != null && b?.metrics?.[k] != null ? Math.round((a.metrics[k] - b.metrics[k]) * 100) / 100 : null);
+const series = (r) => ({ cash: r?.deterministic?.cash || [], net_worth: r?.deterministic?.net_worth || [], net_worth_real: r?.deterministic?.net_worth_real || [] });
 
-export async function buildFromExpand({ profile, path, assumptions = [], uncertainty = false, expand, startProfile = profile }) {
-  const call = expand || ((p) => apiRequest('/tree/expand', { body: { path: p, assumptions, uncertainty, ...(profile ? { profile } : {}) } }));
-  const levels = [];
-  for (let i = 0; i <= path.length; i++) levels.push(await call(path.slice(0, i)));
+export function expandBody({ profile, path, assumptions = [], uncertainty = false }) {
+  return { path, assumptions, uncertainty, exploration: false, ...(profile ? { profile } : {}) };
+}
+
+// Stage 1. `expand(path, isLeaf)` is injectable for tests; the lens (Monte Carlo) is asked for the leaf only.
+export function loadLevels({ profile, path, assumptions = [], uncertainty = false, expand, signal }) {
+  const call = expand || ((p, leaf) => apiRequest('/tree/expand', { body: expandBody({ profile, path: p, assumptions, uncertainty: uncertainty && leaf }), signal }));
+  return Promise.all(Array.from({ length: path.length + 1 }, (_, i) => call(path.slice(0, i), i === path.length)));
+}
+
+export function buildFromLevels(levels, { profile, path, assumptions = [], uncertainty = false, startProfile = profile }) {
   const curOf = (d) => d.nodes.find((n) => n.node_id === d.current);
   const root = curOf(levels[0]);
   const steps = levels.slice(1).map((d, i) => {
@@ -35,14 +39,19 @@ export async function buildFromExpand({ profile, path, assumptions = [], uncerta
       node_id: n.node_id, parent_id: n.parent_id, label: n.label, description: n.description, depth: n.depth, interventions: n.interventions || [],
       changes: n.changes || [], assumptions_introduced: n.assumptions_introduced || [],
       delta_vs_parent: Object.fromEntries(['final_net_worth_real', 'final_net_worth', 'min_cash', 'final_debt', 'liquidity_months'].map((k) => [k, delta(n.result, parent.result, k)])),
-      headline: n.result?.headline || null, result: n.result,
-      alternatives: d.nodes.filter((x) => x.status === 'sibling' && x.result).map((x) => ({ node_id: x.node_id, label: x.label, status: 'sibling', summary: summary(x.result), headline: x.result.headline || null })),
+      headline: n.result?.headline || null, result: n.result, summary: summary(n.result),
+      alternatives: d.nodes.filter((x) => x.status === 'sibling' && x.result).map((x) => ({ node_id: x.node_id, label: x.label, description: x.description, status: 'sibling', summary: summary(x.result), headline: x.result.headline || null })),
     };
   });
-  const leafRes = steps.length ? steps.at(-1).result : root.result;
+  const last = levels.at(-1), leafNode = curOf(last);
+  const leafRes = leafNode?.result;
   const cash = leafRes?.deterministic?.cash || [];
   const wr = leafRes?.weather_resilience;
-  const last = levels.at(-1);
+  // the leaf and its siblings, with their monthly series, for the over-time chart
+  const peers = last.nodes.filter((n) => n.result && (n.node_id === leafNode.node_id || (n.status === 'sibling' && n.parent_id === leafNode.parent_id)))
+    .map((n) => ({ node_id: n.node_id, label: n.label, description: n.description, chosen: n.node_id === leafNode.node_id, ...series(n.result) }));
+  const bands = leafRes?.bands;
+  const lensOn = !!(uncertainty && leafRes?.n_paths && bands?.cash?.p10?.length);
   return {
     source: 'expand',
     engine_version: leafRes?.engine_version,
@@ -50,28 +59,44 @@ export async function buildFromExpand({ profile, path, assumptions = [], uncerta
       jurisdiction: 'Switzerland (Lausanne, Vaud): illustrative tax table', values: "nominal CHF; '_real' fields are in today's prices",
       path: ['0', ...path], question: [root, ...steps].map((s) => s.label).join(' -> ') },
     starting_state: Object.entries(startProfile?.provenance || {}).map(([field, p]) => ({ field, value: startProfile[field], label: p.source === 'questionnaire' ? 'user-entered' : p.source?.startsWith('ubs') ? 'synthetic' : p.source || 'synthetic', source: p.source, confidence: p.confidence })),
-    baseline: { node_id: root.node_id, label: root.label, summary: summary(root.result), headline: root.result?.headline || null },
+    baseline: { node_id: root.node_id, label: root.label, description: root.description, summary: summary(root.result), headline: root.result?.headline || null, result: root.result },
     steps,
-    leaf: { node_id: steps.at(-1)?.node_id ?? '0', constraints: leafRes?.constraints || [], plan_check: leafRes?.plan_check || null, weather_resilience: wr || null,
-      monthly_surplus: cash.slice(1).map((v, i) => Math.round((v - cash[i]) * 100) / 100) },
-    stress: [{ weather: 'none', summary: summary(leafRes) }, ...(wr?.by_weather || []).map((w) => ({ weather: w.type, summary: {
+    leaf: { node_id: leafNode.node_id, result: leafRes, constraints: leafRes?.constraints || [], plan_check: leafRes?.plan_check || null, weather_resilience: wr || null,
+      goals: leafRes?.goals || [], monthly_surplus: cash.slice(1).map((v, i) => Math.round((v - cash[i]) * 100) / 100), peers,
+      bands: lensOn ? { cash: bands.cash, net_worth: bands.net_worth } : null },
+    stress: [{ weather: 'none', summary: summary(leafRes) }, ...(wr?.by_weather || []).filter((w) => w.holds !== null || w.status !== 'outside_horizon').map((w) => ({ weather: w.type, summary: {
       final_net_worth: w.final_net_worth, min_cash: w.min_cash, first_negative_month: w.first_negative_month, holds: w.holds, missed_goals: w.missed_goals } }))],
-    uncertainty: uncertainty && leafRes?.n_paths ? { n_paths: leafRes.n_paths, seed: leafRes.seed, bands: leafRes.bands,
+    uncertainty: lensOn ? { n_paths: leafRes.n_paths, seed: leafRes.seed,
       final_net_worth_p10: leafRes.metrics.final_net_worth_p10, final_net_worth_p50: leafRes.metrics.final_net_worth_p50, final_net_worth_p90: leafRes.metrics.final_net_worth_p90,
-      shortfall_probability: leafRes.metrics.shortfall_probability, note: 'Shares of simulated paths under these assumptions, not real-world probabilities.' } : null,
+      shortfall_probability: leafRes.metrics.shortfall_probability } : null,
     validation: { checks: leafRes?.checks || [], seed: leafRes?.seed, engine_version: leafRes?.engine_version, trace_id: leafRes?.trace_id,
-      reproduce: { route: 'POST /tree/expand', body: { path, assumptions, uncertainty, profile: profile ? '(the profile shown in section 3)' : 'demo (Alexia)' } } },
-    limitations: LIMITATIONS,
-    condition: 'Under these assumptions; not a forecast and not advice.',
+      reproduce: { route: 'POST /report', body: { path, assumptions, uncertainty, ...(profile ? { profile: '(the profile in "Starting point")' } : {}) } } },
+    assumptions: last.assumptions || [],
   };
 }
 
-export async function fetchPathReport({ profile, path, assumptions = [], uncertainty = false, startProfile = profile }) {
-  try {
-    const data = await apiRequest('/report', { body: { path, assumptions, uncertainty, ...(profile ? { profile } : {}) } });
-    if (data?.steps && data?.leaf) return { ...data, source: 'report' };
-  } catch (e) {
-    if (!/ 40[45]\b|returned 40[45]/.test(e.message)) throw e; // only "route not there yet" falls back
-  }
-  return buildFromExpand({ profile, path, assumptions, uncertainty, startProfile });
+// Stage 2: exploration + tornado for every step, in parallel. Resolves to one entry per step (null on failure).
+export function loadExploration({ profile, path, assumptions = [], explore, signal }) {
+  const call = explore || ((p) => apiRequest('/tree/explore', { body: { path: p, assumptions, ...(profile ? { profile } : {}) }, signal }));
+  return Promise.all(path.map((_, i) => call(path.slice(0, i + 1)).catch(() => null)));
 }
+
+export function mergeExploration(data, explored) {
+  const steps = data.steps.map((st, i) => {
+    const x = explored[i];
+    if (!x) return st;
+    return { ...st, result: { ...st.result, exploration: x.exploration ?? st.result?.exploration, sensitivity: x.sensitivity ?? st.result?.sensitivity }, facts: x.facts || [] };
+  });
+  return { ...data, steps, explored: true };
+}
+
+// Stage 3: the plain-language summary. The API words a deterministic template with the language model and
+// rejects any number that is not in it; we only take its text. Never awaited by the first render.
+export async function loadSummary({ profile, path, assumptions = [], uncertainty = false, lang = 'en', signal }) {
+  const r = await apiRequest('/report', { body: { path, assumptions, uncertainty, language: lang, ...(profile ? { profile } : {}) }, signal });
+  const s = r?.sections?.summary || r?.summary;
+  if (!s?.text) return null;
+  return { text: s.text, mode: s.mode || 'template', model: s.model || r.model, lang, testEvidence: r?.sections?.validation?.test_evidence || [] };
+}
+
+export const loadLiveValidation = ({ signal } = {}) => apiRequest('/validation', { method: 'GET', signal });
