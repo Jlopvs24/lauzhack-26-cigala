@@ -4,8 +4,8 @@
 // in the session (personalStore) and calls onConfirm(item, fields) so the scene re-expands and the branch
 // re-grows. Proposals from the chat agent arrive as a prop or as a window event (PROPOSAL_EVENT).
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { requestPersonalization } from './api.js';
-import { amountOf, buildItem, describe, normalizeProposal, withAmount } from './model.js';
+import { isTimeout, manualFromGuess, manualIntervention, requestPersonalization } from './api.js';
+import { amountOf, buildItem, describe, mockPersonalize, normalizeProposal, withAmount } from './model.js';
 import { personalStore } from './store.js';
 import { pi } from './i18n.js';
 import './personalize.css';
@@ -39,7 +39,7 @@ export default function MakeItMine({ lang = 'en', node, path = [], profile = nul
   const [step, setStep] = useState('ask'); // ask | loading | clarify | proposal | done | error
   const [text, setText] = useState(''), [answer, setAnswer] = useState(''), [history, setHistory] = useState([]);
   const [res, setRes] = useState(null), [draft, setDraft] = useState(null), [error, setError] = useState(''), [fromChat, setFromChat] = useState(false);
-  const [doneMsg, setDoneMsg] = useState('');
+  const [doneMsg, setDoneMsg] = useState(''), [manual, setManual] = useState(null);
   const box = useRef(null), first = useRef(null), ac = useRef(null);
   const nodeName = tr(node || {}).label || node?.label || '';
   const speech = useSpeech(lang, (t) => (step === 'clarify' ? setAnswer((a) => (a ? a + ' ' : '') + t) : setText((a) => (a ? a + ' ' : '') + t)));
@@ -66,9 +66,17 @@ export default function MakeItMine({ lang = 'en', node, path = [], profile = nul
       const r = await requestPersonalization({ profile, path, node, text: words, lang, assumptions, history: hist, tr }, { signal: c.signal, ...(request ? { request } : {}) });
       if (!c.signal.aborted) show(r);
     } catch (e) {
-      if (e?.name !== 'AbortError') { setStep('error'); setError(e?.message || L.unsupported); }
+      if (c.signal.aborted) return; // cancelled by the user: the cancel button already went back
+      setStep('error'); setError(isTimeout(e) ? L.slow : L.failed);
     }
   }
+  const cancelReading = () => { ac.current?.abort(); setStep('ask'); };
+  const openManual = () => { setManual(manualFromGuess(mockPersonalize({ text, node_id: node?.node_id, lang }))); setStep('manual'); };
+  const useManual = () => {
+    const iv = manualIntervention(manual || {});
+    if (!iv) return;
+    show({ status: 'proposal', source: 'manual', proposal: { id: undefined, mode: 'patch', node_id: node.node_id, parent_id: node.parent_id, label: text.trim().slice(0, 48) || L.mKinds[manual.kind], interventions: [iv], conditions: [], text: text.trim() } });
+  };
   const sendAnswer = () => {
     const a = answer.trim();
     if (!a) return;
@@ -131,7 +139,7 @@ export default function MakeItMine({ lang = 'en', node, path = [], profile = nul
       </div>
       {speech.listening && <p className="pz-live" role="status">{L.listening}</p>}
       {step === 'ask' && !text && <div className="pz-ex"><span>{L.examples}</span>{L.ex.map((x) => <button type="button" key={x} onClick={() => setText(x)}>{x}</button>)}</div>}
-      {step === 'loading' ? <p className="pz-status" role="status"><span className="pz-dots" aria-hidden="true" />{L.reading}</p>
+      {step === 'loading' ? <div className="pz-actions pz-reading"><p className="pz-status" role="status"><span className="pz-dots" aria-hidden="true" />{L.reading}</p><button type="button" className="pz-btn ghost" onClick={cancelReading}>{L.cancel}</button></div>
         : <div className="pz-actions"><button type="button" className="pz-btn ghost" onClick={close}>{L.cancel}</button><button type="submit" className="pz-btn primary" disabled={!text.trim()}>{L.check}</button></div>}
     </form>}
 
@@ -172,7 +180,7 @@ export default function MakeItMine({ lang = 'en', node, path = [], profile = nul
           <span><b>{m === 'patch' ? L.patch : L.branch}</b><small>{m === 'patch' ? L.patchSub : L.branchSub}</small></span>
         </label>)}
       </fieldset>
-      <p className="pz-note">{res?.source === 'mock' ? L.mock : L.noNumbers}</p>
+      <p className="pz-note">{res?.source === 'mock' ? L.mock : res?.source === 'manual' ? L.manualSrc : L.noNumbers}</p>
       <div className="pz-actions">
         <button type="button" className="pz-btn ghost" onClick={close}>{L.cancel}</button>
         <button type="button" className="pz-btn ghost" onClick={() => { setText(res?.proposal?.text || text); setStep('ask'); }}>{L.edit}</button>
@@ -184,7 +192,27 @@ export default function MakeItMine({ lang = 'en', node, path = [], profile = nul
 
     {step === 'error' && <div className="pz-ask" role="alert">
       <p className="pz-err">{error}</p>
-      <div className="pz-actions"><button type="button" className="pz-btn ghost" onClick={close}>{L.cancel}</button><button type="button" ref={first} className="pz-btn primary" onClick={() => setStep('ask')}>{L.retry}</button></div>
+      <p className="pz-note">{L.manualHint}</p>
+      <div className="pz-actions"><button type="button" className="pz-btn ghost" onClick={openManual}>{L.manualBtn}</button><button type="button" ref={first} className="pz-btn primary" onClick={() => (text.trim() ? submit(text) : setStep('ask'))}>{L.retry}</button></div>
     </div>}
+
+    {step === 'manual' && manual && <form className="pz-ask pz-manual" onSubmit={(e) => { e.preventDefault(); useManual(); }}>
+      <p className="pz-q">{L.manualTitle}</p>
+      {text.trim() && <p className="pz-said">“{text}”</p>}
+      <label className="pz-lbl" htmlFor={`pz-k-${uid}`}>{L.mWhat}</label>
+      <select id={`pz-k-${uid}`} ref={first} className="pz-name" value={manual.kind} onChange={(e) => setManual({ ...manual, kind: e.target.value })}>
+        {Object.entries(L.mKinds).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+      </select>
+      <div className="pz-mrow">
+        <label><span className="pz-lbl">{L.mAmount}</span><input type="number" inputMode="decimal" min="0" step="50" value={manual.amount} onChange={(e) => setManual({ ...manual, amount: e.target.value })} required /></label>
+        {manual.kind !== 'one_off' && <label><span className="pz-lbl">{L.mPerL}</span><select value={manual.per} onChange={(e) => setManual({ ...manual, per: e.target.value })}>
+          <option value="month">{L.mPer.month}</option><option value="year">{L.mPer.year}</option></select></label>}
+      </div>
+      <div className="pz-mrow">
+        <label><span className="pz-lbl">{manual.kind === 'one_off' ? L.mIn : L.mFrom}</span><input type="number" min="1" max="120" value={manual.from} onChange={(e) => setManual({ ...manual, from: e.target.value })} /></label>
+        {manual.kind !== 'one_off' && <label><span className="pz-lbl">{L.mTo}</span><input type="number" min="1" max="120" value={manual.to} placeholder="120" onChange={(e) => setManual({ ...manual, to: e.target.value })} /></label>}
+      </div>
+      <div className="pz-actions"><button type="button" className="pz-btn ghost" onClick={() => setStep('ask')}>{L.edit}</button><button type="submit" className="pz-btn primary" disabled={!manualIntervention(manual)}>{L.mUse}</button></div>
+    </form>}
   </section>;
 }
