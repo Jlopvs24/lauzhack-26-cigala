@@ -304,13 +304,38 @@ Hard rules:
 3. Cite where numbers come from: the node (e.g. "option 1.2") and the key assumption ids involved.
 4. Results are conditional simulations, not forecasts: never say "certain" or "will"; say "in X% of simulated
    futures" or "under these assumptions". Mention uncertainty (the 10–90% range) when relevant.
-5. Answer in {lang_name}. Plain words, at most 3 short sentences, no markdown, no lists: it will be read aloud.
-   Money as "CHF 12'300". Say months as "month 7".
+5. Answer in {lang_name}. Plain words, at most {max_sentences} short sentences, no markdown, no lists: it will be read aloud.
+   Money as "CHF 12'300". Say months as "month 7".{call_rule}
 Context: the user's current node is {node_id}; visible path {path}; active weather {weather}.
 Node ids: "0" today; "1","2","3" first decisions; "1.2" = option 2 under option 1, and so on.
 Engine results already loaded for the current node, its siblings and its children (the next decisions) (use these directly, call tools only
 for other nodes, comparisons you cannot read here, assumption details or what-if changes):
 {preloaded}"""
+
+CALL_MAX_SENTENCES = 2
+CALL_RULE = ("\n6. This is a live phone call: the first sentence must be under 12 words and give the key fact; "
+             "do not repeat the question.")
+
+# Deterministic no-recommendation guard (rule 2 is also in the prompt, this enforces it).
+_ADVICE = re.compile(
+    r"\b(you should|you might (want to )?consider|i (would )?(recommend|suggest|advise)|my (advice|recommendation)|"
+    r"the best (option|choice|path)|it would be (better|wise)|go for|deberías|te recomiendo|te aconsejo|"
+    r"la mejor opción|tu devrais|je (te |vous )?(recommande|conseille)|la meilleure option|du solltest|ich empfehle)\b",
+    re.I)
+
+
+def strip_advice(text: str) -> tuple[str, list[str]]:
+    """Drop sentences that recommend or decide. Returns (clean text, removed sentences)."""
+    sents = split_sentences(text)
+    keep = [s for s in sents if not _ADVICE.search(s)]
+    removed = [s for s in sents if _ADVICE.search(s)]
+    return " ".join(keep).strip(), removed
+
+
+def split_sentences(text: str) -> list[str]:
+    from api.tts_local import split_sentences as _split
+    return _split(text, max_chars=10_000)
+
 
 _LANG_NAMES = {"en": "English", "es": "Spanish", "fr": "French", "de": "German", "it": "Italian"}
 
@@ -331,6 +356,8 @@ def ask(question: str, ctx: dict) -> dict:
     if llm.available():
         preloaded = box.preload(node_id)
         sysmsg = SYSTEM.format(name=ctx.get("character_name", CHARACTER), lang_name=_LANG_NAMES.get(lang, lang),
+                               max_sentences=CALL_MAX_SENTENCES if ctx.get("mode") == "call" else 3,
+                               call_rule=CALL_RULE if ctx.get("mode") == "call" else "",
                                node_id=node_id, path=ctx.get("path") or ["0"], weather=ctx.get("weather") or "none",
                                preloaded=json.dumps(preloaded, ensure_ascii=False))
         msgs: list[dict] = [{"role": "system", "content": sysmsg}]
@@ -366,6 +393,11 @@ def ask(question: str, ctx: dict) -> dict:
             answer = None
 
     grounding = {"grounded": None, "ungrounded_numbers": []}
+    removed: list[str] = []
+    if answer:
+        answer, removed = strip_advice(answer)
+        if ctx.get("mode") == "call":
+            answer = " ".join(split_sentences(answer)[:CALL_MAX_SENTENCES])
     if answer:
         grounding = check_grounding(answer, [c["result"] for c in box.calls], question)
         if not grounding["grounded"]:
@@ -382,6 +414,7 @@ def ask(question: str, ctx: dict) -> dict:
         "language": lang,
         "mode": mode,  # "llm" or "template" (plan B)
         "grounding": grounding,
+        "advice_removed": removed,  # sentences dropped by the no-recommendation guard
         "tool_traces": [{"tool": c["tool"], "args": c["args"],
                          "trace_id": c["result"].get("trace_id") or c["result"].get("after", {}).get("trace_id"),
                          "node_id": c["result"].get("node_id")} for c in box.calls],
