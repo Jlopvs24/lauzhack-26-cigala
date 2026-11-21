@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Compare demo</title>
+    <link rel="icon" href="data:," />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; min-height: 100%; } body { font: 15px/1.5 Inter, system-ui, sans-serif; background: #2c3a2f radial-gradient(circle at 30% 20%, #56704d, #1c241e 70%); color: #f7f4ec; }
+      .stage { display: flex; flex-wrap: wrap; gap: 22px; padding: 28px 20px 140px; align-items: flex-start; }
+      .stage h1 { flex-basis: 100%; margin: 0; font: 400 26px Instrument Serif, serif; }
+      .demo-bar { flex-basis: 100%; display: flex; gap: 10px; flex-wrap: wrap; }
+    </style>
+  </head>
+  <body>
+    <!-- Dev-only page (not in the build): /src/compare/demo.html?path=2&lang=es&theme=dark -->
+    <div id="root"></div>
+    <script type="module" src="./demo.jsx"></script>
+  </body>
+</html>
