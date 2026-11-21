@@ -39,6 +39,8 @@ from .weather import WeatherArrays
 FLOW_KEYS = ("income", "income_tax", "living_expenses", "one_off_cost", "one_off_income",
              "debt_payment", "debt_interest", "loan_proceeds", "cash_interest",
              "investment_return", "contribution", "withdrawal")
+# informational payroll lines (#48 item 2): already deducted from `income`, not cash flows themselves
+PAYROLL_KEYS = ("gross_income", "social_contributions", "bvg_employee", "bvg_employer")
 
 PARAMS = ("inflation_mean", "inflation_sd", "real_wage_growth", "investment_return_mean",
           "investment_return_vol", "cash_interest_rate", "job_loss_annual_prob",
@@ -113,6 +115,10 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
     cost_plan = stack("one_off_cost")
     extra_plan = stack("one_off_income")
     contrib_plan = stack("investment_contribution")
+    zeros = np.zeros(H)
+    pay_plan = {k: np.repeat(np.stack([getattr(s, a) if getattr(s, a) is not None else zeros for s in scheds]), n, axis=0)
+                for k, a in (("gross_income", "gross"), ("social_contributions", "social"),
+                             ("bvg_employee", "bvg_employee"), ("bvg_employer", "bvg_employer"))}
     debts = [debt_schedule(s.liabilities, H) for s in scheds]
     d_pay = np.repeat(np.stack([d.payment for d in debts]), n, axis=0)
     d_int = np.repeat(np.stack([d.interest for d in debts]), n, axis=0)
@@ -185,7 +191,7 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
     inv = np.empty((N, H + 1))
     cash[:, 0] = opening_cash
     inv[:, 0] = opening_investments
-    flows = {k: np.zeros((N, H)) for k in FLOW_KEYS} if keep_flows else None
+    flows = {k: np.zeros((N, H)) for k in FLOW_KEYS + PAYROLL_KEYS} if keep_flows else None
     remaining = np.zeros(N, dtype=int)
     unemployed_count = np.zeros(N, dtype=int)
 
@@ -230,6 +236,9 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
             flows["investment_return"][:, t] = inv_ret
             flows["contribution"][:, t] = contrib
             flows["withdrawal"][:, t] = withdraw
+            on_pay = np.where(unemployed, 0.0, 1.0) * wage_t[:, t]  # no payslip while unemployed
+            for k, plan in pay_plan.items():
+                flows[k][:, t] = plan[:, t] * on_pay
 
     net_worth = cash + inv - d_bal
     return RunOutput(cash=cash, investments=inv, debt=d_bal, net_worth=net_worth, cpi=cpi,

@@ -133,7 +133,7 @@ T = transparency 10) against effort (S < 1 h, M 1-3 h, L > 3 h). Ranked for toni
 | rank | improvement | impact | effort | why first |
 |---|---|---|---|---|
 | 0 | ✅ Income basis made explicit (`income_basis`: net_before_tax / take_home), #48 item 1 | C+ T++ | S | done |
-| 1 | Payroll layer: gross → net with AHV/IV/EO, ALV, BVG | C+++ T+ | M | the most visible Swiss correctness gap; unlocks pillar 2 |
+| 1 | ✅ Payroll layer: gross → net with AHV/IV/EO, ALV, NBU, BVG (#48 item 2) | C+++ T+ | M | done; see the design note for what changed |
 | 2 | Tax by canton/household + abroad tax, ESTV-sourced points, optional arrears timing | C+++ | M-L | removes "Zurich/abroad taxed as Vaud" |
 | 3 | Pillar 3a lever (+ tax deduction, locked asset) | C++ E++ | M | a new, very Swiss what-if per decision |
 | 4 | Combined decisions + 2-lever surfaces + constraint-targeted search | E+++ | M | "what if master's AND share a flat", "what salary AND rent keep the plan feasible" |
@@ -156,6 +156,20 @@ rate. All rates are assumptions with sources (`targets.json` has the figures to 
 flows `social_contributions` and `bvg_savings`; BVG savings accumulate in a `pension` balance that
 counts in net worth but not in liquidity (new identity: pension account moves only by credits and
 interest). Tests: a gross salary in, the payslip identity out (net = gross − each line).
+
+*Done (#48 item 2), with these differences from the design above:* the field is
+`monthly_gross_income` (plus a `monthly_gross_income` intervention) rather than a gross/net flag,
+so net profiles and the tree are untouched. The flows are `gross_income`, `social_contributions`
+(AHV/IV/EO + ALV + NBU), `bvg_employee`, `bvg_employer`, informational only (`income` is already
+net of them, so no cash identity changes). The BVG balance is returned in `payroll.bvg_balance`
+but is **not** added to net worth yet: counting locked pension money in net worth changes the
+headline and health of every gross node, so it is decided together with pillar 3a (item 4).
+Rates 2026, verified: AHV/IV/EO 5.3%, ALV 1.1% to CHF 148,200, BVG entry 22,680 / coordination
+26,460 / upper limit 90,720 / minimum coordinated 3,780, age credits 7/10/15/18%, minimum
+interest 1.25%. Not verifiable as one figure (marked `verified: false` with a range): NBU (set by
+each insurer, 1% [0.5–2%]) and the employee share of BVG credits (law: at most half; 0.5
+[0.35–0.5]). Simplifications: thresholds are today's and move with the wage index (no separate
+indexation), men's age bands, one employer, no BVG risk premiums or above-minimum plans.
 
 **2. Tax.** `tax_tables` keyed by `(canton, household)` with points read from the ESTV
 calculator (`SOURCES.md` lists them); profile `canton` and `household_type` (both in the UBS

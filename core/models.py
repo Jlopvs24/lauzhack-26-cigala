@@ -14,6 +14,7 @@ from typing import Any
 
 SERIES_PARAMS = (
     "monthly_net_income",
+    "monthly_gross_income",  # #48 item 2: converted to net by core/payroll.py
     "monthly_rent",
     "monthly_other_expenses",
     "monthly_investment_contribution",
@@ -106,6 +107,9 @@ class Profile:
     goals: tuple[Goal, ...]
     raw: dict = field(compare=False, repr=False, default_factory=dict)
     income_basis: str = "net_before_tax"
+    monthly_gross_income: float = 0.0
+    age: float | None = None  # years at as_of; needed for BVG age credits when a gross salary is used
+    pension_bvg: float = 0.0  # opening BVG savings (assets of type pension_bvg), not liquid
 
     def tax_table(self, aset) -> list[list[float]]:
         """The income-tax table the engine applies to this profile's income."""
@@ -120,11 +124,18 @@ class Profile:
         basis = str(d.get("income_basis", "net_before_tax"))
         if basis not in INCOME_BASES:
             raise ValueError(f"income_basis must be one of {INCOME_BASES}, got {basis!r}")
+        if d.get("monthly_gross_income") and d.get("monthly_net_income"):
+            raise ValueError("give either monthly_net_income or monthly_gross_income, not both")
+        if basis == "take_home" and d.get("monthly_gross_income"):
+            raise ValueError("monthly_gross_income is converted to net before income tax; it cannot be used with income_basis 'take_home'")
         investments = 0.0
+        pension_bvg = 0.0
         for i, a in enumerate(d.get("assets", []) or []):
             value = num(a.get("value", 0), f"assets[{i}].value", minimum=0)
             if a.get("type", "investment") in ("investment", "investment_portfolio", "pension_3a"):
                 investments += value
+            elif a.get("type") == "pension_bvg":
+                pension_bvg += value
             # other asset types (property, car...) are out of scope for v1
         liabilities = tuple(
             Liability.from_dict(x, f"liabilities[{i}]")
@@ -157,6 +168,9 @@ class Profile:
             goals=tuple(goals),
             raw=d,
             income_basis=basis,
+            monthly_gross_income=num(d.get("monthly_gross_income", 0), "monthly_gross_income", minimum=0),
+            age=None if d.get("age") is None else num(d.get("age"), "age", minimum=0),
+            pension_bvg=pension_bvg,
         )
 
 

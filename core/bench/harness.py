@@ -139,7 +139,7 @@ def replay(kit: dict | None = None, overrides: dict | None = None, world: str = 
                                   "cash": max(rows[0]["opening"], 0.0), "monthly_net_income": max(b["income"], 0.0),
                                   "monthly_rent": max(b["rent"], 0.0), "monthly_other_expenses": max(b["other"], 0.0),
                                   "income_basis": income_basis})
-        sched = build_schedule(prof, parse_interventions([], A, H))
+        sched = build_schedule(prof, parse_interventions([], A, H), A)
         out = run(sched, prof.cash, 0.0, A, prof.tax_table(aset), build_weather([], H), stochastic=False)
         ours = out.cash[0, 1:]
         theirs = np.array([r["closing"] for r in rows])

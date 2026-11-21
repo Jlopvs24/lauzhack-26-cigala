@@ -12,6 +12,7 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 
 from .models import Intervention, Liability, Profile
+from .payroll import payroll
 
 
 @dataclass
@@ -25,14 +26,22 @@ class Schedule:
     one_off_income: np.ndarray
     liabilities: list[Liability]
     events: list[dict] = field(default_factory=list)  # human-readable log of one-off events
+    # payroll (#48 item 2), today's prices, 0 where the month has no gross salary
+    gross: np.ndarray | None = None
+    social: np.ndarray | None = None
+    bvg_employee: np.ndarray | None = None
+    bvg_employer: np.ndarray | None = None
 
     @property
     def expenses(self) -> np.ndarray:
         return self.rent + self.other_expenses
 
 
-def build_schedule(profile: Profile, interventions: list[Intervention]) -> Schedule:
+def build_schedule(profile: Profile, interventions: list[Intervention], A: dict | None = None) -> Schedule:
+    """``A`` (assumption values) is needed only when a gross salary is used (payroll rates)."""
     H = profile.horizon_months
+    gross = np.full(H, profile.monthly_gross_income)
+    add_adj, mul_adj = np.zeros(H), np.ones(H)  # net add/mul on months paid from a gross salary
     series = {
         "monthly_net_income": np.full(H, profile.monthly_net_income),
         "monthly_rent": np.full(H, profile.monthly_rent),
@@ -44,6 +53,32 @@ def build_schedule(profile: Profile, interventions: list[Intervention]) -> Sched
     liabilities = list(profile.liabilities)
     events: list[dict] = []
     for iv in interventions:
+        if iv.param == "monthly_gross_income":
+            window = slice(iv.from_month, iv.to_month)
+            if iv.op == "set":
+                gross[window] = iv.value
+                add_adj[window], mul_adj[window] = 0.0, 1.0
+            elif iv.op == "add":
+                gross[window] += iv.value
+            else:
+                gross[window] *= iv.value
+            np.maximum(gross, 0.0, out=gross)
+            continue
+        if iv.param == "monthly_net_income" and iv.op != "set" and (gross[iv.from_month:iv.to_month] > 0).any():
+            idx = np.arange(iv.from_month, iv.to_month)
+            paid = idx[gross[idx] > 0]  # adjust the net that the payroll produces
+            plain = idx[gross[idx] <= 0]
+            if iv.op == "add":
+                add_adj[paid] += iv.value
+                series["monthly_net_income"][plain] += iv.value
+            else:
+                mul_adj[paid] *= iv.value
+                add_adj[paid] *= iv.value
+                series["monthly_net_income"][plain] *= iv.value
+            np.maximum(series["monthly_net_income"], 0.0, out=series["monthly_net_income"])
+            continue
+        if iv.param == "monthly_net_income" and iv.op == "set":  # a net salary replaces a gross one
+            gross[iv.from_month:iv.to_month] = 0.0
         if iv.param in series:
             s = series[iv.param]
             window = slice(iv.from_month, iv.to_month)
@@ -79,8 +114,23 @@ def build_schedule(profile: Profile, interventions: list[Intervention]) -> Sched
                                      ((iv.month, iv.monthly_payment, iv.annual_rate),))
             events.append({"month": iv.month, "type": "loan_change", "loan": iv.loan, "label": iv.label,
                            "monthly_payment": iv.monthly_payment, "annual_rate": iv.annual_rate})
+    pay = None
+    if (gross > 0).any():
+        if A is None:
+            raise ValueError("a gross salary needs the assumption values (payroll rates)")
+        if profile.age is None:
+            raise ValueError("a gross salary needs the profile's age (BVG age credits)")
+        if profile.income_basis == "take_home":
+            raise ValueError("a gross salary is converted to net before income tax; it cannot be used with income_basis 'take_home'")
+        pay = payroll(gross, profile.age + np.arange(H) / 12.0, A)
+        m = gross > 0
+        series["monthly_net_income"][m] = np.maximum(pay["net"][m] * mul_adj[m] + add_adj[m], 0.0)
     return Schedule(
         horizon=H,
+        gross=None if pay is None else pay["gross"],
+        social=None if pay is None else pay["social"],
+        bvg_employee=None if pay is None else pay["bvg_employee"],
+        bvg_employer=None if pay is None else pay["bvg_employer"],
         income=series["monthly_net_income"],
         rent=series["monthly_rent"],
         other_expenses=series["monthly_other_expenses"],

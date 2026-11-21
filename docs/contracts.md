@@ -44,6 +44,8 @@ Produced by the questionnaire or multimodal extraction. Unknown fields are ignor
 |---|---|
 | `horizon_months` | new, default 120 |
 | `income_basis` | #48 item 1, default `net_before_tax`: `monthly_net_income` (and node incomes) are after social contributions, before income tax, as on a Swiss payslip, so the engine charges income tax. `take_home`: after income tax too, so no income tax is charged (`income_tax` flows are 0). Our tree uses `net_before_tax`; profiles imported from the UBS synthetic data use `take_home` unless stated (their ledgers have no tax line). Any other value is rejected. Echoed as `income_basis` in every SimulationResult |
+| `monthly_gross_income`, `age` | #48 item 2, optional. A gross salary (CHF/month, today's prices) instead of a net one: `core/payroll.py` deducts the employee AHV/IV/EO, ALV and NBU (up to the insured-salary cap) and the employee half of the BVG age credit (by `age` + month/12; none before 25 or under the entry threshold) to get the net income the engine uses (then income tax as usual). Needs `age`; cannot be combined with `income_basis: "take_home"` (also when a node sets it) or with a non-zero `monthly_net_income` (both rejected). Rates are `payroll_*` assumptions with official 2026 sources. Profiles without it are unchanged |
+| `assets[].type = pension_bvg` | #48 item 2: opening pillar-2 savings; only feeds `payroll.bvg_balance`, not cash, investments or net worth |
 | `monthly_investment_contribution` | new, CHF/month moved from cash to investments when cash allows (a transfer, not an expense) |
 | `assets[].type` | `investment` / `investment_portfolio` / `pension_3a` are simulated as one balanced portfolio; other types are ignored in v1 |
 | `liabilities[]` | fixed payment, monthly rate = `annual_rate / 12`; optional `payment_start_month` (interest is capitalised before it) |
@@ -71,6 +73,7 @@ The tree content is editable data. `alexia-v2` (issue #25) is the 3 x 3 x 3 tree
 | `param` | Fields | Effect |
 |---|---|---|
 | `monthly_net_income`, `monthly_rent`, `monthly_other_expenses`, `monthly_investment_contribution` | `op` (`set` / `add` / `mul`), `value`, `from_month`, `to_month` | changes the planned monthly amount in the window (never below 0) |
+| `monthly_gross_income` | same fields | #48 item 2: sets/changes the gross salary in the window; it is converted to net by the payroll layer (needs the profile's `age`). In months paid from a gross salary, a `monthly_net_income` `add`/`mul` adjusts the resulting net (e.g. a side job); a `monthly_net_income` `set` replaces the gross salary in its window (e.g. a job paid net) |
 | `one_off_cost`, `one_off_income` | `month`, `value` (>= 0), `label` | one payment in that month |
 | `new_liability` | `month`, `liability` {`type`, `label`, `principal`, `annual_rate`, `monthly_payment`, `payment_start_month`?} | loan received in cash in `month`; payments start at `payment_start_month` (default `month + 1`). `principal`, `annual_rate` and `monthly_payment` may reference an assumption |
 | `loan_change` | `loan` (label of a loan on the path), `month`, `monthly_payment`? and/or `annual_rate`? | from `month` on, that loan uses the new payment and/or rate (e.g. repay faster, variable rate rises); listed in `debts[].changes` and `events` |
@@ -177,6 +180,7 @@ Engine `core-1.1` (issue #21, exploration first). The primary result is the dete
               "debt_payment": [], "debt_interest": [], "loan_proceeds": [], "cash_interest": [],
               "investment_return": [], "contribution": [], "withdrawal": []}
   },
+  "payroll": null,
   "bands": {"cash": {"p10": [], "p50": [], "p90": []}, "net_worth": {"p10": [], "p50": [], "p90": []}},
   "metrics": {
     "final_cash": 121727.55, "final_net_worth": 121727.55, "final_net_worth_real": 110198.37,
@@ -391,6 +395,7 @@ Meaning of the main fields:
   - `timing`: this node's own decision delayed 12 and 24 months (ancestors keep their dates; the horizon end stays fixed). `window_shortened` = a monthly change is cut by the horizon; `omitted_interventions` = changes pushed past the horizon.
   - Threshold statuses: `threshold_found` (`value` within `tolerance` 0.01), `already_satisfied` (holds at the lower bound: `value` = that bound, or `null` for `salary_threshold`), `not_reached_within_bounds`, `lever_has_no_effect`, `non_monotone` (the search assumes an increasing margin checked on a 9-point grid and returns no value rather than a wrong one), `already_broken` (reverse stress with no extra cost). `margin_at_bounds` = margin at both bounds in CHF (reverse stress: positive = broken). Income/cost searches stop at CHF 1,000,000, an explicit search bound, not a plausible value.
 - `checks`: accounting identities verified on every run; the UI can show them as a "verified" badge.
+- `payroll` (#48 item 2): `null` unless some month is paid from a gross salary. Otherwise `{payslip: {month, gross, social_contributions, bvg_employee, bvg_employer, net}` (first paid month, today's prices), `totals` (sums over the deterministic path of the four payroll flows), `bvg_balance` (horizon+1 points: opening `pension_bvg` + employee and employer credits + `payroll_bvg_interest`), `bvg_balance_final`, `in_net_worth: false}`. Pillar-2 savings are locked until retirement and NOT in cash, investments or net worth (pillar 3a / net-worth treatment is decided with #48 item 4). With a gross salary, `deterministic.flows` also has `gross_income`, `social_contributions`, `bvg_employee`, `bvg_employer` (informational, with wage growth, 0 while unemployed): `income` is already net of them, so `gross_income - social_contributions - bvg_employee = income` (before net adjustments) and the cash identities are unchanged.
 - `trace_id`: hash of all inputs (profile, interventions, assumptions, weather, seed); same inputs = same result.
 
 ### Plan check, constraints and branch headline (core-1.1, #27, additive)
