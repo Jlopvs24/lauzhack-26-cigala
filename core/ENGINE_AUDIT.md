@@ -38,8 +38,10 @@ Synthetic UBS profiles are smoke checks, never calibration targets. See
 
 Four committed optimiser regression tests cover reproducibility, bounds, target
 and rule exclusions, materiality, and conflicting leave-one-target-out directions.
-The corrected item-8 branch passed 227 core/API tests, with five external UBS-kit
-tests skipped in that checkout, and `core.validation()` passed 6/6.
+The rebased item-8 head `67a9185` passed 250 core/API tests, with five external
+UBS-kit tests skipped in that checkout, and `core.validation()` passed 6/6.
+The equity-heavy scenario return is also labelled unverified: its 5.5% value
+is unchanged, but weighted asset CAGRs cannot verify a portfolio return.
 No new public contract is introduced by items 7-8; the additive contracts for
 items 1-6 are documented in `docs/contracts.md`.
 
