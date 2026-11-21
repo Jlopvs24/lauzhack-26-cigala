@@ -177,7 +177,7 @@ export async function createScene({ world, labels, onTagClick }) {
       }
       if (p.t.slot) cands.unshift(p.t.slot);
       let best = null;
-      const lo = p.t.w / 2 + 4, hi = W2 - p.t.w / 2 - 4; // a card is slid fully on screen, never dropped for touching an edge
+      const lo = p.t.w / 2 + 8, hi = W2 - p.t.w / 2 - 8; // a card is slid fully on screen, never dropped for touching an edge
       for (let [dx, dy] of cands) {
         const x = narrow ? p.x + dx : Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)), y = p.y + dy;
         dx = x - p.x;
@@ -190,11 +190,12 @@ export async function createScene({ world, labels, onTagClick }) {
       if (!best) { p.hidden = true; continue; }
       p.compact = false;
       const pri = PRIORITY[p.t.status] ?? 3;
-      if (best.cost > 0 && (pri > 0 || narrow)) {
+      if (best.cost > 0) {
         // no free slot: try the name only (a small pill) before fading a grey alternative, or before
         // letting an option overlap another card on a phone
         const small = (p.t.status === 'sibling' || p.t.status === 'child') && p.t.hc ? { ...p.t, h: p.t.hc } : null;
-        const fit = small && cands.map(([dx, dy]) => [dx, dy, rectAt(p.x + dx, p.y + dy, small)])
+        const fit = small && cands.map(([dx, dy]) => [narrow ? dx : Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)) - p.x, dy])
+          .map(([dx, dy]) => [dx, dy, rectAt(p.x + dx, p.y + dy, small)])
           .find(([dx, dy, r]) => r.top >= minY && r.bottom <= maxY + 40 && r.left >= 4 && r.right <= W2 - 4
             && !taken.some((q) => overlap(r, q)) && !fixed.some((q) => overlap(r, q)));
         if (fit) { p.compact = true; p.t.slot = null; p.x += fit[0]; p.y += fit[1]; taken.push(fit[2]); continue; }
