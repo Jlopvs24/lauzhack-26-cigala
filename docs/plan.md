@@ -57,7 +57,9 @@ An original little tree/sprout character, friendly and simple. It **never recomm
 
 UBS liked the idea. Their objection: **Monte Carlo as the engine is too easy and it predicts.** They want to **explore possibilities, not predict**. Monte Carlo may stay as an optional extra, not the core.
 
-New direction for the engine (owner: Lluc, see issue):
+The core idea is to **SIMULATE and EXPLORE** possible futures, not to predict one. Lluc owns the math and decides how; the points below are suggestions, not a spec.
+
+Suggestions for the engine (owner: Lluc, issue #21):
 - The core is **deterministic, explicit scenario exploration**: each branch is a fully specified "if this, then that" world, with every assumption visible and editable.
 - **Levers / what-ifs** on every node: change an assumption and see the whole visible tree recompute.
 - **"What would have to be true"** analyses instead of forecasts: break-even (what salary makes the master's pay off, and by when), goal-seeking (what savings rate reaches the goal), reverse stress test (what breaks this plan first), and timing / path dependence (same decision one or two years later).
