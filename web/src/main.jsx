@@ -20,7 +20,7 @@ import PathReport from './report/PathReport.jsx';
 import Verified from './Verified.jsx';
 import { MakeItMine, YourConditions, personalFields, personalStore, CHANGE_EVENT, applyFromChat } from './personalize/index.js';
 import WeatherControl from './weather/WeatherControl.jsx';
-import { CompareRoot, CompareOptionsButton, cardCompareHTML, cardStripEnabled, compareSiblings, compareStore, pinHTML } from './compare/index.js';
+import { CompareRoot, CompareOptionsButton, cardCompareHTML, cardStripEnabled, compareSiblings, compareStore, pinHTML, COMPARE_OPEN } from './compare/index.js';
 import { eventDetail, stormLine, stormSummary } from './weather/weatherModel.js';
 import { UI, LANGS } from './scene/i18n.js';
 import './app.css';
@@ -258,8 +258,17 @@ function App() {
     return () => removeEventListener(CHANGE_EVENT, on);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // a report opening stops Lumi at once (speech and any TTS in flight)
-  useEffect(() => { if (panel === 'report' || pathReport) voice.current?.stop(); }, [panel, pathReport]);
+  // #118: any view change silences Lumi at once (the sentence playing, TTS in flight and the prefetch queue), and
+  // an old bubble is never resumed: the report, the path report, a comparison, the portal / roots sheet, a Live
+  // call. Moving to another node goes through go(), which stops too and then narrates the new node.
+  const hush = () => { voice.current?.stop(); voice.current?.cancelPrefetch(); };
+  // only views that open (not the ones closing: begin() closes the sheet and narrates the root right after)
+  useEffect(() => { if (panel === 'report' || pathReport || sheet || !started) hush(); }, [panel === 'report', pathReport, sheet, started]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onLive = (e) => { if (e.detail?.active) hush(); };
+    addEventListener(COMPARE_OPEN, hush); addEventListener('lumi:live', onLive);
+    return () => { removeEventListener(COMPARE_OPEN, hush); removeEventListener('lumi:live', onLive); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // exploration only when the report is open, for the current node, cancelled when it changes
   const [explored, setExplored] = useState(null);
