@@ -462,8 +462,21 @@ def _template_from_core(S: dict) -> str:
 
 
 # ------------------------------------------------------------------ build
+def _template_only(template: str) -> dict:
+    return {"text": template, "mode": "template", "template": template, "cost_usd": 0.0, "model": "template",
+            "llm_summary": "POST /report/summary (same body) returns the LLM rewording when it is ready"}
+
+
+def llm_summary(report: dict, language: str = "en") -> dict:
+    """The grounded LLM rewording of a built report's template summary (frugal default model).
+    Every number must come from the template, else the template is returned."""
+    template = report["sections"]["summary"]["template"]
+    return _summary(report["sections"], language, template)
+
+
 def build_report(profile: dict | None, path: list[str], overrides: list[dict] | None = None,
-                 uncertainty: bool = False, language: str = "en") -> dict:
+                 uncertainty: bool = False, language: str = "en", with_llm: bool = False) -> dict:
+    """with_llm=False (default): no LLM in the request path; the summary is the deterministic template."""
     t0 = time.perf_counter()
     overrides = overrides or []
     path = [p for p in (path or []) if p and p != "0"]
@@ -473,7 +486,8 @@ def build_report(profile: dict | None, path: list[str], overrides: list[dict] | 
         data = report_data(profile, path, overrides, [], uncertainty=uncertainty)
         rep = _sections_from_core(data, body)
         engine_version = rep.pop("_engine_version", None)
-        summ = _summary(rep, language, _template_from_core(rep))
+        tmpl = _template_from_core(rep)
+        summ = _summary(rep, language, tmpl) if with_llm else _template_only(tmpl)
         return {
             "report_version": REPORT_VERSION, "source": "core.report_data", "engine_version": engine_version,
             "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -514,7 +528,7 @@ def build_report(profile: dict | None, path: list[str], overrides: list[dict] | 
         "validation": _validation(leaf_res, {"path": path, "assumptions": overrides, "uncertainty": uncertainty}),
         "limitations": LIMITATIONS,
     }
-    summ = _summary(rep, language)
+    summ = _summary(rep, language) if with_llm else _template_only(_template_summary(rep))
     rep = {"summary": summ, **rep}
     return {
         "report_version": REPORT_VERSION, "source": "api (derived from expand/simulate)",
