@@ -785,3 +785,25 @@ The agent has the tool `what_would_fix_it` (core.smallest_change) for "what woul
 |---|---|---|
 | `OPENROUTER_API_KEY` | api, multimodal | AXA key, USD 10 budget: log cost per call |
 | `TOGETHER_API_KEY` | api, multimodal | organizers' key |
+
+## Qualitative macro weather (#87, additive)
+
+`weather` also accepts `{type: "scenario", level: "pessimistic" | "neutral" | "optimistic"}`
+and `{type, level}` factors: `inflation` high/low, `fx` chf_strong/chf_weak,
+`markets` crash/boom, `jobs` weak/strong, `rates` up/down. Legacy events retain their
+meaning. Neutral has no effect. One level per factor/perspective is allowed;
+factors override their channel in the perspective irrespective of request order.
+Optional integer `start_month`/`duration_months` are supported, but no numeric
+magnitude overrides are accepted for these qualitative events.
+
+`weather_options` retains legacy string entries and adds metadata objects keyed
+`type:level`: `{id, type, level, label, description, defaults, assumptions,
+verified: false, source, sources}`. Resolved simulation `weather` records add
+`end_month`; `core.report_data` also exposes them as `weather_assumptions`.
+Use their labels/descriptions to explain the chosen conditions in the report.
+Internal magnitudes, durations, source context and limitations: `core/WEATHER.md`.
+Rates affect cash-savings interest only, not existing fixed-rate loans or pensions.
+
+The rail emits `weather:change` with the previous summary/holding/breaking fields.
+`weather` contains legacy aliases for the existing visual layer; `selected_weather`
+contains the actual qualitative request. Visual aliases are never engine inputs.

@@ -1,75 +1,71 @@
-// Weather on the tree (#65): toggle chips (from tree.weather_options) + a "when" slider and a
-// duration. The parent re-requests /tree/expand with `weather` so every visible card recomputes.
+// Left weather rail (#87). The engine owns every magnitude and every result.
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { W_I18N } from './weatherI18n.js';
-import { CLEAR, DURATION_MAX, START_MAX, WITH_DURATION, buildWeather, stormLine, stormSummary, toggle, weatherOptions } from './weatherModel.js';
+import { M_I18N, W_I18N } from './weatherI18n.js';
+import { MACRO_CLEAR, FACTORS, SCENARIOS, buildMacroWeather, macroOptions, selectScenario, toggleFactor } from './weatherModel.js';
 import './weather.css';
 
 const ICON = {
-  recession: 'M4 15a4 4 0 0 1 1-7.9A6 6 0 0 1 16.6 8 3.5 3.5 0 0 1 17 15H4Zm3 2-1 3m5-3-1 3m5-3-1 3',
-  inflation: 'M12 3c3 4 5 6 5 9a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.5 1 2.5 2 3 0-3 0-5 1-7.5Z',
-  market_crash: 'M3 5l6 6 4-4 8 8m0 0v-5m0 5h-5',
-  job_loss: 'M8 7V5h8v2m-12 0h16v12H4V7Zm5 5h6',
-  chf_strengthens: 'M12 19V5m0 0-5 5m5-5 5 5',
-  chf_weakens: 'M12 5v14m0 0-5-5m5 5 5-5',
+  pessimistic: 'M4 15a4 4 0 0 1 1-8 6 6 0 0 1 11 1 3.5 3.5 0 0 1 1 7H4m3 2-1 3m5-3-1 3m5-3-1 3',
+  neutral: 'M12 3v2M5 6l1 1m12-1-1 1M4 12H2m20 0h-2M9 15a5 5 0 1 1 8-5M5 20h13a3 3 0 0 0 0-6 5 5 0 0 0-9-1 3.5 3.5 0 0 0-4 7',
+  optimistic: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8m0-6v2m0 16v2M2 12h2m16 0h2M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2',
+  plus: 'M12 5v14M5 12h14', close: 'm6 6 12 12M18 6 6 18',
 };
+const Icon = ({ type }) => <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d={ICON[type]} /></svg>;
 
 export default function WeatherControl({ lang = 'en', tree, busy = false, onChange }) {
-  const L = W_I18N[lang] || W_I18N.en;
-  const [sel, setSel] = useState(CLEAR);
-  const applied = useRef(JSON.stringify([]));
-  const timer = useRef(null);
-  const ids = useId();
-  const opts = weatherOptions(tree, lang);
-
-  // commit after a short pause so a slider drag sends one request, not twenty
-  function commit(next, delay = 0) {
-    setSel(next);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      const w = buildWeather(next);
-      const key = JSON.stringify(w);
-      if (key === applied.current) return;
-      applied.current = key;
-      onChange?.(w);
-    }, delay);
-  }
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  if (!opts.length) return null;
-  const weather = buildWeather(sel);
-  const showDuration = sel.types.some((t) => WITH_DURATION.has(t));
-  const line = busy && weather.length ? L.recomputing : stormLine(lang, tree?.weather?.length ? tree.weather : [], stormSummary(tree));
-
-  return <section className={`wx ${weather.length ? 'wx-on' : ''}`} aria-labelledby={`${ids}-t`}>
-    <div className="wx-head">
-      <h2 className="wx-title" id={`${ids}-t`}>{L.title}</h2>
-      <button type="button" className="wx-clear" aria-pressed={!weather.length} onClick={() => commit(CLEAR)}>{L.clear}</button>
+  const L = M_I18N[lang] || M_I18N.en;
+  const W = W_I18N[lang] || W_I18N.en;
+  const [sel, setSel] = useState(MACRO_CLEAR), [open, setOpen] = useState(false);
+  const root = useRef(null), more = useRef(null);
+  const id = useId();
+  useEffect(() => {
+    const dock = document.querySelector('.chatp-dock-wrap');
+    const place = () => {
+      const rect = dock?.getBoundingClientRect();
+      const bottom = rect?.height ? Math.max(96, innerHeight - rect.top + 12) : 96;
+      root.current?.style.setProperty('--wx-phone-bottom', `${bottom}px`);
+    };
+    const observer = new ResizeObserver(place);
+    if (dock) observer.observe(dock);
+    addEventListener('resize', place); place();
+    return () => { observer.disconnect(); removeEventListener('resize', place); };
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e) => { if (!root.current?.contains(e.target)) setOpen(false); };
+    const escape = (e) => { if (e.key === 'Escape') { setOpen(false); more.current?.focus(); } };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [open]);
+  const commit = (next) => { setSel(next); onChange?.(buildMacroWeather(next)); };
+  if (!macroOptions(tree, 'scenario').length) return null;
+  return <aside className="wx-rail" ref={root} aria-label={L.title} data-layout-obstacle>
+    <div className="wx-perspectives" role="group" aria-label={L.title}>
+      {SCENARIOS.map((level) => <button key={level} type="button" className="wx-icon" disabled={busy}
+        aria-label={L.labels[`scenario:${level}`]} aria-describedby={`${id}-${level}`} aria-pressed={sel.scenario === level}
+        onClick={() => commit(selectScenario(level))}>
+        <Icon type={level} /><span className="wx-tip" aria-hidden="true">{L.labels[`scenario:${level}`]}</span>
+        <span className="sr-only" id={`${id}-${level}`}>{L.descriptions[level]}</span>
+      </button>)}
     </div>
-    <div className="wx-chips" role="group" aria-label={L.group}>
-      {opts.map((o) => {
-        const on = sel.types.includes(o.type);
-        return <button key={o.type} type="button" className="wx-chip" aria-pressed={on} title={o.description}
-          aria-describedby={`${ids}-${o.type}`} onClick={() => commit(toggle(sel, o.type))}>
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={ICON[o.type] || 'M12 4v16M4 12h16'} /></svg>
-          <span>{o.label}</span>
-          <span className="sr-only" id={`${ids}-${o.type}`}>{o.description}</span>
-        </button>;
-      })}
-    </div>
-    {weather.length > 0 && <div className="wx-sliders">
-      <label className="wx-range">
-        <span>{L.when(sel.start + 1)}</span>
-        <input type="range" min="0" max={START_MAX} step="1" value={sel.start}
-          aria-valuetext={L.when(sel.start + 1)} onChange={(e) => commit({ ...sel, start: Number(e.target.value) }, 400)} />
-      </label>
-      {showDuration && <label className="wx-range">
-        <span>{sel.duration == null ? L.defaultLasts : L.lasts(sel.duration)}</span>
-        <input type="range" min="1" max={DURATION_MAX} step="1" value={sel.duration ?? 18}
-          aria-valuetext={sel.duration == null ? L.defaultLasts : L.lasts(sel.duration)}
-          onChange={(e) => commit({ ...sel, duration: Number(e.target.value) }, 400)} />
-      </label>}
-    </div>}
-    {line && <p className="wx-line" role="status" aria-live="polite">{line}</p>}
-  </section>;
+    <button ref={more} type="button" className="wx-icon wx-more" aria-label={open ? L.close : L.more}
+      aria-expanded={open} aria-controls={`${id}-factors`} onClick={() => setOpen(!open)}>
+      <Icon type={open ? 'close' : 'plus'} />
+      <span className="wx-tip" aria-hidden="true">{open ? L.close : L.more}</span>
+      {!!Object.keys(sel.factors).length && <span className="wx-custom" aria-hidden="true" />}
+    </button>
+    <span className="sr-only" role="status" aria-live="polite">{busy ? W.recomputing : L.condition(
+      [L.labels[`scenario:${sel.scenario}`], ...Object.entries(sel.factors).map(([type, level]) => L.labels[`${type}:${level}`])].join(', '))}</span>
+    {open && <section className="wx-factors" id={`${id}-factors`} aria-label={L.more} data-layout-obstacle>
+      <header><h2>{L.more}</h2><button type="button" className="wx-reset" disabled={busy} onClick={() => commit(MACRO_CLEAR)}>{L.reset}</button></header>
+      {FACTORS.map((type, i) => <fieldset key={type} disabled={busy}>
+        <legend>{L.groups[i]}</legend><div className="wx-pair">
+          {macroOptions(tree, type).map((o) => <button key={o.level} type="button" aria-pressed={sel.factors[type] === o.level}
+            onClick={() => commit(toggleFactor(sel, type, o.level))}>{L.labels[o.id] || o.label}</button>)}
+        </div>
+      </fieldset>)}
+      <p>{L.note}</p>
+    </section>}
+  </aside>;
 }

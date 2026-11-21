@@ -2,7 +2,7 @@
 // Pure helpers (tested with node --test). The engine computes every number; this file only
 // builds the request, counts which options still hold (from each node's plan_check) and words
 // it conditionally ("if a recession starts in month 12…"), never as a forecast.
-import { W_I18N } from './weatherI18n.js';
+import { W_I18N, M_I18N } from './weatherI18n.js';
 
 export const KNOWN = ['recession', 'inflation', 'market_crash', 'job_loss', 'chf_strengthens', 'chf_weakens'];
 // weathers that take a duration (months); the others are one-off (crash) or last to the horizon (FX)
@@ -20,7 +20,7 @@ const wl = (lang) => W_I18N[lang] || W_I18N.en;
 /** Chips from the engine's catalog (`tree.weather_options`: {type: description}); known order first. */
 export function weatherOptions(tree, lang = 'en') {
   const opts = tree?.weather_options || {};
-  const types = [...KNOWN.filter((k) => k in opts), ...Object.keys(opts).filter((k) => !KNOWN.includes(k))];
+  const types = [...KNOWN.filter((k) => k in opts), ...Object.keys(opts).filter((k) => !KNOWN.includes(k) && !k.includes(':'))];
   const L = wl(lang);
   return types.map((type) => ({ type, label: L.names[type] || type.replace(/_/g, ' '), description: L.descriptions[type] || opts[type] || '' }));
 }
@@ -75,6 +75,11 @@ function joinList(items, and) {
 export function stormLine(lang, weather, summary) {
   if (!weather?.length) return null;
   const L = wl(lang);
+  if (weather.some((w) => w.level)) {
+    const labels = weather.map((w) => M_I18N[lang]?.labels[`${w.type}:${w.level}`] || M_I18N.en.labels[`${w.type}:${w.level}`] || L.names[w.type] || w.type);
+    const condition = (M_I18N[lang] || M_I18N.en).condition(joinList(labels, L.and));
+    return !summary?.of ? condition : `${condition}${L.sep}${L.holdCount(summary.held, summary.of)}`;
+  }
   const what = joinList(weather.map((w) => L.phrase[w.type] || w.type), L.and);
   const month = (weather[0].start_month ?? 0) + 1;
   const cond = L.ifStarts(what, month, weather.length > 1);
@@ -86,7 +91,7 @@ export function stormLine(lang, weather, summary) {
 export function eventDetail(weather, tree, pending) {
   const s = pending || !tree ? null : stormSummary(tree);
   return {
-    weather, intensity: intensity(weather), clear: !weather.length, pending: !!pending,
+    weather: visualWeather(weather), selected_weather: weather, intensity: intensity(visualWeather(weather)), clear: !weather.length, pending: !!pending,
     start_month: weather[0]?.start_month ?? null,
     holds: s ? { held: s.held, of: s.of } : null,
     holding_node_ids: s ? s.holding : [], breaking_node_ids: s ? s.breaking : [],
@@ -95,4 +100,36 @@ export function eventDetail(weather, tree, pending) {
 
 export function sameWeather(a, b) {
   return JSON.stringify(a || []) === JSON.stringify(b || []);
+}
+
+// Qualitative requests contain no numeric controls; only the engine assigns magnitudes.
+export const MACRO_CLEAR = Object.freeze({ scenario: 'neutral', factors: {} });
+export const FACTORS = ['inflation', 'fx', 'markets', 'jobs', 'rates'];
+export const SCENARIOS = ['pessimistic', 'neutral', 'optimistic'];
+export function selectScenario(level) {
+  return { scenario: level, factors: {} };
+}
+export function toggleFactor(sel, type, level) {
+  const factors = { ...sel.factors };
+  if (factors[type] === level) delete factors[type];
+  else factors[type] = level;
+  return { ...sel, factors };
+}
+export function buildMacroWeather(sel) {
+  return [...(sel.scenario === 'neutral' ? [] : [{ type: 'scenario', level: sel.scenario }]),
+    ...FACTORS.filter((type) => sel.factors[type]).map((type) => ({ type, level: sel.factors[type] }))];
+}
+export function macroOptions(tree, type) {
+  return Object.values(tree?.weather_options || {}).filter((o) => o && typeof o === 'object' && o.type === type && o.level);
+}
+export function visualWeather(weather) {
+  const aliases = { 'scenario:pessimistic': ['recession', 'inflation'], 'scenario:neutral': [], 'scenario:optimistic': [],
+    'inflation:high': ['inflation'], 'inflation:low': [], 'fx:chf_strong': ['chf_strengthens'], 'fx:chf_weak': ['chf_weakens'],
+    'markets:crash': ['market_crash'], 'markets:boom': [], 'jobs:weak': ['recession'], 'jobs:strong': [], 'rates:up': [], 'rates:down': [] };
+  const out = [];
+  for (const w of weather || []) {
+    const types = w.level ? aliases[`${w.type}:${w.level}`] || [] : [w.type];
+    for (const type of types) if (!(type === 'inflation' && w.type === 'scenario' && weather.some((e) => e.type === 'inflation' && e.level === 'low')) && !out.some((e) => e.type === type)) out.push({ ...w, type });
+  }
+  return out;
 }

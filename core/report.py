@@ -147,6 +147,7 @@ def report_data(profile: dict | None = None, path: list[str] | str | None = None
                  "monthly_surplus": [round(a - b, 2) for a, b in zip(
                      leaf_res["deterministic"]["cash"][1:], leaf_res["deterministic"]["cash"][:-1])]},
         "stress": stress,
+        "weather_assumptions": leaf_res["weather"],
         "uncertainty": lens,
         "validation": {"checks": leaf_res["checks"], "seed": seed, "engine_version": ENGINE_VERSION,
                        "trace_id": leaf_res["trace_id"],

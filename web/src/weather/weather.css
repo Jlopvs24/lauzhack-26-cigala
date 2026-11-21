@@ -1,37 +1,47 @@
-/* Weather control (#65). Theme tokens come from app.css (--card-*); light and dark follow data-theme. */
-.wx {
-  --wx-on: #3e6b3a;
-  --wx-on-ink: #f7f4ec;
-  position: fixed; top: 76px; left: 28px; z-index: 5;
-  width: min(380px, calc(100vw - 56px));
-  padding: 12px 14px; border-radius: 16px;
-  background: var(--card-bg); color: var(--card-ink);
-  border: 1px solid var(--card-line);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(8px);
-  font-size: 13px;
+/* Weather rail: the existing card palette follows the app's light/dark theme. */
+.wx-rail {
+  --wx-on: #3e6b3a; --wx-on-ink: #f7f4ec;
+  position: fixed; top: 50%; left: max(18px, env(safe-area-inset-left)); transform: translateY(-50%);
+  z-index: 18; display: grid; gap: 10px; color: var(--card-ink); font-size: 13px;
 }
-:root[data-theme="dark"] .wx { --wx-on: #c6e3a3; --wx-on-ink: #14201a; }
-.wx-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.wx-title { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--card-muted); }
-.wx-clear, .wx-chip {
-  font: inherit; color: inherit; cursor: pointer;
-  border: 1px solid var(--card-line); background: transparent; border-radius: 999px;
-  transition: background-color 160ms ease, color 160ms ease, transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
+:root[data-theme="dark"] .wx-rail { --wx-on: #c6e3a3; --wx-on-ink: #14201a; }
+.wx-perspectives, .wx-more { background: var(--card-bg); border-radius: 16px; box-shadow: 0 6px 22px rgba(0,0,0,.16); }
+.wx-perspectives { display: grid; padding: 5px; gap: 3px; }
+.wx-icon { position: relative; display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  border: 0; border-radius: 11px; background: transparent; color: inherit; cursor: pointer; }
+.wx-icon svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.wx-icon[aria-pressed="true"] { background: var(--wx-on); color: var(--wx-on-ink); }
+.wx-more { margin: auto; }
+.wx-icon, .wx-pair button, .wx-reset { transition: background-color 160ms ease-out, color 160ms ease-out, transform 120ms ease-out; }
+.wx-icon:active, .wx-pair button:active { transform: scale(.96); }
+.wx-icon:focus-visible, .wx-pair button:focus-visible, .wx-reset:focus-visible { outline: 2px solid var(--card-ink); outline-offset: 3px; }
+.wx-icon:disabled, .wx-pair button:disabled, .wx-reset:disabled { cursor: wait; opacity: .55; }
+.wx-tip { position: absolute; left: calc(100% + 14px); top: 50%; transform: translateY(-50%); pointer-events: none;
+  white-space: nowrap; padding: 7px 10px; border-radius: 8px; background: var(--card-bg); color: var(--card-ink);
+  box-shadow: 0 4px 12px rgba(0,0,0,.14); opacity: 0; visibility: hidden; transition: opacity 120ms ease-out; }
+.wx-custom { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; background: var(--wx-on); border-radius: 50%; }
+.wx-factors { position: absolute; left: calc(100% + 14px); bottom: 0; width: min(330px, calc(100vw - 100px));
+  max-height: calc(100dvh - 160px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 18px; border-radius: 16px; background: var(--card-bg); box-shadow: 0 8px 28px rgba(0,0,0,.2); }
+.wx-factors header { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.wx-factors h2 { font: inherit; font-weight: 600; margin: 0; }
+.wx-reset { font: inherit; font-size: 11px; color: var(--card-muted); border: 0; background: transparent; cursor: pointer; padding: 0; text-align: right; }
+.wx-factors fieldset { margin: 0 0 14px; padding: 0; border: 0; min-width: 0; }
+.wx-factors legend { padding: 0; margin-bottom: 7px; color: var(--card-muted); font-size: 12px; }
+.wx-pair { display: flex; gap: 6px; }
+.wx-pair button { flex: 1; min-width: 0; min-height: 40px; padding: 7px 9px; font: inherit; text-align: center; cursor: pointer;
+  color: var(--card-ink); border: 1px solid var(--card-line); background: transparent; border-radius: 9px; }
+.wx-pair button[aria-pressed="true"] { color: var(--wx-on-ink); background: var(--wx-on); border-color: transparent; }
+.wx-factors p { margin: 16px 0 0; color: var(--card-muted); font-size: 12px; line-height: 1.5; }
+@media (hover: hover) {
+  .wx-icon:hover:not(:disabled):not([aria-pressed="true"]), .wx-pair button:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--card-line); }
+  .wx-icon:hover .wx-tip { opacity: 1; visibility: visible; transition-delay: 200ms; }
 }
-.wx-clear { padding: 3px 10px; font-size: 12px; color: var(--card-muted); }
-.wx-clear[aria-pressed="true"] { color: var(--card-ink); border-color: currentColor; }
-.wx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.wx-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; min-height: 32px; }
-.wx-chip svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-.wx-chip[aria-pressed="true"] { background: var(--wx-on); color: var(--wx-on-ink); border-color: var(--wx-on); }
-.wx-chip:active, .wx-clear:active { transform: scale(0.97); }
-.wx-chip:focus-visible, .wx-clear:focus-visible, .wx-range input:focus-visible { outline: 2px solid var(--card-ink); outline-offset: 2px; }
-.wx-sliders { display: grid; gap: 6px; margin-top: 10px; }
-.wx-range { display: grid; gap: 2px; color: var(--card-muted); font-variant-numeric: tabular-nums; }
-.wx-range input { width: 100%; accent-color: var(--wx-on); }
-.wx-line { margin: 10px 0 0; color: var(--card-ink); font-weight: 500; }
+.wx-icon:focus-visible .wx-tip { opacity: 1; visibility: visible; }
 @media (max-width: 720px) {
-  .wx { top: 64px; left: 16px; width: calc(100vw - 32px - var(--chat-panel-w, 0px)); padding: 10px 12px; }
+  .wx-rail { top: auto; bottom: max(var(--wx-phone-bottom, 96px), calc(env(safe-area-inset-bottom) + 84px)); left: max(10px, env(safe-area-inset-left)); transform: none; gap: 6px; }
+  .wx-perspectives { padding: 3px; gap: 0; border-radius: 13px; }
+  .wx-factors { position: fixed; top: calc(var(--top-h, 76px) + 12px); bottom: var(--wx-phone-bottom, 96px); left: 68px; width: calc(100vw - 86px); padding: 14px; max-height: none; }
+  .wx-tip { font-size: 12px; }
 }
-@media (prefers-reduced-motion: reduce) { .wx-chip, .wx-clear { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wx-icon, .wx-pair button, .wx-reset, .wx-tip { transition: none; } }
