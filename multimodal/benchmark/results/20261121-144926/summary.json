@@ -1,0 +1,476 @@
+{
+  "meta": {
+    "run_id": "20261121-144926",
+    "n_docs": 12,
+    "strategies": [
+      "frugal",
+      "vlm_small",
+      "vlm_large"
+    ],
+    "models": {
+      "frugal": "local OCR + mistralai/mistral-small-24b-instruct-2501 (+google/gemini-2.5-flash-lite on failed checks)",
+      "ocr_llm": "local OCR + mistralai/mistral-small-24b-instruct-2501",
+      "vlm_small": "google/gemma-3-12b-it",
+      "vlm_large": "anthropic/claude-fable-5.2"
+    },
+    "spend_this_run_usd": 0.350654
+  },
+  "summary": {
+    "frugal": {
+      "all": {
+        "n": 12,
+        "field_accuracy": 1.0,
+        "key_field_accuracy": 1.0,
+        "doc_type_accuracy": 1,
+        "usd_per_doc": 5.6519166666666666e-05,
+        "usd_total": 0.00067823,
+        "latency_p50_s": 5.71,
+        "latency_mean_s": 5.99,
+        "escalation_rate": 0.167,
+        "errors": 0
+      },
+      "variant": {
+        "lowres": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00012039666666666667,
+          "usd_total": 0.00036119,
+          "latency_p50_s": 8.89,
+          "latency_mean_s": 7.41,
+          "escalation_rate": 0.667,
+          "errors": 0
+        },
+        "pdf": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.736e-05,
+          "usd_total": 0.00011208,
+          "latency_p50_s": 2.73,
+          "latency_mean_s": 2.69,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "photo": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.5413333333333335e-05,
+          "usd_total": 0.00010624000000000001,
+          "latency_p50_s": 6.39,
+          "latency_mean_s": 7.53,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "scan": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.290666666666667e-05,
+          "usd_total": 9.872e-05,
+          "latency_p50_s": 6.24,
+          "latency_mean_s": 6.34,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "doc_type": {
+        "bank_statement": {
+          "n": 4,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 7.426000000000001e-05,
+          "usd_total": 0.00029704000000000004,
+          "latency_p50_s": 4.56,
+          "latency_mean_s": 5.14,
+          "escalation_rate": 0.25,
+          "errors": 0
+        },
+        "payslip": {
+          "n": 4,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.24075e-05,
+          "usd_total": 0.00012963,
+          "latency_p50_s": 5.02,
+          "latency_mean_s": 6.43,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "rental_contract": {
+          "n": 4,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 6.289e-05,
+          "usd_total": 0.00025156,
+          "latency_p50_s": 6.91,
+          "latency_mean_s": 6.4,
+          "escalation_rate": 0.25,
+          "errors": 0
+        }
+      },
+      "lang": {
+        "de": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.4773333333333335e-05,
+          "usd_total": 0.00010432,
+          "latency_p50_s": 4.36,
+          "latency_mean_s": 4.35,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "en": {
+          "n": 2,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00010352500000000001,
+          "usd_total": 0.00020705000000000002,
+          "latency_p50_s": 5.94,
+          "latency_mean_s": 5.94,
+          "escalation_rate": 0.5,
+          "errors": 0
+        },
+        "fr": {
+          "n": 4,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.4165e-05,
+          "usd_total": 0.00013666,
+          "latency_p50_s": 6.23,
+          "latency_mean_s": 6.63,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "it": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 7.673333333333333e-05,
+          "usd_total": 0.0002302,
+          "latency_p50_s": 6.39,
+          "latency_mean_s": 6.82,
+          "escalation_rate": 0.333,
+          "errors": 0
+        }
+      }
+    },
+    "vlm_small": {
+      "all": {
+        "n": 12,
+        "field_accuracy": 0.7664,
+        "key_field_accuracy": 0.7222,
+        "doc_type_accuracy": 1,
+        "usd_per_doc": 0.00013135,
+        "usd_total": 0.0015762,
+        "latency_p50_s": 4.52,
+        "latency_mean_s": 4.02,
+        "escalation_rate": 0,
+        "errors": 0
+      },
+      "variant": {
+        "lowres": {
+          "n": 3,
+          "field_accuracy": 0.6746,
+          "key_field_accuracy": 0.2222,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 9.07e-05,
+          "usd_total": 0.0002721,
+          "latency_p50_s": 4.49,
+          "latency_mean_s": 4.07,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "pdf": {
+          "n": 3,
+          "field_accuracy": 0.6726,
+          "key_field_accuracy": 0.7778,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001289,
+          "usd_total": 0.0003867,
+          "latency_p50_s": 4.08,
+          "latency_mean_s": 3.88,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "photo": {
+          "n": 3,
+          "field_accuracy": 0.8016,
+          "key_field_accuracy": 0.8889,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 8.855000000000001e-05,
+          "usd_total": 0.00026565000000000003,
+          "latency_p50_s": 4.7,
+          "latency_mean_s": 4.78,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "scan": {
+          "n": 3,
+          "field_accuracy": 0.9167,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00021725,
+          "usd_total": 0.00065175,
+          "latency_p50_s": 2.71,
+          "latency_mean_s": 3.34,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "doc_type": {
+        "bank_statement": {
+          "n": 4,
+          "field_accuracy": 0.6429,
+          "key_field_accuracy": 0.6667,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001067875,
+          "usd_total": 0.00042715,
+          "latency_p50_s": 3.53,
+          "latency_mean_s": 3.54,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "payslip": {
+          "n": 4,
+          "field_accuracy": 0.875,
+          "key_field_accuracy": 0.75,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00010585,
+          "usd_total": 0.0004234,
+          "latency_p50_s": 4.61,
+          "latency_mean_s": 4.7,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "rental_contract": {
+          "n": 4,
+          "field_accuracy": 0.7812,
+          "key_field_accuracy": 0.75,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001814125,
+          "usd_total": 0.00072565,
+          "latency_p50_s": 3.65,
+          "latency_mean_s": 3.81,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "lang": {
+        "de": {
+          "n": 3,
+          "field_accuracy": 0.746,
+          "key_field_accuracy": 0.5556,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001268,
+          "usd_total": 0.00038040000000000003,
+          "latency_p50_s": 2.97,
+          "latency_mean_s": 3.36,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "en": {
+          "n": 2,
+          "field_accuracy": 0.8661,
+          "key_field_accuracy": 0.8333,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.000167125,
+          "usd_total": 0.00033425,
+          "latency_p50_s": 3.5,
+          "latency_mean_s": 3.5,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "fr": {
+          "n": 4,
+          "field_accuracy": 0.7887,
+          "key_field_accuracy": 0.9167,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001481125,
+          "usd_total": 0.00059245,
+          "latency_p50_s": 4.31,
+          "latency_mean_s": 4.11,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "it": {
+          "n": 3,
+          "field_accuracy": 0.6905,
+          "key_field_accuracy": 0.5556,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 8.97e-05,
+          "usd_total": 0.0002691,
+          "latency_p50_s": 4.7,
+          "latency_mean_s": 4.89,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      }
+    },
+    "vlm_large": {
+      "all": {
+        "n": 12,
+        "field_accuracy": 0.9896,
+        "key_field_accuracy": 1.0,
+        "doc_type_accuracy": 1,
+        "usd_per_doc": 0.02903333333333333,
+        "usd_total": 0.3484,
+        "latency_p50_s": 5.83,
+        "latency_mean_s": 5.85,
+        "escalation_rate": 0,
+        "errors": 0
+      },
+      "variant": {
+        "lowres": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.017082666666666666,
+          "usd_total": 0.051248,
+          "latency_p50_s": 5.8,
+          "latency_mean_s": 5.73,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "pdf": {
+          "n": 3,
+          "field_accuracy": 0.9583,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.034176,
+          "usd_total": 0.102528,
+          "latency_p50_s": 5.53,
+          "latency_mean_s": 5.8,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "photo": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.030658666666666664,
+          "usd_total": 0.091976,
+          "latency_p50_s": 5.85,
+          "latency_mean_s": 5.52,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "scan": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.034216,
+          "usd_total": 0.102648,
+          "latency_p50_s": 6.35,
+          "latency_mean_s": 6.33,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "doc_type": {
+        "bank_statement": {
+          "n": 4,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.029898,
+          "usd_total": 0.119592,
+          "latency_p50_s": 5.81,
+          "latency_mean_s": 5.65,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "payslip": {
+          "n": 4,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.027282,
+          "usd_total": 0.109128,
+          "latency_p50_s": 5.83,
+          "latency_mean_s": 5.86,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "rental_contract": {
+          "n": 4,
+          "field_accuracy": 0.9688,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.02992,
+          "usd_total": 0.11968,
+          "latency_p50_s": 5.93,
+          "latency_mean_s": 6.04,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "lang": {
+        "de": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.027234666666666667,
+          "usd_total": 0.081704,
+          "latency_p50_s": 5.53,
+          "latency_mean_s": 5.61,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "en": {
+          "n": 2,
+          "field_accuracy": 0.9375,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0265,
+          "usd_total": 0.053,
+          "latency_p50_s": 5.06,
+          "latency_mean_s": 5.06,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "fr": {
+          "n": 4,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.032898,
+          "usd_total": 0.131592,
+          "latency_p50_s": 6.1,
+          "latency_mean_s": 5.8,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "it": {
+          "n": 3,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.027368,
+          "usd_total": 0.082104,
+          "latency_p50_s": 6.78,
+          "latency_mean_s": 6.67,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      }
+    }
+  }
+}

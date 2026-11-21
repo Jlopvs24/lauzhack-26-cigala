@@ -1,0 +1,9 @@
+pillow
+reportlab
+pypdfium2
+rapidocr-onnxruntime
+opencv-python-headless
+numpy
+httpx
+pydantic
+python-dotenv
