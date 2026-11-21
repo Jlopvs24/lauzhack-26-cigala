@@ -27,7 +27,9 @@ def first_negative(cash_row: np.ndarray) -> int | None:
 
 def goal_value(out: RunOutput, goal_metric: str, k: int) -> np.ndarray:
     liquid = out.cash[:, k] + out.investments[:, k]
-    return liquid - out.debt[k] if goal_metric == "net_worth" else liquid
+    if goal_metric == "net_worth":  # net worth counts the locked 3a balance, liquid does not
+        return liquid + out.pillar_3a[:, k] - (out.debt[..., k] if out.debt.ndim == 2 else out.debt[k])
+    return liquid
 
 
 def evaluate_goals(profile: Profile, det: RunOutput, mc: RunOutput | None) -> list[dict]:
@@ -36,7 +38,8 @@ def evaluate_goals(profile: Profile, det: RunOutput, mc: RunOutput | None) -> li
         k = g.target_month + 1  # balance at END of target month
         dv = float(goal_value(det, g.metric, k)[0])
         mv = goal_value(mc, g.metric, k) if mc is not None else None
-        liquid_det = det.cash[0, 1:] + det.investments[0, 1:] - (det.debt[1:] if g.metric == "net_worth" else 0)
+        liquid_det = det.cash[0, 1:] + det.investments[0, 1:] + (
+            det.pillar_3a[0, 1:] - det.debt[1:] if g.metric == "net_worth" else 0)
         reached = np.nonzero(liquid_det >= g.target)[0]
         res.append({
             "name": g.name, "target": r2(g.target), "target_month": g.target_month, "priority": g.priority,
@@ -148,11 +151,15 @@ def checks(det: RunOutput, mc: RunOutput, used_assumptions: list[dict]) -> list[
     c, i, d = det.cash[0], det.investments[0], det.debt
     cash_resid = np.diff(c) - (f["income"] - f["income_tax"] - f["living_expenses"] - f["one_off_cost"]
                                + f["one_off_income"] - f["debt_payment"] + f["loan_proceeds"]
-                               + f["cash_interest"] - f["contribution"] + f["withdrawal"])
+                               + f["cash_interest"] - f["contribution"] + f["withdrawal"]
+                               - f["pillar_3a_contribution"])
     nw = det.net_worth[0]
     nw_resid = np.diff(nw) - (f["income"] - f["income_tax"] - f["living_expenses"] - f["one_off_cost"]
-                              + f["one_off_income"] - f["debt_interest"] + f["cash_interest"] + f["investment_return"])
-    bs_resid = nw - (c + i - d)
+                              + f["one_off_income"] - f["debt_interest"] + f["cash_interest"] + f["investment_return"]
+                              + f["pillar_3a_return"])
+    p3 = det.pillar_3a[0]
+    bs_resid = nw - (c + i + p3 - d)
+    p3_resid = np.diff(p3) - (f["pillar_3a_contribution"] + f["pillar_3a_return"])
     inv_resid = np.diff(i) - (f["investment_return"] + f["contribution"] - f["withdrawal"])
     p = np.percentile(mc.net_worth, [10, 50, 90], axis=0)
     out = [
@@ -160,7 +167,9 @@ def checks(det: RunOutput, mc: RunOutput, used_assumptions: list[dict]) -> list[
              "Closing cash = opening cash + all cash flows, every month"),
         _chk("net_worth_change_identity", np.max(np.abs(nw_resid)),
              "Change in net worth = income - tax - expenses - interest + returns (transfers cancel out)"),
-        _chk("balance_sheet_identity", np.max(np.abs(bs_resid)), "Net worth = cash + investments - debt"),
+        _chk("balance_sheet_identity", np.max(np.abs(bs_resid)), "Net worth = cash + investments + pillar 3a - debt"),
+        _chk("pillar_3a_account_identity", np.max(np.abs(p3_resid)),
+             "The pillar 3a account moves only by payments and its return (locked: no withdrawals)"),
         _chk("investment_account_identity", np.max(np.abs(inv_resid)),
              "Investments move only by returns, contributions and withdrawals"),
         {"name": "debt_never_negative", "passed": bool(np.min(d) >= -TOL), "detail": f"min debt {np.min(d):.2f}"},

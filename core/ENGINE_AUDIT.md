@@ -96,7 +96,7 @@ Counts (from the files): 15 default assumptions (7 verified, 8 not), 24 tree ass
    (professional expenses, insurance, 3a), the table is not from the official ESTV calculator,
    and tax is paid in the month the income arrives, while Swiss residents pay provisional
    instalments and settle a year later (a cash-timing effect that matters right after studies).
-3. **No pillar 2 / 3a.** Retirement saving is the most "Swiss" part of personal finance and is
+3. **No pillar 2 / 3a** (pillar 2 since #48 item 2, 3a since #48 item 4). Retirement saving is the most "Swiss" part of personal finance and is
    absent: no BVG savings as a (non-liquid) asset, no 3a contribution lever with its tax
    deduction. A judge from UBS will likely ask "what about 3a?".
 4. **Move abroad ignores currency and foreign rules.** Salary and costs are CHF at a constant
@@ -135,7 +135,7 @@ T = transparency 10) against effort (S < 1 h, M 1-3 h, L > 3 h). Ranked for toni
 | 0 | ✅ Income basis made explicit (`income_basis`: net_before_tax / take_home), #48 item 1 | C+ T++ | S | done |
 | 1 | ✅ Payroll layer: gross → net with AHV/IV/EO, ALV, NBU, BVG (#48 item 2) | C+++ T+ | M | done; see the design note for what changed |
 | 2 | ✅ Tax by city/canton/household + abroad tax, ESTV 2026 tables (#48 item 3); arrears timing not done | C+++ | M-L | done; see the design note |
-| 3 | Pillar 3a lever (+ tax deduction, locked asset) | C++ E++ | M | a new, very Swiss what-if per decision |
+| 3 | ✅ Pillar 3a lever (+ tax deduction, locked asset), #48 item 4 | C++ E++ | M | done; see the design note |
 | 4 | Combined decisions + 2-lever surfaces + constraint-targeted search | E+++ | M | "what if master's AND share a flat", "what salary AND rent keep the plan feasible" |
 | 5 | Currency for move abroad (EUR + EURCHF path + FX weather) | C++ E+ | M | the abroad branch becomes defensible |
 | 6 | Unemployment eligibility, cap, 520 days, inflow hazard | C+ | S-M | cheap, fixes a known conceptual error |
@@ -200,6 +200,24 @@ now matched by construction (item 7).
 **3. Pillar 3a lever.** Intervention `pillar_3a` (monthly amount, capped at the annual maximum),
 moved from cash to a locked `pension` balance with its own return; reduces taxable income in the
 year. Exploration gains "3a vs invest vs cash" as levers and a goal-seek on the contribution.
+
+*Done (#48 item 4):* the lever is a series param `monthly_pillar_3a` (profile field and
+intervention), so it combines with everything else and the timing analysis delays it. Each month,
+before the investment contribution, the engine pays min(plan, what is left of the calendar
+year's cap, cash available); the cap is CHF 7,258 with a pension fund, else 20% of earned income
+up to CHF 36,288 (Art. 7 BVV 3, 2026; verified); only in months with income. The month's tax is
+recomputed on net − 3a, so the saving is consistent with the residence tables (#48 item 3); the
+informational flow `pillar_3a_tax_saving` reports it. The 3a account earns `AS-3a-return` (1%,
+unverified, deterministic) and is locked: in net worth, not in liquidity, the liquid buffer or
+liquid goals; new identity `pillar_3a_account_identity`. Exploration gains `pillar_3a`: the
+node's cap/12 paid into 3a vs invested vs kept in cash (instead of any planned 3a), and a
+goal-seek on the largest monthly 3a that still meets every dated goal. `assets` of type
+`pension_3a` moved from investments to the 3a balance. **Decision on pillar 2:** BVG savings stay
+out of net worth (mandatory, not a lever, paid at retirement), shown in `payroll.bvg_balance`.
+Simplifications: caps not indexed over the horizon; no 3a withdrawals (home, leaving
+Switzerland, self-employment, retirement); contributions spread over months (a December lump sum
+gets the same deduction only approximately); the earned-income cap uses net income when no gross
+salary is given.
 
 **4. Richer exploration.** (a) `combine(node_a, node_b)` = interventions of both paths (the
 engine already accepts custom nodes on any parent), with conflict rules (later wins, listed);
