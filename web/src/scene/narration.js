@@ -37,11 +37,19 @@ export function storyFor(data, lang, who = 'Alexia') {
 
 // Returns {text, speak}: the bubble text and what to say aloud. A node already narrated in this
 // language (and profile) shows its bubble again but only says "Back at …".
+// bubbles stay short (3 sentences): what it is, the key numbers, the closing invitation to choose
+export function brief(text) {
+  const p = String(text || '').split(/(?<=[.!?…])\s+/).filter(Boolean);
+  if (p.length <= 3) return text;
+  const mid = p.slice(1, -1).find((x) => /\d/.test(x)) || p[1]; // the sentence with the numbers that matter
+  return [p[0], mid, p.at(-1)].join(' ');
+}
+
 export function createNarrator() {
   const done = new Set();
   return {
     next(data, lang, profileKey = 'demo', who) {
-      const text = storyFor(data, lang, who);
+      const text = brief(storyFor(data, lang, who));
       const key = `${lang}|${profileKey}|${data.current}`;
       if (!done.has(key)) { done.add(key); return { text, speak: text, revisit: false }; }
       const cur = data.nodes.find((n) => n.node_id === data.current), c = translateNode(cur, lang);
