@@ -119,3 +119,12 @@ python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 2
 - Responses of `/tree/expand`, `/tree/explore` and `/report` are cached per worker (LRU of 256, `API_CACHE_ITEMS`).
 - The streaming agent uses `AGENT_STREAM_MODEL` (default `anthropic/claude-haiku-5.5`, fastest first token measured:
   ~1.3 s), falling back to the normal chain.
+
+## LLM budget guard
+
+Every paid LLM call (agent, stream, report summary, personalize, server STT) checks today's spend, summed from
+`api/usage.jsonl` across all workers. At `LLM_DAILY_BUDGET_USD` (default 2.0) calls are refused and every route
+falls back to its template or clarifying question. Engine routes and local TTS are never affected. `GET /usage`
+and `GET /health` show `budget` / `llm_budget` `{daily_limit_usd, spent_today_usd, remaining_usd, exceeded}`.
+Stream model: `AGENT_STREAM_MODEL` (default Haiku 5.5, about 1.4 s to the first sentence and about USD 0.0008 per
+answer; qwen measured 1.3–4.0 s, median 2.7 s, about USD 0.0001). Every other LLM path uses the frugal default chain.

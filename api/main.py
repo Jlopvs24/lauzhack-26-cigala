@@ -108,7 +108,8 @@ def _warm_up() -> None:
 @app.get("/health")
 def health():
     return {"ok": True, "engine": engine.ENGINE_NAME, "engine_version": engine.version(),
-            "personal_conditions_supported": engine.supports_extras(), "llm": agent.llm_status(),
+            "personal_conditions_supported": engine.supports_extras(),
+            "llm_budget": __import__("api.llm", fromlist=["budget"]).budget(), "llm": agent.llm_status(),
             "voice": voice.status(), "cache": cache.CACHE.stats(), "pid": __import__("os").getpid()}
 
 
@@ -567,5 +568,5 @@ def validation(refresh: bool = False):
 @app.get("/usage")
 def usage():
     """Cumulative LLM/voice spend since the server started (AXA frugality panel)."""
-    from api.llm import USAGE
-    return USAGE.summary()
+    from api.llm import USAGE, budget
+    return {**USAGE.summary(), "budget": budget()}

@@ -598,9 +598,12 @@ class Toolbox:
 
 # ------------------------------------------------------------------ language + grounding
 _LANG_HINTS = {
-    "es": r"\b(qué|que|cómo|como|cuánto|dinero|ahorro|máster|puedo|quiero|pasa|si|mi|el|la|los)\b",
-    "fr": r"\b(qu'|quoi|comment|combien|argent|épargne|je|mon|ma|est-ce|si|le|la|les|pourquoi)\b",
-    "de": r"\b(was|wie|wieviel|geld|ich|mein|wenn|ist|der|die|das|warum)\b",
+    "es": r"\b(qué|que|cómo|como|cuánto|dinero|ahorro|máster|puedo|quiero|pasa|si|mi|el|la|los|me|iría|vivir|"
+          r"sería|tendría|haría|mis|padres|una|del|al|año|meses|beca)\b",
+    "fr": r"\b(qu'|quoi|comment|combien|argent|épargne|je|mon|ma|est-ce|si|le|la|les|pourquoi|j'|serait|aurais|"
+          r"ferais|trouverais|mes|parents|une|des|du|au|mois|bourse)\b",
+    "de": r"\b(was|wie|wieviel|geld|ich|mein|wenn|ist|der|die|das|warum|würde|wäre|hätte|nach|ab|und|meine|"
+          r"eltern|einen|eine|jahr|monat|ziehen|stipendium)\b",
 }
 
 
