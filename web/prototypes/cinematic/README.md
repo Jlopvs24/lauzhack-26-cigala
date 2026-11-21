@@ -3,9 +3,9 @@
 Standalone page, not wired into `web/src` yet. Owner: Juan's Claude thread 6.
 
 ```bash
-python -m uvicorn api.main:app --port 8002          # from the repo root
-cd web && python -m http.server 5231 --bind 127.0.0.1
-# open http://127.0.0.1:5231/prototypes/cinematic/   (?api=http://host:port to change the API)
+# uses the shared API on :8000 (override with ?api=)
+cd web && python -m http.server 5175 --bind 127.0.0.1
+# open http://127.0.0.1:5175/prototypes/cinematic/   (?api=http://host:port to change the API)
 ```
 
 ## How it works

@@ -7,7 +7,7 @@ import { createGuide } from "../../assets/character/guide/guide.js";
 import { UI, STORY, NODES, LANGS, SPEECH_LANG } from "./i18n.js";
 
 const qs = new URLSearchParams(location.search);
-const API = qs.get("api") || "http://127.0.0.1:8002";
+const API = qs.get("api") || "http://127.0.0.1:8000";
 const W = 1376, H = 768;
 const $ = (s) => document.querySelector(s);
 const gsap = window.gsap;
