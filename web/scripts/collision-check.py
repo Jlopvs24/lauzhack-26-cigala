@@ -13,6 +13,8 @@ ap.add_argument("--chrome", default=r"C:\Program Files\Google\Chrome\Application
 ap.add_argument("--base", default="http://127.0.0.1:5175/")
 ap.add_argument("--api", default="http://127.0.0.1:8000")
 ap.add_argument("--out", default=None, help="save a screenshot of every failing state here")
+ap.add_argument("--langs", default="en,es,fr,de")
+ap.add_argument("--widths", default="1440,390")
 args = ap.parse_args()
 
 
@@ -48,7 +50,15 @@ MEASURE = """() => {
 }"""
 
 
+SEM = asyncio.Semaphore(2)  # the shared API is single-process: do not flood it
+
+
 async def run(browser, lang, width, height, paths, results):
+    async with SEM:
+        await _run(browser, lang, width, height, paths, results)
+
+
+async def _run(browser, lang, width, height, paths, results):
     ctx = await browser.new_context(viewport={"width": width, "height": height}, is_mobile=width < 720, has_touch=width < 720)
     await ctx.add_init_script(f"try {{ localStorage.setItem('cigala.lang', '{lang}'); }} catch (e) {{}}")
     pg = await ctx.new_page()
@@ -74,12 +84,12 @@ async def run(browser, lang, width, height, paths, results):
 
 async def main():
     paths = all_paths()
-    print(f"{len(paths)} nodes, 4 languages, 2 widths", flush=True)
+    print(f"{len(paths)} nodes, languages {args.langs}, widths {args.widths}", flush=True)
     results = []
     async with async_playwright() as p:
         browser = await p.chromium.launch(executable_path=args.chrome)
         await asyncio.gather(*[run(browser, lang, w, h, paths, results)
-                               for lang in ("en", "es", "fr", "de") for (w, h) in ((1440, 860), (390, 844))])
+                               for lang in args.langs.split(",") for w in map(int, args.widths.split(",")) for h in [860 if w >= 720 else 844]])
         await browser.close()
     failed = [(k, m) for k, m in results if m["bad"] or m["offscreen"]]
     sides = {}
@@ -88,7 +98,7 @@ async def main():
             sides[m["side"]] = sides.get(m["side"], 0) + 1
     print(f"states checked: {sum(1 for k, m in results if 'side' in m)}, bubble side: {sides}")
     for k, m in failed:
-        print("OVERLAP" if m["bad"] else "OFFSCREEN", k, m["bad"], m.get("offscreen"))
+        print("OVERLAP" if m["bad"] else "OFFSCREEN", k, m["bad"], m.get("offscreen"), flush=True)
     faded = [(k, m["faded"]) for k, m in results if m.get("faded")]
     print(f"states where a clickable card had to be faded: {len(faded)}")
     for k, f in faded:

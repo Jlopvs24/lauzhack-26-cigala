@@ -3,10 +3,13 @@
 import { STORY, NODES, UI } from './i18n.js';
 
 // Node text in the UI language; `known` = false when we only have the engine's English text.
+// The description is translated only while the engine's English text still matches the table.
 export function translateNode(n, lang) {
-  const x = NODES[n.label]?.[lang];
-  if (lang === 'en' || x) return { label: x ? x[0] : n.label, desc: x ? x[1] : n.description || '', known: true };
-  return { label: n.label, desc: n.description || '', known: false };
+  if (lang === 'en') return { label: n.label, desc: n.description || '', known: true, descKnown: true };
+  const row = NODES[n.label], x = row?.[lang];
+  if (!x) return { label: n.label, desc: n.description || '', known: false, descKnown: false };
+  const same = !n.description || row.en?.[1] === n.description;
+  return { label: x[0], desc: same ? x[1] : n.description || '', known: true, descKnown: same };
 }
 
 export function storyFor(data, lang, who = 'Alexia') {
@@ -17,7 +20,7 @@ export function storyFor(data, lang, who = 'Alexia') {
   const c = translateNode(cur, lang);
   // say only what we can say in this language (unknown engine text stays on screen, not in the voice)
   const kids = data.nodes.filter((n) => n.status === 'child').map((n) => translateNode(n, lang)).filter((x) => x.known).map((x) => x.label);
-  const n = { who, label: c.known ? c.label : '', desc: c.known ? c.desc.replace(/([^.])$/, '$1.') : '', score: Math.round(h.score ?? 0) };
+  const n = { who, label: c.known ? c.label : '', desc: c.known && c.descKnown ? c.desc.replace(/([^.])$/, '$1.') : '', score: Math.round(h.score ?? 0) };
   if (data.current === '0') return S.root(n, cash, kids);
   const dh = cur.delta_vs_parent?.health_score;
   return S.node(n, cash, kids, dh == null ? '' : S.delta(dh)).replace(/^\. /, '');

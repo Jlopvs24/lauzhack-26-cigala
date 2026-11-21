@@ -8,6 +8,7 @@ export const SPEECH_LANG = { en: "en-GB", es: "es-ES", fr: "fr-FR", de: "de-DE" 
 
 export const UI = {
   en: {
+    slow: "The engine is taking longer than usual. Try again in a moment.",
     conversation: "Conversation", openConv: "Open conversation", closeConv: "Close conversation", convEmpty: "Ask Lumi anything about this tree. Your questions and the answers stay here for this session.", you: "You", sources: "Calculation sources", record: "Record a voice note (sends when you stop)", stopRec: "Stop and send", recording: "Recording… press stop to send", preparing: "Preparing your voice note…", send: "Send",
     chat: "Conversation", call: "Call Lumi (live voice)", retry: "Retry", sessionCost: "Session API cost:",
     eyebrow: "A financial twin for students",
@@ -35,6 +36,7 @@ export const UI = {
     noVoice: "No voice for this language on this device, so I'll stay silent. The text is all here.",
   },
   es: {
+    slow: "El motor tarda más de lo normal. Inténtalo de nuevo en un momento.",
     conversation: "Conversación", openConv: "Abrir la conversación", closeConv: "Cerrar la conversación", convEmpty: "Pregunta a Lumi lo que quieras sobre este árbol. Tus preguntas y las respuestas se quedan aquí durante la sesión.", you: "Tú", sources: "Fuentes del cálculo", record: "Grabar una nota de voz (se envía al parar)", stopRec: "Parar y enviar", recording: "Grabando… pulsa parar para enviar", preparing: "Preparando tu nota de voz…", send: "Enviar",
     chat: "Conversación", call: "Llamar a Lumi (voz en directo)", retry: "Reintentar", sessionCost: "Coste de API de la sesión:",
     eyebrow: "Un gemelo financiero para estudiantes",
@@ -62,6 +64,7 @@ export const UI = {
     noVoice: "Este dispositivo no tiene voz en este idioma, así que me quedo en silencio. Todo está en el texto.",
   },
   fr: {
+    slow: "Le moteur met plus de temps que d’habitude. Réessayez dans un instant.",
     conversation: "Conversation", openConv: "Ouvrir la conversation", closeConv: "Fermer la conversation", convEmpty: "Posez à Lumi toute question sur cet arbre. Vos questions et les réponses restent ici pendant la session.", you: "Vous", sources: "Sources du calcul", record: "Enregistrer une note vocale (envoyée à l’arrêt)", stopRec: "Arrêter et envoyer", recording: "Enregistrement… appuyez sur stop pour envoyer", preparing: "Préparation de votre note vocale…", send: "Envoyer",
     chat: "Conversation", call: "Appeler Lumi (voix en direct)", retry: "Réessayer", sessionCost: "Coût API de la session :",
     eyebrow: "Un jumeau financier pour les étudiants",
@@ -89,6 +92,7 @@ export const UI = {
     noVoice: "Pas de voix pour cette langue sur cet appareil, je reste silencieux. Tout est dans le texte.",
   },
   de: {
+    slow: "Die Engine braucht länger als üblich. Versuch es gleich noch einmal.",
     conversation: "Gespräch", openConv: "Gespräch öffnen", closeConv: "Gespräch schließen", convEmpty: "Frag Lumi alles zu diesem Baum. Deine Fragen und die Antworten bleiben während der Sitzung hier.", you: "Du", sources: "Rechenquellen", record: "Sprachnachricht aufnehmen (wird beim Stoppen gesendet)", stopRec: "Stoppen und senden", recording: "Aufnahme… zum Senden stoppen", preparing: "Sprachnachricht wird vorbereitet…", send: "Senden",
     chat: "Gespräch", call: "Lumi anrufen (Live-Stimme)", retry: "Erneut versuchen", sessionCost: "API-Kosten der Sitzung:",
     eyebrow: "Ein finanzieller Zwilling für Studierende",
@@ -151,71 +155,7 @@ export const STORY = {
   },
 };
 
-// Node texts of the Alexia tree, keyed by the engine's English label: [label, description] per language.
-export const NODES = {
-  "Today: student in Lausanne": {
-    es: ["Hoy: estudiante en Lausana", "Sigue con su vida actual: trabajo de estudiante de CHF 1.200 y CHF 1.500 de gastos al mes."],
-    fr: ["Aujourd'hui : étudiante à Lausanne", "Elle garde sa vie actuelle : job étudiant de CHF 1 200 et CHF 1 500 de dépenses par mois."],
-    de: ["Heute: Studentin in Lausanne", "Sie behält ihr jetziges Leben: Studentenjob mit CHF 1'200 und CHF 1'500 Kosten im Monat."],
-  },
-  "Start working": {
-    es: ["Empezar a trabajar", "Acepta ahora un trabajo a jornada completa y se muda a su propio estudio."],
-    fr: ["Commencer à travailler", "Elle prend un emploi à plein temps et s'installe dans son propre studio."],
-    de: ["Arbeiten gehen", "Sie nimmt jetzt eine Vollzeitstelle an und zieht in ein eigenes Studio."],
-  },
-  "Invest CHF 500 a month": {
-    es: ["Invertir CHF 500 al mes", "Pone CHF 500 al mes en un fondo indexado equilibrado."],
-    fr: ["Investir CHF 500 par mois", "Elle place CHF 500 par mois dans un fonds indiciel équilibré."],
-    de: ["CHF 500 im Monat anlegen", "Sie legt jeden Monat CHF 500 in einen ausgewogenen Indexfonds."],
-  },
-  "Share a flat instead": {
-    es: ["Compartir piso", "Vive en un piso compartido y ahorra CHF 400 al mes de alquiler."],
-    fr: ["Partager un appartement", "Elle vit en colocation et économise CHF 400 de loyer par mois."],
-    de: ["In eine WG ziehen", "Sie wohnt in einer WG und spart CHF 400 Miete im Monat."],
-  },
-  "Buy a car on credit": {
-    es: ["Comprar un coche a crédito", "Pide CHF 15.000 para un coche al 6,9 % a unos 5 años; seguro y gasolina suman CHF 250 al mes."],
-    fr: ["Acheter une voiture à crédit", "Elle emprunte CHF 15 000 pour une voiture à 6,9 % sur environ 5 ans ; assurance et essence ajoutent CHF 250 par mois."],
-    de: ["Ein Auto auf Kredit kaufen", "Sie leiht CHF 15'000 für ein Auto zu 6,9 % über etwa 5 Jahre; Versicherung und Benzin kosten CHF 250 im Monat."],
-  },
-  "Do a master's": {
-    es: ["Hacer un máster", "Dos años de máster con un trabajo de estudiante y después un empleo mejor pagado."],
-    fr: ["Faire un master", "Deux ans de master avec un job étudiant, puis un emploi mieux payé."],
-    de: ["Einen Master machen", "Zwei Jahre Master mit Studentenjob, danach eine besser bezahlte Stelle."],
-  },
-  "Keep the student job only": {
-    es: ["Solo el trabajo de estudiante", "El mismo plan: CHF 1.200 al mes de un trabajo de estudiante."],
-    fr: ["Garder seulement le job étudiant", "Même plan : CHF 1 200 par mois d'un job étudiant."],
-    de: ["Nur den Studentenjob behalten", "Derselbe Plan: CHF 1'200 im Monat aus einem Studentenjob."],
-  },
-  "Take a CHF 15,000 study loan": {
-    es: ["Pedir un préstamo de estudios de CHF 15.000", "Pide CHF 15.000 al 2 %, que devuelve a CHF 300 al mes cuando trabaje (mes 25)."],
-    fr: ["Prendre un prêt d'études de CHF 15 000", "Elle emprunte CHF 15 000 à 2 %, remboursés à CHF 300 par mois dès qu'elle travaille (mois 25)."],
-    de: ["Einen Studienkredit über CHF 15'000 aufnehmen", "Sie leiht CHF 15'000 zu 2 %, zurückgezahlt mit CHF 300 im Monat, sobald sie arbeitet (Monat 25)."],
-  },
-  "Work 40% while studying": {
-    es: ["Trabajar al 40 % mientras estudia", "Un trabajo al 40 % aporta CHF 800 más al mes durante el máster."],
-    fr: ["Travailler à 40 % pendant les études", "Un emploi à 40 % rapporte CHF 800 de plus par mois pendant le master."],
-    de: ["Neben dem Studium 40 % arbeiten", "Eine 40-%-Stelle bringt während des Masters CHF 800 mehr im Monat."],
-  },
-  "Move abroad": {
-    es: ["Irse al extranjero", "Acepta un trabajo en otro país."],
-    fr: ["Partir à l'étranger", "Elle accepte un emploi dans un autre pays."],
-    de: ["Ins Ausland gehen", "Sie nimmt eine Stelle in einem anderen Land an."],
-  },
-  "Rent a flat alone": {
-    es: ["Alquilar un piso sola", "El mismo plan: su propio piso en el extranjero."],
-    fr: ["Louer un appartement seule", "Même plan : son propre appartement à l'étranger."],
-    de: ["Allein eine Wohnung mieten", "Derselbe Plan: eine eigene Wohnung im Ausland."],
-  },
-  "Share a flat abroad": {
-    es: ["Compartir piso en el extranjero", "Piso compartido: CHF 500 menos de alquiler al mes."],
-    fr: ["Colocation à l'étranger", "Colocation : CHF 500 de loyer en moins par mois."],
-    de: ["Im Ausland in eine WG ziehen", "WG: CHF 500 weniger Miete im Monat."],
-  },
-  "Come back after 3 years": {
-    es: ["Volver después de 3 años", "Vuelve a Lausana el año 4 con un sueldo suizo; la mudanza cuesta CHF 3.000."],
-    fr: ["Revenir après 3 ans", "Elle revient à Lausanne la 4e année avec un salaire suisse ; le retour coûte CHF 3 000."],
-    de: ["Nach 3 Jahren zurückkommen", "Sie kehrt im 4. Jahr mit Schweizer Lohn nach Lausanne zurück; der Umzug kostet CHF 3'000."],
-  },
-};
+// Node texts of the tree: a generated table keyed by the engine's English label (see
+// web/scripts/node-texts.py; a test fails if core/data/trees/alexia.json has a row missing here).
+import TABLE from './nodes.i18n.json' with { type: 'json' };
+export const NODES = Object.fromEntries(Object.entries(TABLE).filter(([k]) => !k.startsWith('_')));

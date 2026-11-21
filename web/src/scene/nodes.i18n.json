@@ -1,0 +1,237 @@
+{
+  "_about": "Node texts of the Alexia tree in ES/FR/DE, keyed by the engine's English label. 'en' must equal the engine text: if a label or description changes in core/data/trees/alexia.json, `npm test` fails until this table is updated (python web/scripts/node-texts.py adds the missing rows).",
+  "Today: student in Lausanne": {
+    "en": ["Today: student in Lausanne", "Alexia keeps her current life: student job of CHF 1,200 and CHF 1,500 of monthly costs."],
+    "es": ["Hoy: estudiante en Lausana", "Sigue con su vida actual: trabajo de estudiante de CHF 1.200 y CHF 1.500 de gastos al mes."],
+    "fr": ["Aujourd'hui : étudiante à Lausanne", "Elle garde sa vie actuelle : job étudiant de CHF 1 200 et CHF 1 500 de dépenses par mois."],
+    "de": ["Heute: Studentin in Lausanne", "Sie behält ihr jetziges Leben: Studentenjob mit CHF 1'200 und CHF 1'500 Kosten im Monat."]
+  },
+  "Start working": {
+    "en": ["Start working", "Takes a full-time job now and moves to her own studio."],
+    "es": ["Empezar a trabajar", "Acepta ahora un trabajo a jornada completa y se muda a su propio estudio."],
+    "fr": ["Commencer à travailler", "Elle prend un emploi à plein temps et s'installe dans son propre studio."],
+    "de": ["Arbeiten gehen", "Sie nimmt jetzt eine Vollzeitstelle an und zieht in ein eigenes Studio."]
+  },
+  "Keep the surplus in cash": {
+    "en": ["Keep the surplus in cash", "Builds a safety buffer in a savings account; no investing."],
+    "es": ["Guardar el excedente en efectivo", "Crea un colchón de seguridad en una cuenta de ahorro; sin invertir."],
+    "fr": ["Garder l'excédent en liquide", "Elle constitue un coussin de sécurité sur un compte d'épargne, sans investir."],
+    "de": ["Den Überschuss als Bargeld halten", "Sie baut auf einem Sparkonto ein Sicherheitspolster auf, ohne zu investieren."]
+  },
+  "Negotiate a 5% raise": {
+    "en": ["Negotiate a 5% raise", "Asks for a higher starting salary."],
+    "es": ["Negociar un 5 % más de sueldo", "Pide un sueldo inicial más alto."],
+    "fr": ["Négocier 5 % d'augmentation", "Elle demande un salaire de départ plus élevé."],
+    "de": ["5 % mehr Lohn verhandeln", "Sie verlangt ein höheres Einstiegsgehalt."]
+  },
+  "Promotion in year 3": {
+    "en": ["Promotion in year 3", "About 15% more from month 25."],
+    "es": ["Ascenso el tercer año", "Alrededor de un 15 % más desde el mes 25."],
+    "fr": ["Promotion la 3e année", "Environ 15 % de plus à partir du mois 25."],
+    "de": ["Beförderung im 3. Jahr", "Rund 15 % mehr ab Monat 25."]
+  },
+  "Work 80%": {
+    "en": ["Work 80%", "Keeps one day a week for herself: income x 0.8."],
+    "es": ["Trabajar al 80 %", "Se guarda un día a la semana para ella: ingresos x 0,8."],
+    "fr": ["Travailler à 80 %", "Elle garde un jour par semaine pour elle : revenu x 0,8."],
+    "de": ["80 % arbeiten", "Sie behält einen Tag pro Woche für sich: Einkommen x 0,8."]
+  },
+  "Invest CHF 500 a month": {
+    "en": ["Invest CHF 500 a month", "Puts CHF 500 a month into a balanced index fund."],
+    "es": ["Invertir CHF 500 al mes", "Pone CHF 500 al mes en un fondo indexado equilibrado."],
+    "fr": ["Investir CHF 500 par mois", "Elle place CHF 500 par mois dans un fonds indiciel équilibré."],
+    "de": ["CHF 500 im Monat anlegen", "Sie legt jeden Monat CHF 500 in einen ausgewogenen Indexfonds."]
+  },
+  "Stay the course": {
+    "en": ["Stay the course", "Keeps investing whatever the markets do."],
+    "es": ["Mantener el rumbo", "Sigue invirtiendo hagan lo que hagan los mercados."],
+    "fr": ["Garder le cap", "Elle continue d'investir quoi que fassent les marchés."],
+    "de": ["Kurs halten", "Sie investiert weiter, egal was die Märkte tun."]
+  },
+  "Pause in year 2": {
+    "en": ["Pause in year 2", "Stops the contributions for 12 months (months 13 to 24)."],
+    "es": ["Pausa el segundo año", "Deja de aportar durante 12 meses (meses 13 a 24)."],
+    "fr": ["Pause la 2e année", "Elle arrête les versements pendant 12 mois (mois 13 à 24)."],
+    "de": ["Pause im 2. Jahr", "Sie setzt die Einzahlungen 12 Monate aus (Monate 13 bis 24)."]
+  },
+  "More equities": {
+    "en": ["More equities", "An 80% equity portfolio instead of a balanced one: higher assumed return, more volatility."],
+    "es": ["Más acciones", "Una cartera con un 80 % en acciones en lugar de una equilibrada: más rentabilidad supuesta y más volatilidad."],
+    "fr": ["Plus d'actions", "Un portefeuille à 80 % en actions au lieu d'un portefeuille équilibré : rendement supposé plus élevé, plus de volatilité."],
+    "de": ["Mehr Aktien", "Ein Portfolio mit 80 % Aktien statt eines ausgewogenen: höhere angenommene Rendite, mehr Schwankung."]
+  },
+  "Buy a car on credit": {
+    "en": ["Buy a car on credit", "Borrows CHF 15,000 for a car at 6.9% over about 5 years; insurance and fuel add CHF 250 a month."],
+    "es": ["Comprar un coche a crédito", "Pide CHF 15.000 para un coche al 6,9 % a unos 5 años; seguro y gasolina suman CHF 250 al mes."],
+    "fr": ["Acheter une voiture à crédit", "Elle emprunte CHF 15 000 pour une voiture à 6,9 % sur environ 5 ans ; assurance et essence ajoutent CHF 250 par mois."],
+    "de": ["Ein Auto auf Kredit kaufen", "Sie leiht CHF 15'000 für ein Auto zu 6,9 % über etwa 5 Jahre; Versicherung und Benzin kosten CHF 250 im Monat."]
+  },
+  "Repay the loan early": {
+    "en": ["Repay the loan early", "Doubles the car loan payment to CHF 600 a month."],
+    "es": ["Devolver el préstamo antes", "Duplica la cuota del préstamo del coche a CHF 600 al mes."],
+    "fr": ["Rembourser le prêt plus tôt", "Elle double la mensualité du prêt auto à CHF 600."],
+    "de": ["Den Kredit früher zurückzahlen", "Sie verdoppelt die Autokreditrate auf CHF 600 im Monat."]
+  },
+  "Sell the car after 2 years": {
+    "en": ["Sell the car after 2 years", "Sells it in month 25 and goes back to public transport; the loan keeps its schedule."],
+    "es": ["Vender el coche a los 2 años", "Lo vende en el mes 25 y vuelve al transporte público; el préstamo sigue su calendario."],
+    "fr": ["Vendre la voiture après 2 ans", "Elle la vend au mois 25 et reprend les transports publics ; le prêt garde son échéancier."],
+    "de": ["Das Auto nach 2 Jahren verkaufen", "Sie verkauft es in Monat 25 und fährt wieder öffentlich; der Kredit läuft planmäßig weiter."]
+  },
+  "Add a side job": {
+    "en": ["Add a side job", "Earns CHF 600 more a month for 2 years to afford the car."],
+    "es": ["Sumar un trabajo extra", "Gana CHF 600 más al mes durante 2 años para pagar el coche."],
+    "fr": ["Prendre un petit boulot en plus", "Elle gagne CHF 600 de plus par mois pendant 2 ans pour payer la voiture."],
+    "de": ["Einen Nebenjob annehmen", "Sie verdient 2 Jahre lang CHF 600 mehr im Monat, um sich das Auto zu leisten."]
+  },
+  "Do a master's": {
+    "en": ["Do a master's", "Two years of master's with a student job, then a better-paid job."],
+    "es": ["Hacer un máster", "Dos años de máster con un trabajo de estudiante y después un empleo mejor pagado."],
+    "fr": ["Faire un master", "Deux ans de master avec un job étudiant, puis un emploi mieux payé."],
+    "de": ["Einen Master machen", "Zwei Jahre Master mit Studentenjob, danach eine besser bezahlte Stelle."]
+  },
+  "Student job only": {
+    "en": ["Student job only", "As in the UBS starter kit: CHF 1,200 a month from a student job."],
+    "es": ["Solo el trabajo de estudiante", "Como en el kit de UBS: CHF 1.200 al mes de un trabajo de estudiante."],
+    "fr": ["Seulement le job étudiant", "Comme dans le kit UBS : CHF 1 200 par mois d'un job étudiant."],
+    "de": ["Nur der Studentenjob", "Wie im UBS-Starterkit: CHF 1'200 im Monat aus einem Studentenjob."]
+  },
+  "Get a scholarship": {
+    "en": ["Get a scholarship", "CHF 500 a month during the two years."],
+    "es": ["Conseguir una beca", "CHF 500 al mes durante los dos años."],
+    "fr": ["Obtenir une bourse", "CHF 500 par mois pendant les deux ans."],
+    "de": ["Ein Stipendium bekommen", "CHF 500 im Monat während der zwei Jahre."]
+  },
+  "Graduate one year late": {
+    "en": ["Graduate one year late", "Three years of studies: one more year of student life and tuition."],
+    "es": ["Graduarse un año tarde", "Tres años de estudios: un año más de vida de estudiante y de matrícula."],
+    "fr": ["Diplômée avec un an de retard", "Trois ans d'études : une année de plus de vie étudiante et de frais d'inscription."],
+    "de": ["Ein Jahr später abschließen", "Drei Jahre Studium: ein Jahr mehr Studentenleben und Studiengebühren."]
+  },
+  "Paid internship in year 2": {
+    "en": ["Paid internship in year 2", "CHF 2,500 a month for the 12 months of year 2."],
+    "es": ["Prácticas pagadas el segundo año", "CHF 2.500 al mes durante los 12 meses del segundo año."],
+    "fr": ["Stage rémunéré la 2e année", "CHF 2 500 par mois pendant les 12 mois de la 2e année."],
+    "de": ["Bezahltes Praktikum im 2. Jahr", "CHF 2'500 im Monat während der 12 Monate des 2. Jahres."]
+  },
+  "Study loan of CHF 15,000": {
+    "en": ["Study loan of CHF 15,000", "Borrows CHF 15,000 at 2%, repaid at CHF 300 a month once she works (month 25)."],
+    "es": ["Préstamo de estudios de CHF 15.000", "Pide CHF 15.000 al 2 %, que devuelve a CHF 300 al mes cuando trabaje (mes 25)."],
+    "fr": ["Prêt d'études de CHF 15 000", "Elle emprunte CHF 15 000 à 2 %, remboursés à CHF 300 par mois dès qu'elle travaille (mois 25)."],
+    "de": ["Studienkredit über CHF 15'000", "Sie leiht CHF 15'000 zu 2 %, zurückgezahlt mit CHF 300 im Monat, sobald sie arbeitet (Monat 25)."]
+  },
+  "Repay over about 5 years": {
+    "en": ["Repay over about 5 years", "CHF 300 a month from graduation."],
+    "es": ["Devolverlo en unos 5 años", "CHF 300 al mes desde la graduación."],
+    "fr": ["Rembourser en 5 ans environ", "CHF 300 par mois dès le diplôme."],
+    "de": ["In rund 5 Jahren zurückzahlen", "CHF 300 im Monat ab dem Abschluss."]
+  },
+  "Repay fast": {
+    "en": ["Repay fast", "CHF 600 a month from graduation."],
+    "es": ["Devolverlo rápido", "CHF 600 al mes desde la graduación."],
+    "fr": ["Rembourser vite", "CHF 600 par mois dès le diplôme."],
+    "de": ["Schnell zurückzahlen", "CHF 600 im Monat ab dem Abschluss."]
+  },
+  "Rate rises to 5%": {
+    "en": ["Rate rises to 5%", "The variable rate rises to 5% at graduation."],
+    "es": ["El tipo sube al 5 %", "El tipo variable sube al 5 % al graduarse."],
+    "fr": ["Le taux monte à 5 %", "Le taux variable passe à 5 % au moment du diplôme."],
+    "de": ["Der Zins steigt auf 5 %", "Der variable Zins steigt beim Abschluss auf 5 %."]
+  },
+  "Part-time master's with a 60% job": {
+    "en": ["Part-time master's with a 60% job", "Three years instead of two, with a 60% job; the better-paid job starts in month 37."],
+    "es": ["Máster a tiempo parcial con un trabajo al 60 %", "Tres años en lugar de dos, con un trabajo al 60 %; el empleo mejor pagado empieza en el mes 37."],
+    "fr": ["Master à temps partiel avec un emploi à 60 %", "Trois ans au lieu de deux, avec un emploi à 60 % ; l'emploi mieux payé commence au mois 37."],
+    "de": ["Teilzeit-Master mit 60-%-Stelle", "Drei statt zwei Jahre, mit einer 60-%-Stelle; die besser bezahlte Stelle beginnt in Monat 37."]
+  },
+  "Employer pays the tuition": {
+    "en": ["Employer pays the tuition", "The employer reimburses the tuition each year."],
+    "es": ["La empresa paga la matrícula", "La empresa le reembolsa la matrícula cada año."],
+    "fr": ["L'employeur paie les frais d'études", "L'employeur rembourse les frais d'inscription chaque année."],
+    "de": ["Der Arbeitgeber zahlt die Studiengebühren", "Der Arbeitgeber erstattet die Studiengebühren jedes Jahr."]
+  },
+  "Work 80% instead": {
+    "en": ["Work 80% instead", "More income, same three years of studies."],
+    "es": ["Trabajar al 80 % en su lugar", "Más ingresos, los mismos tres años de estudios."],
+    "fr": ["Travailler plutôt à 80 %", "Plus de revenu, les mêmes trois ans d'études."],
+    "de": ["Stattdessen 80 % arbeiten", "Mehr Einkommen, gleich drei Jahre Studium."]
+  },
+  "Drop out after year 1": {
+    "en": ["Drop out after year 1", "Leaves the programme and takes the full-time job in month 13."],
+    "es": ["Dejarlo tras el primer año", "Abandona el programa y acepta el trabajo a jornada completa en el mes 13."],
+    "fr": ["Arrêter après la 1re année", "Elle quitte le programme et prend l'emploi à plein temps au mois 13."],
+    "de": ["Nach dem 1. Jahr abbrechen", "Sie verlässt das Programm und nimmt in Monat 13 die Vollzeitstelle an."]
+  },
+  "Move abroad": {
+    "en": ["Move abroad", "Takes a job in another country; the exchange rate is held constant."],
+    "es": ["Irse al extranjero", "Acepta un trabajo en otro país; el tipo de cambio se mantiene constante."],
+    "fr": ["Partir à l'étranger", "Elle accepte un emploi dans un autre pays ; le taux de change est maintenu constant."],
+    "de": ["Ins Ausland gehen", "Sie nimmt eine Stelle in einem anderen Land an; der Wechselkurs bleibt konstant."]
+  },
+  "Rent a flat alone": {
+    "en": ["Rent a flat alone", "Her own flat abroad."],
+    "es": ["Alquilar un piso sola", "Su propio piso en el extranjero."],
+    "fr": ["Louer un appartement seule", "Son propre appartement à l'étranger."],
+    "de": ["Allein eine Wohnung mieten", "Eine eigene Wohnung im Ausland."]
+  },
+  "Invest CHF 400 a month": {
+    "en": ["Invest CHF 400 a month", "Puts CHF 400 a month into a balanced fund."],
+    "es": ["Invertir CHF 400 al mes", "Pone CHF 400 al mes en un fondo equilibrado."],
+    "fr": ["Investir CHF 400 par mois", "Elle place CHF 400 par mois dans un fonds équilibré."],
+    "de": ["CHF 400 im Monat anlegen", "Sie legt jeden Monat CHF 400 in einen ausgewogenen Fonds."]
+  },
+  "Expensive move": {
+    "en": ["Expensive move", "Deposit and agency fees add CHF 2,500 on day one."],
+    "es": ["Mudanza cara", "Fianza y gastos de agencia suman CHF 2.500 el primer día."],
+    "fr": ["Déménagement coûteux", "Caution et frais d'agence ajoutent CHF 2 500 dès le premier jour."],
+    "de": ["Teurer Umzug", "Kaution und Maklergebühren kosten am ersten Tag CHF 2'500 zusätzlich."]
+  },
+  "Share a flat": {
+    "en": ["Share a flat", "A shared flat: CHF 500 a month less rent."],
+    "es": ["Compartir piso", "Piso compartido: CHF 500 menos de alquiler al mes."],
+    "fr": ["Colocation", "Une colocation : CHF 500 de loyer en moins par mois."],
+    "de": ["In eine WG ziehen", "Eine WG: CHF 500 weniger Miete im Monat."]
+  },
+  "Save the difference": {
+    "en": ["Save the difference", "Keeps the saved rent in cash."],
+    "es": ["Ahorrar la diferencia", "Guarda en efectivo lo que se ahorra de alquiler."],
+    "fr": ["Épargner la différence", "Elle garde en liquide le loyer économisé."],
+    "de": ["Die Differenz sparen", "Sie behält die gesparte Miete als Bargeld."]
+  },
+  "Travel sabbatical": {
+    "en": ["Travel sabbatical", "Six months unpaid in year 3 plus CHF 4,000 of travel."],
+    "es": ["Año sabático para viajar", "Seis meses sin sueldo el tercer año más CHF 4.000 de viajes."],
+    "fr": ["Congé sabbatique pour voyager", "Six mois sans salaire la 3e année, plus CHF 4 000 de voyages."],
+    "de": ["Reise-Sabbatical", "Sechs Monate unbezahlt im 3. Jahr plus CHF 4'000 für Reisen."]
+  },
+  "Side project": {
+    "en": ["Side project", "CHF 400 a month more from year 2, after CHF 1,500 of setup costs."],
+    "es": ["Proyecto paralelo", "CHF 400 más al mes desde el segundo año, tras CHF 1.500 de gastos iniciales."],
+    "fr": ["Projet en parallèle", "CHF 400 de plus par mois dès la 2e année, après CHF 1 500 de frais de lancement."],
+    "de": ["Nebenprojekt", "Ab dem 2. Jahr CHF 400 mehr im Monat, nach CHF 1'500 Startkosten."]
+  },
+  "Come back after 3 years": {
+    "en": ["Come back after 3 years", "Returns to Lausanne in year 4 with a Swiss salary; moving back costs CHF 3,000."],
+    "es": ["Volver después de 3 años", "Vuelve a Lausana el cuarto año con un sueldo suizo; la mudanza cuesta CHF 3.000."],
+    "fr": ["Revenir après 3 ans", "Elle revient à Lausanne la 4e année avec un salaire suisse ; le retour coûte CHF 3 000."],
+    "de": ["Nach 3 Jahren zurückkommen", "Sie kehrt im 4. Jahr mit Schweizer Lohn nach Lausanne zurück; der Umzug kostet CHF 3'000."]
+  },
+  "Job in Lausanne": {
+    "en": ["Job in Lausanne", "Back in Lausanne with experience."],
+    "es": ["Trabajo en Lausana", "De vuelta en Lausana con experiencia."],
+    "fr": ["Emploi à Lausanne", "De retour à Lausanne avec de l'expérience."],
+    "de": ["Stelle in Lausanne", "Zurück in Lausanne, mit Erfahrung."]
+  },
+  "Come back for a master's": {
+    "en": ["Come back for a master's", "Master's from month 37 to 60 with a student job, then CHF 5,200 a month."],
+    "es": ["Volver para hacer un máster", "Máster del mes 37 al 60 con un trabajo de estudiante y después CHF 5.200 al mes."],
+    "fr": ["Revenir pour un master", "Master du mois 37 au mois 60 avec un job étudiant, puis CHF 5 200 par mois."],
+    "de": ["Für einen Master zurückkommen", "Master von Monat 37 bis 60 mit Studentenjob, danach CHF 5'200 im Monat."]
+  },
+  "Job in Zurich": {
+    "en": ["Job in Zurich", "A higher salary and a higher rent from month 37."],
+    "es": ["Trabajo en Zúrich", "Un sueldo más alto y un alquiler más alto desde el mes 37."],
+    "fr": ["Emploi à Zurich", "Un salaire plus élevé et un loyer plus cher à partir du mois 37."],
+    "de": ["Stelle in Zürich", "Ein höheres Gehalt und eine höhere Miete ab Monat 37."]
+  }
+}

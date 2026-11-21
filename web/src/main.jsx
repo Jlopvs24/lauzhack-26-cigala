@@ -130,7 +130,7 @@ function App() {
         tagItems: tagItems(data, l), childIds: data.nodes.filter((n) => n.status === 'child').map((n) => n.node_id),
       });
     } catch (e) {
-      setError(e instanceof TypeError ? t(state.current.lang, 'noEngine') : e.message);
+      setError(e instanceof TypeError ? t(state.current.lang, 'noEngine') : /timed? ?out|TimeoutError|AbortError/i.test(`${e.name} ${e.message}`) ? t(state.current.lang, 'slow') : e.message);
     } finally { setBusy(false); }
   }
   function onTag(id, status) {
