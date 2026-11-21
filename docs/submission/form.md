@@ -8,24 +8,25 @@ Character counts were computed with Python `len()` on the exact strings below, w
 
 | # | Title | Characters | Why |
 |---|---|---:|---|
-| 1 | `Cigala: every choice grows a tree` | 33 | Recommended. Uses the team name and the portal's headline; memorable in the main ranking. |
-| 2 | `Lumi: a financial twin for students` | 35 | Leads with the guide character and says exactly what it is (UBS wording: financial twin). |
-| 3 | `Tree of Life: explore your money choices` | 40 | Most descriptive; uses all 40 characters. |
+| 1 | `Arbor – explore your futures` | 28 | Recommended. The product name and the core of the tagline; short enough to read in the main ranking. |
+| 2 | `Arbor: explore your futures` | 27 | Same, with a colon if the platform mangles the en dash. |
+| 3 | `Arbor – a financial twin for students` | 37 | Says exactly what it is, in UBS wording (financial twin). |
 
-TODO (team): pick the product name. The README hero uses option 1; change it there too if you choose another.
+The product is **Arbor** (tagline: *Explore your futures before you live them*). The guide is **Lumi**, the light that lives in the tree. The repository keeps its name, `lauzhack-26-cigala`.
 
 ## Short description (max 100 characters)
 
 | # | Short description | Characters | Note |
 |---|---|---:|---|
-| 1 | `A financial twin for students: explore each life choice, add your own situation, watch it re-grow.` | 98 | Recommended: names the core value-add (personal conditions). |
+| 1 | `Arbor: explore your futures before you live them. A financial twin for students.` | 80 | Recommended: the full tagline plus what it is. |
+| 1b | `A financial twin for students: explore each life choice, add your own situation, watch it re-grow.` | 98 | Names the core value-add (personal conditions). |
 | 2 | `Explore, don't predict: a verified financial twin that shows where each student life choice breaks.` | 99 | Echoes the UBS feedback. |
 | 3 | `A cinematic tree of your financial future: each branch a decision, each number from a tested engine.` | 100 | Leads with the experience. |
 
-## Long description (max 1000 characters): 995 characters
+## Long description (max 1000 characters): 994 characters
 
 ```text
-Cigala is a financial twin for students, drawn as a tree of life. Branches are decisions, explored with a deterministic monthly engine: official ESTV 2026 income tax by city, pillar 3a, payroll for gross salaries, editable sourced assumptions, plan check, break-even, what would fix it, stress what-ifs and comparison. Under the UBS starter kit's own assumptions it reproduces the kit exactly; six live checks pass. Make it mine: say your own situation ("I'd get a CHF 600/month scholarship"); rules or a small model turn it into one change using only your numbers, you confirm, and the branch re-grows. Roots come from a questionnaire, voice or a payslip photo read by a frugal chain (local OCR, a small model, checks; vision only if a check fails): 97.7% accuracy, 154x cheaper than a frontier model. Lumi explains engine results in four languages, with a local voice and a self-hostable open-weight model, and never recommends. Free: a student network could offer it before a lease is signed.
+Arbor is a financial twin for students, drawn as a tree of life. Branches are decisions, explored with a deterministic monthly engine: official ESTV 2026 income tax by city, pillar 3a, payroll for gross salaries, editable sourced assumptions, plan check, break-even, what would fix it, stress what-ifs and comparison. Under the UBS starter kit's own assumptions it reproduces the kit exactly; six live checks pass. Make it mine: say your own situation ("I'd get a CHF 600/month scholarship"); rules or a small model turn it into one change using only your numbers, you confirm, and the branch re-grows. Roots come from a questionnaire, voice or a payslip photo read by a frugal chain (local OCR, a small model, checks; vision only if a check fails): 97.7% accuracy, 154x cheaper than a frontier model. Lumi explains engine results in four languages, with a local voice and a self-hostable open-weight model, and never recommends. Free: a student network could offer it before a lease is signed.
 ```
 
 Every claim traces to the repo:

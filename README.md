@@ -1,12 +1,10 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# Cigala: every choice grows a different tree
+# Arbor: explore your futures before you live them
 
-**A financial twin for students. See what each life decision does to your next ten years before you take it, then tell it what is different about *your* life and watch that branch re-grow. A tested, deterministic engine produces every financial result. Lumi, the guide, explains them and never recommends, on an open-weight default model that could run on your own servers.**
+**A financial twin for students. See what each life decision does to your next ten years before you take it, then tell it what is different about *your* life and watch that branch re-grow. A tested, deterministic engine produces every financial result. Lumi, the light that lives in the tree, explains them and never recommends, on an open-weight default model that could run on your own servers.**
 
 LauzHack 2026 (EPFL) · team cigala · challenges: **UBS AI Financial Twin** (main), **AXA Frugal multimodal AI**, **IMC Tech for Good**.
-
-> TODO (team): the product name is not final. Title options are in [`docs/submission/form.md`](docs/submission/form.md).
 
 > **Every engine figure on this page comes from [`scripts/pitch_figures.py`](scripts/pitch_figures.py)** (engine `core-1.1`, Alexia's demo profile, default assumptions, Sat 21 Nov 22:06, master `991f129`). The engine is still being improved tonight, so re-run `python scripts/pitch_figures.py` before submitting and update the numbers here, in [`docs/pitch.md`](docs/pitch.md) and in [`docs/submission/`](docs/submission/).
 
@@ -14,18 +12,18 @@ LauzHack 2026 (EPFL) · team cigala · challenges: **UBS AI Financial Twin** (ma
 
 Alexia is 20 and studies in Lausanne. She has CHF 8,000 saved and three options: start working, do a master's, or move abroad. A spreadsheet can't show her where each path breaks, and a chatbot invents numbers. She can't afford a financial adviser.
 
-Cigala draws her situation as a **tree of life**:
+Arbor draws her situation as a **tree of life**:
 
 - **Roots** are who she is. Fill them in with a short questionnaire, by dropping a payslip photo, bank statement or rental contract into a frugal multimodal pipeline, or by voice.
 - **Trunk** is today.
 - **Branches** are her decisions. Each branch is a fully specified *if this, then that* world, simulated month by month for 120 months with the official 2026 income tax of her city (and, for gross salaries, Swiss payroll deductions).
-- **Weather** is what she doesn't choose: recession, inflation, a market crash, job loss or a franc move. She sets it on the tree itself (start month, duration), and every card recomputes. These are selected what-ifs, not an exhaustive list of risks. In progress ([#87](https://github.com/Jlopvs24/lauzhack-26-cigala/issues/87)): a left weather rail with three outlooks (Pessimistic, Neutral, Optimistic) and qualitative factors such as *high inflation* or *a strong franc*, shown without numbers.
+- **Weather** is what she doesn't choose: recession, inflation, a market crash, job loss or a franc move. She picks it on the weather rail at the left of the tree: a macro outlook (Pessimistic, Neutral or Optimistic) and, under *More factors*, qualitative factors such as *high inflation* or *a strong franc*, shown without numbers. Every card recomputes and says how the outlook moves it. These are selected what-ifs, not an exhaustive list of risks.
 
-She picks a branch and the camera flies into it. Its sub-choices grow, and the branches she passed stay greyed out so she can compare. Each card shows a **plan check** (does it hold?) and **what it trades** against its siblings. On every node she can ask *what would have to be true*: break-even salary, goal-seek, the smallest shock that breaks the plan, the cost of waiting a year, which assumption matters most, and *what would fix it* (the smallest change that closes a funding gap). She can pin options from different branches with **+ Add to comparison**, from a card or from a path report, and see them side by side on a spec-sheet page.
+She picks a branch and the camera flies into it. Its sub-choices grow, and the branches she passed stay greyed out so she can compare. Each option card says it in plain words: a title and two bullets (does the money run out? what is saved after 10 years, and how the outlook moves it), with the **plan check** as a coloured dot. On every node she can ask *what would have to be true*: break-even salary, goal-seek, the smallest shock that breaks the plan, the cost of waiting a year, which assumption matters most, and *what would fix it* (the smallest change that closes a funding gap). She can pin options from different branches with **+ Add to comparison**, from a card or from a path report, and see them side by side on a spec-sheet page; a compact compare bar waits in a corner of the screen.
 
-Lumi, the guide, sits docked at the bottom right above the chat line, her mouth moving with her voice. Opening the conversation moves her into the chat panel.
+Lumi, the guide, sits docked at the bottom right above the chat line, her mouth moving with her voice. Opening the conversation moves her into the chat panel. **Lumi Live** is an optional realtime voice call (Gemini Live) that starts only after a consent step, because the user's voice then goes to Google. A reload always starts fresh: no previous chat, pins, personal conditions or Live consent.
 
-Then she makes it hers. She tells it, by voice or text, *"I'd get a CHF 600/month scholarship"*. Deterministic rules (EN/ES/FR/DE) turn common phrasings into a change the engine can simulate, using only numbers she said, and a small model handles the rest. She confirms, and that branch and everything below it re-grow, either as a change to the branch or as a new branch to compare. At the end of a branch she opens a visual path report she can save as a PDF: what would fix it, a two-lever *room to move* heatmap, and what changes if she starts later. It is an exploration, not a forecast, and never advice.
+Then she makes it hers. She tells it, by voice or text, *"I'd get a CHF 600/month scholarship"*. Deterministic rules (EN/ES/FR/DE) turn common phrasings into a change the engine can simulate, using only numbers she said, and a small model handles the rest. She confirms, and that branch and everything below it re-grow, either as a change to the branch or as a new branch to compare. She can also just tell Lumi in the chat, typed or spoken: a what-if question (*"What if I got a CHF 600 scholarship?"*) grows a new branch, and a statement (*"I'd get a CHF 600 scholarship"*) changes the current one. Both go through the same rules and the engine, in about 0.1–1 s. At the end of a branch she opens a visual path report she can save as a PDF: what would fix it, a two-lever *room to move* heatmap, and what changes if she starts later. It is an exploration, not a forecast, and never advice.
 
 ## Screenshots
 
@@ -33,10 +31,10 @@ Then she makes it hers. She tells it, by voice or text, *"I'd get a CHF 600/mont
 
 | | |
 |---|---|
-| ![Start portal](docs/submission/screenshots/01-portal.png) *Start portal* | ![The tree, master's branch](docs/submission/screenshots/02-tree-master.png) *Branch cards: plan check and what it trades; past paths greyed* |
+| ![Start portal](docs/submission/screenshots/01-portal.png) *Start portal* | ![The tree, master's branch](docs/submission/screenshots/02-tree-master.png) *Option cards in plain words: two bullets and a plan-check dot; past paths greyed* |
 | ![What would have to be true](docs/submission/screenshots/03-exploration.png) *Levers, break-even, reverse stress, timing* | ![Make it mine](docs/submission/screenshots/04-make-it-mine.png) *Make it mine: her own condition, confirmed, re-grows the branch* |
 | ![Path report](docs/submission/screenshots/05-report.png) *Visual path report: what would fix it, room to move, start later* | ![Verified panel](docs/submission/screenshots/06-verified.png) *Verified: six live engine checks* |
-| ![Comparison](docs/submission/screenshots/07-compare.png) *Comparison: options from any branch, side by side* | ![Weather on the tree](docs/submission/screenshots/08-weather.png) *Weather on the tree: if a recession starts in month 12…* |
+| ![Comparison](docs/submission/screenshots/07-compare.png) *Comparison: options from any branch, side by side* | ![Weather on the tree](docs/submission/screenshots/08-weather.png) *Weather rail: a pessimistic outlook, every card recomputed* |
 
 ## How it works
 
@@ -49,7 +47,7 @@ flowchart LR
     T --> R["Visual path report + PDF"]
     T --> CP["Comparison: options side by side"]
     V["Verified panel: 6 live checks"]
-    C["Chat panel: type, voice note, call"]
+    C["Chat panel: type or speak; what-ifs grow branches; optional Lumi Live"]
   end
 
   subgraph A["api/ (FastAPI)"]
@@ -107,8 +105,9 @@ Every default model we call is open-weight or runs locally (speech recognition i
 | Documents | PDF text layer or on-device OCR (RapidOCR), then Mistral Small 24B (open weights, Apache-2.0) on the text only | OCR on the device; the text model through OpenRouter | `gemini-3.1-flash-lite` sees the image only when a check fails (27% of benchmark documents) |
 | Lumi's voice | Kokoro-82M (Apache-2.0) | locally | the browser's `speechSynthesis` |
 | Speech to text | the browser's speech recognition | the browser (Chrome may use the vendor's servers) | `gemini-3.1-flash-lite` through OpenRouter, for voice notes and Firefox only |
+| Lumi Live (optional, after a consent step) | Gemini Live realtime voice (proprietary) | Google, while the call is open: the user's voice and this branch's engine results | the classic chat; Live is off without a key or consent |
 
-Self-hosting the LLM moves Lumi's conversation and personal conditions off third-party APIs. Document escalation and the speech-to-text fallback still go through OpenRouter. Confirmed personal conditions and comparison pins are stored only in the browser session.
+Self-hosting the LLM moves Lumi's conversation and personal conditions off third-party APIs. Document escalation and the speech-to-text fallback still go through OpenRouter. Confirmed personal conditions and comparison pins live only in the open page: a reload starts fresh.
 
 ## What each challenge gets, with evidence
 
@@ -206,7 +205,7 @@ Benchmark on 60 synthetic Swiss documents with known ground truth (20 UBS profil
 
 ### IMC: Tech for Good
 
-The people who most need someone to check their plan, such as students, first-generation students and exchange students, are the least likely to have that someone. Cigala is free and works in EN, ES, FR and DE, with a voice that matches the language. Users can talk to it instead of typing, and they can describe their own situation in their own words. Its core (the questionnaire plus the engine) needs no paid model.
+The people who most need someone to check their plan, such as students, first-generation students and exchange students, are the least likely to have that someone. Arbor is free and works in EN, ES, FR and DE, with a voice that matches the language. Users can talk to it instead of typing, and they can describe their own situation in their own words. Its core (the questionnaire plus the engine) needs no paid model.
 
 Our sourced impact case is in [`docs/impact/README.md`](docs/impact/README.md), checked on 21 Nov 2026:
 
@@ -300,4 +299,4 @@ python -m multimodal.benchmark.run --strategies frugal ocr_llm vlm_cheap vlm_sma
 | Juan ([@Jlopvs24](https://github.com/Jlopvs24)) | Lead; engine v1, API and agent, personal conditions, voice, multimodal roots and AXA benchmark, cinematic tree, path report, Lumi, delivery |
 | Lluc ([@llucliment](https://github.com/llucliment)) | Financial engine (`core/`) from Sat 16:45: the exploration-first redesign, plan check, live validation, engine audit and calibration, payroll, ESTV tax and pillar 3a; roots, chat and voice UI; IMC impact case |
 
-We built Cigala with AI coding agents (Claude Code, Codex, Antigravity) working in parallel and coordinating through GitHub issues and a pinned message-board issue ([`AGENTS.md`](AGENTS.md)). The humans made the product and modelling decisions ([`docs/plan.md`](docs/plan.md)) and reviewed and merged every PR.
+We built Arbor with AI coding agents (Claude Code, Codex, Antigravity) working in parallel and coordinating through GitHub issues and a pinned message-board issue ([`AGENTS.md`](AGENTS.md)). The humans made the product and modelling decisions ([`docs/plan.md`](docs/plan.md)) and reviewed and merged every PR.
