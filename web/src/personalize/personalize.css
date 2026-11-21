@@ -117,6 +117,3 @@
   .pz-conds li { flex-direction: column; align-items: flex-start; }
 }
 
-/* mount slot in the app (main.jsx): top-left under the top bar, above the scene */
-.pz-mount { position: fixed; left: 28px; top: 84px; z-index: 7; display: grid; gap: 10px; justify-items: start; max-height: calc(100vh - 220px); overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
-@media (max-width: 720px) { .pz-mount { left: 12px; right: 12px; top: 70px; max-height: calc(100vh - 200px); } }
