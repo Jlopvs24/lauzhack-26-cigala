@@ -568,7 +568,7 @@ Implements `docs/report-spec.md` §3. Every number comes from engine calls (one 
   "section_order": [{"key": "summary", "title": "Plain-language summary", "n": 1}, "... 12 items ..."],
   "sections": {
     "summary": {"text": "If “Do a master's” then “Student job only”, then under these assumptions ...", "mode": "template",
-                "template": "deterministic text the LLM may only reword", "model": "qwen/qwen3.7-flash", "cost_usd": 0.0001},
+                "template": "same deterministic text (POST /report/summary rewords it)", "model": "template", "cost_usd": 0.0},
     "scope": {"question": "...", "horizon_months": 120, "currency": "CHF", "jurisdiction": "Switzerland (Lausanne)",
               "as_of": "2025-01-01", "values": "nominal CHF; final_net_worth_real is in today's prices", "basis": "..."},
     "starting_state": {"fields": [{"field": "cash", "value": 8000, "source": "ubs_kit:synthetic-profiles.csv",
@@ -599,7 +599,7 @@ Implements `docs/report-spec.md` §3. Every number comes from engine calls (one 
                    "test_evidence": [{"file": "core/tests/test_engine.py", "test": "test_scenario_isolation_unrelated_assumption_has_no_effect"}]},
     "limitations": ["Synthetic profile ...", "Not financial advice ...", "No number is produced by a language model ..."]
   },
-  "cost_usd": 0.0001, "latency_ms": 7300, "model": "qwen/qwen3.7-flash"
+  "cost_usd": 0.0, "latency_ms": 700, "model": "template", "cached": false
 }
 ```
 
