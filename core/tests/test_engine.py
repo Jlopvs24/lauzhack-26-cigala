@@ -382,7 +382,7 @@ def test_break_even_salary_is_where_the_two_paths_meet():
 def test_break_even_without_a_crossing_says_so_instead_of_guessing():
     ex = simulate(None, "2.1")["exploration"]  # its siblings share the post-master salary
     by_peer = {r["compared_to"]: r["salary_threshold"] for r in ex["break_even"]}
-    assert by_peer["2.2"]["status"] == "already_satisfied"  # ahead of the loan at every salary in range
+    assert by_peer["2.2"]["status"] == "not_reached_within_bounds"  # an interest-free loan (Vaud) is never behind
     assert by_peer["2.3"]["status"] == "not_reached_within_bounds"  # never catches up with working 40%
     assert by_peer["2.2"]["value"] is None and by_peer["2.3"]["value"] is None
 
@@ -608,7 +608,7 @@ def test_assumptions_introduced_carry_kind_source_and_verified():
     nodes = {n["node_id"]: n for n in expand(None, ["2", "2.2"], sensitivity=False, exploration=False)["nodes"]}
     intro = nodes["2.2"]["assumptions_introduced"]
     assert [a["id"] for a in intro] == ["AS-alexia-study-loan-rate"]
-    assert intro[0]["verified"] is False and intro[0]["source"] and intro[0]["kind"] == "assumption"
+    assert intro[0]["verified"] is True and "vd.ch" in intro[0]["source"] and intro[0]["kind"] == "assumption"
 
 
 def test_report_data_covers_every_step_alternatives_and_stress():
