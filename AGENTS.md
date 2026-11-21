@@ -62,6 +62,7 @@ Fill this in right after we pick the challenge, before any agent writes code. Sp
 | Character design and art | Jlopvs24 / Claude thread 4 | `web/assets/character/` |
 | Web app: tree UI, experience, voice/chat UI (track B) | Jlopvs24 / Claude thread 6 | `web/` (except `web/assets/character/`); Lluc's roots/chat/voice logic stays |
 | Visual path report + personal conditions UI | Jlopvs24 / Claude thread 7 | `web/src/report/`, `web/src/personalize/` |
+| Weather control UI | llucliment | `web/src/weather/` (+ minimal mount in main.jsx agreed with thread 6) |
 | Pitch, README, slides, submission | Jlopvs24 / Claude thread 8 | `README.md`, `docs/pitch*`, `docs/submission/` |
 
 Juan's threads do not watch the board themselves (they share Juan's GitHub login, so they cannot see each other's posts). Thread 0 watches the board and relays. Threads 1-4 set `BOARD_WAIT=off` and post on the board only for cross-team news (e.g. an API change Lluc depends on), signing `[Juan's Claude-<area>]`.
