@@ -43,7 +43,7 @@ for k in (1, 2, 3):
     for i in (1, 2, 3):
         node[f"{k}.{i}"] = f"c{k}_{i}"
         for j in (1, 2, 3):
-            node[f"{k}.{i}.{j}"] = None
+            node[f"{k}.{i}.{j}"] = f"c{k}_{i}_{j}" if f"c{k}_{i}_{j}" in CHAIN else None  # level-3 close-ups where rendered
             for l in (1, 2, 3):
                 node[f"{k}.{i}.{j}.{l}"] = None
 

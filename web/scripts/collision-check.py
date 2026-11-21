@@ -37,7 +37,7 @@ def all_paths():  # walk the tree the API serves (works for any depth)
 
 MEASURE = """() => {
   const rect = (el) => { const r = el.getBoundingClientRect(); return r.width && r.height ? r : null; };
-  const obstacles = ['.say-card', '#lumi', '.dock', '.nav-back'].map((s) => document.querySelector(s)).filter(Boolean).map(rect).filter(Boolean);
+  const obstacles = ['.say-card', '#lumi', '.chatp-dock-wrap', '.nav-back'].map((s) => document.querySelector(s)).filter(Boolean).map(rect).filter(Boolean);
   const bad = [];
   for (const t of document.querySelectorAll('.tag')) {
     if (t.classList.contains('occluded') || +getComputedStyle(t).opacity < 0.5) continue;
@@ -45,12 +45,18 @@ MEASURE = """() => {
     for (const o of obstacles) if (a.right > o.left && a.left < o.right && a.bottom > o.top && a.top < o.bottom) bad.push(t.textContent.slice(0, 30));
   }
   const offscreen = [...document.querySelectorAll('.tag:not(.occluded)')].filter((t) => { const r = t.getBoundingClientRect(); return r.right < 0 || r.left > innerWidth || r.bottom < 0 || r.top > innerHeight; }).length;
+  const cards = [...document.querySelectorAll('.tag')].filter((t) => !t.classList.contains('occluded') && +getComputedStyle(t).opacity >= 0.5).map((t) => [t.textContent.slice(0, 24), t.querySelector('.card').getBoundingClientRect()]);
+  for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) {
+    const [na, a] = cards[i], [nb, b] = cards[j];
+    const w = Math.min(a.right, b.right) - Math.max(a.left, b.left), h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+    if (w > 2 && h > 2) bad.push(`card/card: ${na} × ${nb}`);
+  }
   const faded = [...document.querySelectorAll('.tag.occluded.child, .tag.occluded.sibling')].map((t) => t.textContent.slice(0, 30));
   return { bad, offscreen, faded, side: document.querySelector('.narration')?.classList.contains('right') ? 'right' : 'left', tags: document.querySelectorAll('.tag').length };
 }"""
 
 
-SEM = asyncio.Semaphore(2)  # the shared API is single-process: do not flood it
+SEM = asyncio.Semaphore(1)  # one browser at a time: the shared API must not be flooded
 
 
 async def run(browser, lang, width, height, paths, results):
@@ -68,6 +74,8 @@ async def _run(browser, lang, width, height, paths, results):
     await pg.wait_for_function("window.__cigala")
     await pg.wait_for_timeout(1500)
     await pg.evaluate("window.__cigala.begin()")
+    await pg.wait_for_selector(".tag", timeout=150000)
+    await pg.click("header .ghost-btn[aria-pressed]", force=True)  # mute: no TTS load on the shared API
     await pg.wait_for_timeout(5000)
     for p in paths:
         await pg.evaluate(f"window.__cigala.go({json.dumps(p)})")

@@ -15,6 +15,7 @@ import { createNarrator, translateNode, t } from './scene/narration.js';
 import { renderReport } from './scene/report.js';
 import { cardHeadline } from './scene/headline.js';
 import PathReport from './report/PathReport.jsx';
+import Verified from './Verified.jsx';
 import { UI, LANGS } from './scene/i18n.js';
 import './app.css';
 
@@ -57,7 +58,7 @@ function App() {
   const narrator = useMemo(() => createNarrator(), []);
   const seen = useRef(new Map());
   const state = useRef({}); // latest values for imperative callbacks
-  state.current = { tree, lang, profile, overrides, lens, busy };
+  state.current = { tree, lang, profile, overrides, lens, busy, panel, pathReport };
 
   // dev-only hook for the browser check (visits every node directly); stripped from production builds
   if (import.meta.env?.DEV) window.__cigala = { go: (p) => go(p, { force: true }), begin: () => begin(null), get busy() { return state.current.busy; } };
@@ -75,7 +76,7 @@ function App() {
     createScene({ world: worldRef.current, labels: labelsRef.current, onTagClick: (id, status) => onTag(id, status) }).then(async (s) => {
       if (disposed) { s.destroy(); return; }
       scene.current = s;
-      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.dock'), document.querySelector('.nav-back')] }));
+      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), document.querySelector('.nav-back')] }));
       await s.intro();
       if (introRef.current) gsap.from(introRef.current.children, { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: 'power3.out' });
     });
@@ -94,15 +95,16 @@ function App() {
   useEffect(() => { voice.current?.setMuted(muted); }, [muted]);
 
   // ---------- narration ----------
+  const reportOpen = () => state.current.panel === 'report' || state.current.pathReport;
   function say(text, spoken = text) {
     setBubble(text);
-    voice.current?.speak(spoken, state.current.lang);
+    if (!reportOpen()) voice.current?.speak(spoken, state.current.lang);
   }
   function narrateNode(data, l = state.current.lang) {
     const p = state.current.profile;
     const n = narrator.next(data, l, p ? JSON.stringify(p).length : 'demo', p?.display_name || 'Alexia');
     setBubble(n.text);
-    voice.current?.speak(n.speak, l);
+    if (!reportOpen()) voice.current?.speak(n.speak, l); // marked as narrated either way: no re-read later
     const cur = data.nodes.find((x) => x.node_id === data.current);
     if (cur?.result?.health?.score != null) lumi.current?.setMood(cur.result.health.score);
   }
@@ -182,6 +184,9 @@ function App() {
     try { setTree(await fetchTree(path, { lens: true, exploration: true })); } catch (e) { setError(e.message); } finally { setLensPending(false); }
   }
 
+  // a report opening stops Lumi at once (speech and any TTS in flight)
+  useEffect(() => { if (panel === 'report' || pathReport) voice.current?.stop(); }, [panel, pathReport]);
+
   // exploration only when the report is open, for the current node, cancelled when it changes
   const [explored, setExplored] = useState(null);
   useEffect(() => {
@@ -191,7 +196,14 @@ function App() {
     const key = JSON.stringify([path, overrides, lens]);
     if (explored?.key === key) return;
     const ctl = new AbortController();
-    fetchTree(path, { exploration: true }, ctl.signal).then((d) => setExplored({ key, data: d })).catch(() => {});
+    const body = { path, assumptions: overrides, ...(profile ? { profile } : {}) };
+    apiRequest('/tree/explore', { body, signal: ctl.signal })
+      .then((x) => setExplored({ key, data: { ...tree, nodes: tree.nodes.map((n) => (n.node_id === tree.current
+        ? { ...n, result: { ...n.result, exploration: x.exploration, sensitivity: x.sensitivity ?? n.result?.sensitivity } } : n)) } }))
+      .catch((e) => { // API without /tree/explore: one expand with exploration
+        if (ctl.signal.aborted || !/40[45]/.test(e.message)) return;
+        fetchTree(path, { exploration: true }, ctl.signal).then((d) => setExplored({ key, data: d })).catch(() => {});
+      });
     return () => ctl.abort();
   }, [panel, tree, busy]); // eslint-disable-line react-hooks/exhaustive-deps
   const exploredKey = JSON.stringify([path, overrides, lens]);
@@ -239,6 +251,7 @@ function App() {
           <button key={k} type="button" aria-pressed={k === lang} onClick={() => setLang(k)}>{v}</button>)}</div>
         <button className="ghost-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? t(lang, 'light') : t(lang, 'dark')}</button>
         <button className="ghost-btn" aria-pressed={muted} onClick={() => { voice.current?.unlock(); setMuted(!muted); }}>{muted ? t(lang, 'soundOff') : t(lang, 'soundOn')}</button>
+        <Verified lang={lang} />
         {tree && <button className={`ghost-btn ${panel === 'report' ? 'on' : ''}`} onClick={() => setPanel(panel === 'report' ? null : 'report')}>{t(lang, 'report')}</button>}
       </div>
     </header>
@@ -289,7 +302,7 @@ function App() {
     {started && cur && !busy && !tree.nodes.some((n) => n.status === 'child') && path.length > 0 && !pathReport &&
       <button className="leaf-cta" onClick={() => { setPanel(null); setPathReport(true); }}>
         <span className="leaf-cta-kicker">{t(lang, 'leafEnd')}</span><span>{t(lang, 'openReport')}</span></button>}
-    {pathReport && <PathReport lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} startProfile={profile || demoProfile} path={path} assumptions={overrides} onClose={() => setPathReport(false)} />}
+    {pathReport && <PathReport lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} startProfile={profile || demoProfile} path={path} assumptions={overrides} lens={lens} onClose={() => setPathReport(false)} />}
 
     {busy && started && <div className="loading" role="status">{t(lang, 'loading')}</div>}
     {error && <div className="error-toast" role="alert">{error}<button onClick={() => { setError(''); go(path, { force: true }); }}>{t(lang, 'retry')}</button></div>}
