@@ -182,7 +182,8 @@ def _amount_ok(x: float, user: list[float]) -> bool:
     cands = set()
     for u in user:
         cands |= {u, u / 100, u * 12, u / 12, u * 1000}
-    return any(abs(x - c) <= max(0.005 * abs(c), 0.01) for c in cands)
+    # the sign is the operation's ("save 200 more" = spending -200), the amount must be the user's
+    return any(abs(abs(x) - c) <= max(0.005 * abs(c), 0.01) for c in cands)
 
 
 _NEXT_YEAR = re.compile(r"next year|in a year|año que viene|pr[oó]ximo año|el año siguiente|l'ann[ée]e prochaine|"
@@ -422,7 +423,7 @@ def _llm_json(msgs: list[dict], model: str | None, timeout: float, purpose: str)
 
 
 def personalize(profile: dict | None, path: list[str], node_id: str, text: str, language: str | None = None,
-                mode: str = "auto", overrides: list[dict] | None = None) -> dict:
+                mode: str = "auto", overrides: list[dict] | None = None, rules_only: bool = False) -> dict:
     """Rules first (~ms), then the LLM with a hard timeout and one faster fallback, never hanging:
     worst case is a clarifying question in about LLM_TIMEOUT_S + FALLBACK_TIMEOUT_S."""
     from api import personalize_rules
@@ -485,6 +486,8 @@ def personalize(profile: dict | None, path: list[str], node_id: str, text: str, 
         if out:
             return out
         log.info("rules proposal rejected (%s); trying the LLM", why)
+    if rules_only:  # #117: the chat's fast path never waits for an LLM here
+        return done(parser="rules_miss")
 
     # 2. LLM, bounded: primary (frugal) model, then one faster fallback, then a clarifying question
     if not llm.available():

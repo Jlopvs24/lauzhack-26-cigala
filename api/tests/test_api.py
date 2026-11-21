@@ -951,3 +951,75 @@ def test_numbers_the_user_gave_are_grounded(monkeypatch):
     txt = agent.user_context_text("Est-ce assez ?", ctx)
     assert check_grounding("Avec CHF 8\u202f000 et un loyer de 1\u202f300, ...", [], txt)["grounded"]
     assert not check_grounding("Il manquerait CHF 10\u202f531.", [], txt)["grounded"]
+
+
+# ------------------------------------------------------------------ #117: what-ifs said in the chat
+def _real_nw(res):
+    m = res["metrics"]
+    return m.get("final_net_worth_real", m["final_net_worth"])
+
+
+@pytest.mark.parametrize("q,lang", [("What happens if I invest 300 instead of 500?", "en"),
+                                    ("¿Qué pasa si invierto 300 en vez de 500?", "es")])
+def test_chat_whatif_goes_through_make_it_mine_and_the_engine(q, lang):
+    """#117: no LLM, under a second, numbers equal a direct core simulation, the confirm-chip proposal returned."""
+    import time
+    t0 = time.perf_counter()
+    r = c.post("/agent/ask", json={"question": q, "context": {"path": ["1", "1.2"], "node_id": "1.2"}})
+    dt = time.perf_counter() - t0
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["mode"] == "whatif" and j["language"] == lang and dt < 2.0
+    assert j["grounding"]["grounded"] is True
+    iv = j["personalize"]["proposal"]["interventions"][0]
+    assert iv["param"] == "monthly_investment_contribution" and iv["op"] == "set" and iv["value"] == 300
+    prof = engine.default_profile()
+    before = engine.simulate(prof, {"node_id": "1.2"}, [], [], fast=True)
+    with engine.using_extras(None, {"1.2": [iv]}):
+        after = engine.simulate(prof, {"node_id": "1.2"}, [], [], fast=True)
+    fmt = lambda x: f"{x:,.0f}".replace(",", "'")  # noqa: E731
+    assert fmt(_real_nw(after)) in j["answer"]
+    assert fmt(abs(_real_nw(after) - _real_nw(before))) in j["answer"]
+    assert _real_nw(after) < _real_nw(before)  # investing less ends lower here (fund return > cash interest)
+
+
+def test_chat_whatif_stream_and_voice_use_the_same_fast_path(monkeypatch):
+    import json
+    import time
+    from api import voice
+    body = {"question": "What happens if I invest 300 instead of 500?", "context": {"path": ["1", "1.2"], "node_id": "1.2"}}
+    events = [json.loads(line[6:]) for line in c.post("/agent/ask/stream", json=body).text.splitlines()
+              if line.startswith("data: ")]
+    assert events[-1]["type"] == "done" and events[-1]["mode"] == "whatif" and events[-1]["personalize"]
+    assert any(e["type"] == "sentence" for e in events)
+    monkeypatch.setattr(voice, "stt", lambda *a, **k: {"text": "What happens if I invest 300 instead of 500?",
+                                                        "language": "en", "cost_usd": 0.0, "model": "fake",
+                                                        "provider_latency_ms": 1})
+    t0 = time.perf_counter()
+    r = c.post("/voice/ask", files={"audio": ("a.wav", b"RIFF", "audio/wav")},
+               data={"context": json.dumps({"path": ["1", "1.2"], "node_id": "1.2"})})
+    assert r.status_code == 200, r.text
+    assert r.json()["mode"] == "whatif" and r.json()["personalize"] and time.perf_counter() - t0 < 6.0
+
+
+def test_chat_whatif_more_phrasings():
+    ask = lambda q, path: agent_ask(q, path)  # noqa: E731
+    for q, path, param in [("What happens if my rent is 1300 francs instead?", ["2"], "monthly_rent"),
+                           ("what if I save 200 more a month", ["1"], "monthly_other_expenses"),
+                           ("y si ahorro 150 más al mes", ["1"], "monthly_other_expenses"),
+                           ("Et si mon salaire après le master est de 5200 ?", ["2"], "assumption"),
+                           ("Was wäre, wenn ich 400 statt 500 anlege?", ["1", "1.2"], "monthly_investment_contribution")]:
+        j = ask(q, path)
+        assert j["mode"] == "whatif", q
+        assert j["personalize"]["proposal"]["interventions"][0]["param"] == param, q
+
+
+def agent_ask(q, path):
+    r = c.post("/agent/ask", json={"question": q, "context": {"path": path, "node_id": path[-1]}})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_non_whatif_questions_still_take_the_normal_path():
+    j = agent_ask("Why does the master's need financing?", ["2"])
+    assert j["mode"] in ("llm", "template") and not j.get("personalize")
