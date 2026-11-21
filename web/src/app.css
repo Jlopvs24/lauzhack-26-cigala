@@ -249,10 +249,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .drawer input:not([type=checkbox]):not([type=file]), .drawer textarea, .drawer select { font-size: 16px; }
 }
 @media (max-width: 720px) {
+  /* phones: every header button stays reachable; the actions wrap onto a second row instead of scrolling */
   .top { align-items: flex-start; }
-  .top-actions { flex-wrap: nowrap !important; overflow-x: auto; max-width: calc(100vw - 120px); gap: 6px; scrollbar-width: none; justify-content: flex-start !important; }
-  .top-actions::-webkit-scrollbar { display: none; }
-  .ghost-btn { padding: 6px 11px; font-size: 12px; white-space: nowrap; flex: none; }
+  .top-actions { flex: 1; min-width: 0; flex-wrap: wrap !important; justify-content: flex-end !important; gap: 6px; }
+  .ghost-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; flex: none; }
+  .wx { top: calc(var(--top-h, 76px) + 6px) !important; left: 12px !important; width: calc(100vw - 24px) !important; padding: 8px 10px !important; }
+  .wx-head { margin-bottom: 4px !important; }
+  .wx-chips { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
+  .wx-chips::-webkit-scrollbar { display: none; }
+  .wx-chip { flex: none; min-height: 28px !important; padding: 3px 9px !important; font-size: 12px; }
   .seg { flex: none; }
   .say-card { font-size: 13px; padding: 12px 14px; max-height: 28vh; overflow-y: auto; margin-bottom: 8px; }
   .tag .meta { font-size: 11px; }

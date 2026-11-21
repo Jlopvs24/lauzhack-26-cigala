@@ -169,9 +169,9 @@ export async function createScene({ world, labels, onTagClick }) {
       let best = null;
       const lo = p.t.w / 2 + 4, hi = W2 - p.t.w / 2 - 4; // a card is slid fully on screen, never dropped for touching an edge
       for (let [dx, dy] of cands) {
-        const x = Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)), y = p.y + dy;
+        const x = narrow ? p.x + dx : Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)), y = p.y + dy;
         dx = x - p.x;
-        if (y < minY || y > maxY) continue;
+        if (y < minY || y > maxY || x < lo || x > hi) continue; // phones: sideways candidates cover the edges
         const r = rectAt(x, y, p.t);
         const cost = taken.reduce((c, q) => c + overlap(r, q), 0) + fixed.reduce((c, q) => c + overlap(r, q), 0);
         if (cost === 0) { best = { dx, dy, r, cost }; break; }

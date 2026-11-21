@@ -106,11 +106,15 @@ function App() {
     apiRequest('/profiles/demo', { method: 'GET' }).then((d) => setDemoProfile(d?.profile || null)).catch(() => {});
     const onResize = () => { const s = state.current; if (s.tree) scene.current?.refit(s.tree.current); };
     addEventListener('resize', onResize);
+    // the header's real height (it wraps on phones): what sits under it is placed from --top-h
+    const top = document.querySelector('header.top');
+    const ro = top && new ResizeObserver(() => document.documentElement.style.setProperty('--top-h', `${Math.round(top.getBoundingClientRect().bottom)}px`));
+    if (top) ro.observe(top);
     // Lluc's chat panel (#34): 'panel:open' {side: 'right'|'bottom', width, height} on open/resize, 'panel:close'
     const onPanel = (e) => { const d = e.detail || {}; scene.current?.setInsets(d.side === 'bottom' ? { bottom: d.height || 0 } : { right: d.width || 0 }); };
     const onPanelClose = () => scene.current?.setInsets({});
     addEventListener('panel:open', onPanel); addEventListener('panel:close', onPanelClose);
-    return () => { disposed = true; removeEventListener('resize', onResize); removeEventListener('panel:open', onPanel); removeEventListener('panel:close', onPanelClose); scene.current?.destroy(); voice.current?.dispose(); lumi.current?.destroy?.(); };
+    return () => { disposed = true; ro?.disconnect(); removeEventListener('resize', onResize); removeEventListener('panel:open', onPanel); removeEventListener('panel:close', onPanelClose); scene.current?.destroy(); voice.current?.dispose(); lumi.current?.destroy?.(); };
   }, []);
 
   useEffect(() => { document.documentElement.lang = lang; store.set('cigala.lang', lang); }, [lang]);
