@@ -75,6 +75,27 @@ loss over 15 verified targets with weight > 0 (16 scored): before item 7 2.2267,
 | 3 Move abroad | real_wage_0.5pct | 42,705 | 38,660 | 1,746 | None | infeasible |
 | 3 Move abroad | real_wage_2pct | 74,681 | 67,608 | 1,746 | None | holds_below_target |
 
+## Reading the results
+
+- No default moves. The unconstrained best fit lowers the loss from 2.2089 to 1.2442, and 0.71 of that gain is real wage growth going from 1.0% to 0.5%. The two FSO windows disagree on the direction (2024-2025: +1.15%; 2021-2025: −0.16%), so the leave-one-target-out check rejects the move.
+- The decisions do not depend on the calibration: the ranking 1 > 2 > 3, the master's funding gap (about CHF 18.6k from month index 6) and every plan check are the same under the defaults and under the best fit.
+- The level does: 10-year net worth is about 10% lower under the best fit, almost all of it from wage growth (compare `best_fit` with `real_wage_0.5pct`). Between 0.5% and 2% wage growth, "Start working" ends between CHF 113k and 151k.
+- "Move abroad" is infeasible by one goal missed by about CHF 500; at 2% wage growth it holds.
+
+## Deliberately not optimised
+
+| what | why |
+|---|---|
+| Payroll rates and thresholds, pillar 3a cap, unemployment replacement rate | legal rules: scored as regression guards, never searched |
+| Income-tax tables (`AS-income-tax`) | official ESTV figures by construction since #48 item 3; tagged `rule` |
+| `AS-investment-return` | its only references are the two illustrative return approximations, which are outside the objective |
+| `AS-liquidity-target`, `AS-debt-service-limit`, `AS-auto-liquidate`, health-score weights | value judgements and engine rules: labelled, not fitted |
+| `AS-unexpected-prob`, `AS-unexpected-mean` | no public target exists; the UBS synthetic data implies other values, and fitting to it is excluded |
+| `AS-inflation-sd` | no sourced range; its one target rests on three observations |
+| Weather intensities | scenario definitions, not estimates |
+| Tree assumptions (salaries, rents, tuition) | scenario inputs the user edits; verified or labelled one by one in item 7 |
+| Anything against the UBS ledgers | synthetic data without an income-tax line; an accounting check only |
+
 ## Limits
 
 The target set is small and several parameters depend on a single source. The selection filters express explicit modelling policies. The SECO duration measures elapsed current unemployment spells. The inflow target annualises one seasonally high month. Wage windows overlap and describe economy-wide averages. Historical return references and chosen cost deductions require further evidence before they enter the fitting objective. The synthetic UBS ledgers remain accounting checks.
