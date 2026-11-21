@@ -65,6 +65,37 @@
 .guide-say[hidden] {
   display: none;
 }
+/* anchored to the near screen edge (set by say() when centred would overflow) */
+.guide-say--end {
+  left: auto;
+  right: 0;
+  transform: none;
+  animation-name: guide-say-in-edge;
+}
+.guide-say--end::after {
+  left: auto;
+  right: 18%;
+  transform: translate(50%, -6px) rotate(45deg);
+}
+.guide-say--start {
+  left: 0;
+  transform: none;
+  animation-name: guide-say-in-edge;
+}
+.guide-say--start::after {
+  left: 18%;
+}
+/* docked (small host): tighter bubble */
+.guide--compact .guide-say {
+  bottom: 100%;
+  max-width: min(260px, 70vw);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+@keyframes guide-say-in-edge {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
 
 .g-sparks path {
   transform-box: fill-box;

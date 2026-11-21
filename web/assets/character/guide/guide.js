@@ -10,9 +10,16 @@
 //   lumi.pointAt(leafElement);        // look, lean and sparkle toward an Element or {x, y}
 //   lumi.pointAt(null);               //   ({x, y} in viewport px, as getBoundingClientRect)
 //   lumi.moveTo(x, y);                // glide (px, relative to where the element sits)
-//   lumi.setTalking(true);            // mouth moves while your own audio plays
+//   lumi.setSpeaking(true);           // mouth talks (on its own rhythm until a level arrives)
+//   lumi.setMouthLevel(0.6);          // 0..1 loudness, e.g. from attachAudio() in lipsync.js
 //   lumi.react("happy");              // short reaction: "happy" | "curious" | "surprised"
 //   lumi.destroy();
+//
+// Lip sync with real audio: import { attachAudio } from "./lipsync.js";
+//   const detach = attachAudio(lumi, audioElement | audioNode | mediaStream | utterance);
+//
+// Small sizes (docked, ~64-96 px wide): the host switches to a tight layout by itself below
+// 120 px (option compact: true | false | "auto").
 //
 // Alive on its own: it bobs, blinks and glances around; watches the cursor and slightly dodges
 // it when it gets close; smiles on hover; on click (or Enter) it spins a full turn (the face
@@ -78,6 +85,25 @@ const GRAD_POS = { halo: "", body: ' cx="50%" cy="50%" r="50%"', shade: ' cx="36
 const mouthPath = (w, curve, open) =>
   `M${-w},0 Q0,${(curve - open).toFixed(2)} ${w},0 Q0,${(curve + open).toFixed(2)} ${-w},0 Z`;
 
+const smoothstep = (a, b, x) => {
+  const t = clamp((x - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * Speaking mouth from a loudness level (0..1) and a vowel roundness (0 = wide "e/i", 1 = round
+ * "o/u"). Returns lens parameters plus the tongue: closed and resting near 0, a narrow slit for
+ * quiet consonants, wide for mid levels, tall and rounder when loud.
+ */
+export function mouthShape(level, roundness = 0.3, restCurve = 2) {
+  const L = clamp(level, 0, 1);
+  const wide = 4 * L * (1 - L); // peaks at mid loudness
+  const w = 6.5 + 2.8 * wide * (1 - 0.5 * roundness) - 2 * smoothstep(0.6, 1, L) * roundness - 0.8 * (1 - smoothstep(0, 0.18, L));
+  const open = 0.9 + 9 * L * (1 - 0.15 * (1 - roundness));
+  const curve = restCurve * (1 - 0.65 * smoothstep(0, 0.5, L)) + 0.8 * L;
+  return { w, open, curve, tongue: smoothstep(0.35, 0.8, L) };
+}
+
 function star(x, y, s) {
   return `<path d="M${x},${y - s} Q${x + s * 0.15},${y - s * 0.15} ${x + s},${y} Q${x + s * 0.15},${y + s * 0.15} ${x},${y + s} Q${x - s * 0.15},${y + s * 0.15} ${x - s},${y} Q${x - s * 0.15},${y - s * 0.15} ${x},${y - s} Z"/>`;
 }
@@ -125,7 +151,11 @@ export function guideSVG({ health = "healthy", pose = "idle", talking = false, i
   <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="${BLUSH}" opacity="${c.blush}"/>
   <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="${BLUSH}" opacity="${c.blush}"/>
   <g class="g-eyes" transform="translate(${gaze[0]} ${gaze[1]})">${eye(-1)}${eye(1)}</g>
-  <g class="g-mouth-pos" transform="translate(${gaze[0] * 0.6} 13)"><path class="g-mouth" d="${mouthPath(explaining ? 6 : 6.5, curve, open)}" fill="${INK}" stroke="${INK}" stroke-width="1.1" stroke-linejoin="round"/></g>
+  <g class="g-mouth-pos" transform="translate(${gaze[0] * 0.6} 13)">
+   <clipPath id="${id}-mclip"><path class="g-mclip" d="${mouthPath(explaining ? 6 : 6.5, curve, open)}"/></clipPath>
+   <path class="g-mouth" d="${mouthPath(explaining ? 6 : 6.5, curve, open)}" fill="${INK}" stroke="${INK}" stroke-width="1.1" stroke-linejoin="round"/>
+   <ellipse class="g-tongue" clip-path="url(#${id}-mclip)" cx="0" cy="${(curve + open) / 2}" rx="3.2" ry="${(open * 0.3).toFixed(2)}" fill="#E4798F" opacity="${open > 3 ? 1 : 0}"/>
+  </g>
  </g>
 </g>
 <g class="g-sparks" fill="${hsl(c.h, c.s + 10, 66)}" opacity="${explaining ? 1 : 0}">${star(176, 84, 7)}${star(190, 62, 4.5)}${star(164, 58, 3.5)}</g>
@@ -136,7 +166,7 @@ export function guideSVG({ health = "healthy", pose = "idle", talking = false, i
 
 let uid = 0;
 
-export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap } = {}) {
+export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap, compact = "auto" } = {}) {
   if (mood !== undefined) health = mood;
   health = moodToHealth(health);
   const id = `lumi${++uid}`;
@@ -166,6 +196,8 @@ export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap
     glints: qa(".g-glint"),
     mouthPos: q(".g-mouth-pos"),
     mouth: q(".g-mouth"),
+    mclip: q(".g-mclip"),
+    tongue: q(".g-tongue"),
     blush: qa(".g-blush"),
     sparks: q(".g-sparks"),
     stops: Object.fromEntries(Object.keys(STOPS).map((k) => [k, qa(`#${id}-${k} stop`)])),
@@ -195,7 +227,26 @@ export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap
     dx: 0, dy: 0, // dodge offset, px
     point: null, // Element or {x, y} it is pointing at
     sayTimer: 0, sayDone: null,
+    // lip sync: the latest external level, and the smoothed level the mouth actually uses
+    levelIn: 0, levelAt: -1e9,
+    level: 0,
+    round: 0.3, roundTo: 0.3, syllable: false, // vowel shape, re-picked at each syllable onset
+    faceScale: FACE,
   };
+
+  // Tight layout for small hosts (docked ~64-96 px): crop the empty margin, enlarge the face.
+  const WIDE_BOX = "0 0 200 240";
+  const TIGHT_BOX = "26 40 148 178";
+  function setCompact(on) {
+    el.classList.toggle("guide--compact", on);
+    dom.svg.setAttribute("viewBox", on ? TIGHT_BOX : WIDE_BOX);
+    s.faceScale = on ? FACE * 1.2 : FACE;
+  }
+  let ro = null;
+  if (compact === "auto" && typeof ResizeObserver !== "undefined") {
+    ro = new ResizeObserver(([e]) => setCompact(e.contentRect.width < 120));
+    ro.observe(el);
+  } else setCompact(compact === true);
 
   function react(emo, ms = 1100) {
     s.flash = emo;
@@ -205,7 +256,8 @@ export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap
   // orb centre and radius in viewport px (without the dodge offset, so dodging never feeds back)
   const center = () => {
     const b = dom.svg.getBoundingClientRect();
-    return { x: b.left + (b.width * CX) / 200 - s.dx, y: b.top + (b.height * CY) / 240 - s.dy, r: (b.width * R) / 200 };
+    const [vx, vy, vw, vh] = (s.faceScale > FACE ? TIGHT_BOX : WIDE_BOX).split(" ").map(Number);
+    return { x: b.left + ((CX - vx) / vw) * b.width - s.dx, y: b.top + ((CY - vy) / vh) * b.height - s.dy, r: (R / vw) * b.width };
   };
 
   // -------------------------------------------------------------- input
@@ -289,9 +341,20 @@ export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap
     for (const key of ["eyeL", "eyeR", "happy", "curve", "open", "tilt", "blush"]) face[key] = lerp(face[key], F[key], k(10));
     face.sparks = lerp(face.sparks, explaining ? 1 : 0, k(6));
 
-    // talking: lips open and close on a syllable-like rhythm (two unrelated waves)
-    const flap = target.talking ? 0.3 + 0.7 * Math.abs(Math.sin(T * 12.5) * Math.sin(T * 6.9 + 0.6)) : 0;
-    s.talk = lerp(s.talk, flap, k(25));
+    // speaking: a fresh external level (lip sync) wins; otherwise its own syllable-like rhythm
+    let raw = 0;
+    if (target.talking) {
+      raw = now - s.levelAt < 300 ? s.levelIn : 0.12 + 0.68 * Math.abs(Math.sin(T * 12.5) * Math.sin(T * 6.9 + 0.6));
+      if (reduced) raw *= 0.45; // subtle: still readable, no big jaw moves
+    }
+    // fast attack, slower release: reads like real lips, never jittery
+    s.level = lerp(s.level, raw, k(raw > s.level ? (reduced ? 18 : 32) : reduced ? 8 : 13));
+    if (s.level > 0.38 && !s.syllable) {
+      s.syllable = true; // a new syllable: pick its vowel shape
+      s.roundTo = [0.1, 0.35, 0.6, 0.9][Math.floor(Math.random() * 4)];
+    } else if (s.level < 0.22) s.syllable = false;
+    s.round = lerp(s.round, s.roundTo, k(14));
+    s.talk = s.level;
 
     // gaze: what it points at; else the cursor when close (or just came back); else glances
     let gx, gy;
@@ -389,7 +452,8 @@ export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap
     const cos = Math.cos(s.spin);
     const fx = CX + s.gx * 5 + sin * 34;
     const fy = CY + 10 + s.gy * 4;
-    dom.face.setAttribute("transform", `translate(${fx.toFixed(2)} ${fy.toFixed(2)}) scale(${(Math.max(0.02, Math.abs(cos)) * FACE).toFixed(3)} ${FACE})`);
+    const fs = s.faceScale;
+    dom.face.setAttribute("transform", `translate(${fx.toFixed(2)} ${fy.toFixed(2)}) scale(${(Math.max(0.02, Math.abs(cos)) * fs).toFixed(3)} ${fs})`);
     dom.face.setAttribute("opacity", clamp(cos * 3, 0, 1).toFixed(3));
     dom.eyes.setAttribute("transform", `translate(${(s.gx * 5).toFixed(2)} ${(s.gy * 3.2).toFixed(2)})`);
     [face.eyeL, face.eyeR].forEach((h0, i) => {
@@ -405,15 +469,36 @@ export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap
       dom.glints[i].setAttribute("cy", (-h / 2 + 2.6).toFixed(2));
       dom.glints[i].setAttribute("r", h > 5 && face.happy < 0.5 ? "1.35" : "0");
     });
-    const open = face.open + s.talk * 4.5;
-    const curve = face.curve * (1 - s.talk * 0.5);
-    dom.mouthPos.setAttribute("transform", `translate(${(s.gx * 2.4).toFixed(2)} ${(13 + s.gy * 1.5).toFixed(2)})`);
-    dom.mouth.setAttribute("d", mouthPath(6.5 + s.talk, curve, open));
+    // mouth: mood shape when quiet, blended into the speaking shape by the level
+    const L = s.level;
+    const sp = mouthShape(L, s.round, face.curve);
+    const mix = smoothstep(0, 0.08, L);
+    const mw = lerp(6.5, sp.w, mix);
+    const mOpen = lerp(face.open, Math.max(face.open, sp.open), mix);
+    const mCurve = lerp(face.curve, sp.curve, mix);
+    const jaw = L * 1.4; // the mouth drops a touch as it opens
+    dom.mouthPos.setAttribute("transform", `translate(${(s.gx * 2.4).toFixed(2)} ${(13 + jaw + s.gy * 1.5).toFixed(2)})`);
+    const md2 = mouthPath(mw, mCurve, mOpen);
+    dom.mouth.setAttribute("d", md2);
+    dom.mclip.setAttribute("d", md2);
+    const tongue = sp.tongue * mix;
+    dom.tongue.setAttribute("opacity", tongue.toFixed(3));
+    if (tongue > 0.01) {
+      dom.tongue.setAttribute("cy", ((mCurve + mOpen) / 2).toFixed(2));
+      dom.tongue.setAttribute("rx", (mw * 0.5).toFixed(2));
+      dom.tongue.setAttribute("ry", (mOpen * 0.32).toFixed(2));
+    }
     for (const b of dom.blush) b.setAttribute("opacity", face.blush.toFixed(3));
 
     raf = requestAnimationFrame(frame);
   }
   raf = requestAnimationFrame(frame);
+
+  function setSpeaking(on) {
+    target.talking = !!on;
+    if (on) s.lastInput = performance.now();
+    else s.levelIn = 0;
+  }
 
   function hideBubble() {
     dom.bubble.hidden = true;
@@ -444,7 +529,12 @@ export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap
       const t = String(text ?? "").trim();
       if (!t) return Promise.resolve();
       dom.bubble.textContent = t;
+      dom.bubble.classList.remove("guide-say--start", "guide-say--end");
       dom.bubble.hidden = false;
+      // docked in a corner: keep the bubble on screen by anchoring it to the near edge
+      const b = dom.bubble.getBoundingClientRect();
+      if (b.right > innerWidth - 8) dom.bubble.classList.add("guide-say--end");
+      else if (b.left < 8) dom.bubble.classList.add("guide-say--start");
       target.talking = true;
       s.lastInput = performance.now();
       const ms = duration ?? clamp(t.length * 55, 2200, 12000);
@@ -461,10 +551,16 @@ export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap
       else s.point = null;
       s.lastInput = performance.now();
     },
-    setTalking(on) {
-      target.talking = !!on;
-      if (on) s.lastInput = performance.now();
+    /** Speaking on/off. While on, the mouth follows setMouthLevel(); without levels it uses its own rhythm. */
+    setSpeaking,
+    /** Loudness 0..1 for lip sync (call every frame or on each analysis tick). Smoothed inside. */
+    setMouthLevel(v) {
+      const x = Number(v);
+      s.levelIn = Number.isFinite(x) ? clamp(x, 0, 1) : 0;
+      s.levelAt = performance.now();
     },
+    /** Old name of setSpeaking. */
+    setTalking: setSpeaking,
     react,
     tap,
     moveTo(x, y) {
@@ -477,6 +573,7 @@ export function createGuide(el, { mood, health = "healthy", pose = "idle", onTap
     },
     destroy() {
       cancelAnimationFrame(raf);
+      ro?.disconnect();
       clearTimeout(s.sayTimer);
       hideBubble();
       removeEventListener("pointermove", onMove);
