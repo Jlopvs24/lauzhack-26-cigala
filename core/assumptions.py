@@ -5,7 +5,6 @@ docs/contracts.md). Overrides are ``{id_or_param: new_value}``.
 """
 from __future__ import annotations
 
-import copy
 import json
 from pathlib import Path
 from typing import Any, Iterable
@@ -42,7 +41,7 @@ class AssumptionSet:
         self.items: list[dict] = []
         seen: dict[str, int] = {}
         for a in items:
-            a = copy.deepcopy(a)
+            a = dict(a)  # shallow: only top-level keys are ever changed; ranges/tables are read-only
             for k in ("id", "param", "value"):
                 if k not in a:
                     raise ValueError(f"assumption {a!r} is missing '{k}'")
@@ -125,7 +124,7 @@ class AssumptionSet:
         return [p for p in REQUIRED_PARAMS if p not in vals]
 
     def to_list(self) -> list[dict]:
-        return copy.deepcopy(self.items)
+        return [dict(a) for a in self.items]
 
 
 def build_assumptions(extra: Iterable[dict] = (), overrides: dict[str, Any] | list[dict] | None = None,

@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from .analysis import PRIORITY_WEIGHT, TOL, first_negative, r2
-from .engine import run
+from .engine import run_batch
 from .weather import build_weather
 
 WEATHER_TYPES = ("recession", "inflation", "market_crash", "job_loss")
@@ -85,24 +85,27 @@ def weather_resilience(profile, sched, A, aset, weather, goals) -> dict:
     H = profile.horizon_months
     given = [{"type": w} if isinstance(w, str) else dict(w) for w in weather or []]
     current = {w.get("type") for w in given}
-    rows = []
+    rows, kinds, ws = [], [], []
     for kind in WEATHER_TYPES:
         try:
-            w = build_weather(given + ([] if kind in current else [{"type": kind}]), H)
+            ws.append(build_weather(given + ([] if kind in current else [{"type": kind}]), H))
+            kinds.append(kind)
         except ValueError:  # e.g. its default start month lies beyond a short horizon
             rows.append({"type": kind, "already_applied": False, "holds": None, "status": "outside_horizon"})
-            continue
-        out = run(sched, profile.cash, profile.investments, A, aset.tax_table(), w, stochastic=False)
+    out = (run_batch([sched] * len(ws), [A] * len(ws), profile.cash, profile.investments, aset.tax_table(), ws,
+                     stochastic=False) if ws else None)  # all named weathers in one pass
+    for j, kind in enumerate(kinds):
         missed = []
         for g in goals:
             k = g["target_month"] + 1
-            v = out.cash[0, k] + out.investments[0, k] - (out.debt[k] if g["metric"] == "net_worth" else 0)
+            v = out.cash[j, k] + out.investments[j, k] - (out.debt[j, k] if g["metric"] == "net_worth" else 0)
             if v < g["target"]:
                 missed.append(g["name"])
-        gap = first_negative(out.cash[0])
+        gap = first_negative(out.cash[j])
         rows.append({"type": kind, "already_applied": kind in current, "holds": gap is None and not missed,
-                     "first_negative_month": gap, "min_cash": r2(out.cash[0, 1:].min()),
-                     "final_net_worth": r2(out.net_worth[0, -1]), "missed_goals": missed})
+                     "first_negative_month": gap, "min_cash": r2(out.cash[j, 1:].min()),
+                     "final_net_worth": r2(out.net_worth[j, -1]), "missed_goals": missed})
+    rows.sort(key=lambda r: WEATHER_TYPES.index(r["type"]))
     tested = [r for r in rows if r["holds"] is not None]
     return {"holds_in": sum(r["holds"] for r in tested), "of": len(tested), "by_weather": rows,
             "holds_means": "no funding gap and every dated goal met"}

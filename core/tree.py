@@ -10,6 +10,7 @@ Everything else is "pruned" and never simulated. Going back one level is just
 from __future__ import annotations
 
 import json
+import threading
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,8 @@ from .weather import weather_catalog
 
 DATA = Path(__file__).resolve().parent / "data"
 _CACHE: "OrderedDict[str, dict]" = OrderedDict()
-_CACHE_MAX = 512
+_CACHE_MAX = 2048
+_LOCK = threading.Lock()  # the API may call the engine from several threads
 
 
 def load_tree(name: str = "alexia") -> dict:
@@ -312,17 +314,19 @@ def _cached_simulate(prof: Profile, tree: dict, node_id: str, aset: AssumptionSe
     peers = comparators(tree, node_id) if exploration else []
     key = trace_id(prof.raw, ivs, aset.to_list(), weather, n_paths, seed, sensitivity, include_flows, node_id,
                    uncertainty, exploration, peers)
-    if key in _CACHE:
-        _CACHE.move_to_end(key)
-        return _CACHE[key]
+    with _LOCK:
+        if key in _CACHE:
+            _CACHE.move_to_end(key)
+            return _CACHE[key]
     res = simulate_node(prof, ivs, assumptions=aset, weather=weather, node_id=node_id, n_paths=n_paths,
                         seed=seed, sensitivity=sensitivity, include_flows=include_flows,
                         uncertainty=uncertainty, exploration=exploration,
                         own_interventions=_index(tree)[node_id][0].get("interventions", []) or [],
                         comparators=peers)
-    _CACHE[key] = res
-    if len(_CACHE) > _CACHE_MAX:
-        _CACHE.popitem(last=False)
+    with _LOCK:
+        _CACHE[key] = res
+        if len(_CACHE) > _CACHE_MAX:
+            _CACHE.popitem(last=False)
     return res
 
 
@@ -374,3 +378,38 @@ def node_info(node_id: str, tree: dict | None = None) -> dict:
 def assumptions_list(overrides: list[dict] | dict | None = None, tree: dict | None = None) -> list[dict]:
     tree = tree or load_tree()
     return build_assumptions(tree.get("assumptions", []), overrides).to_list()
+
+
+def explore(profile: dict | None = None, path: list[str] | str | None = None,
+            assumptions: list[dict] | dict | None = None, weather: list | None = None, *,
+            tree: dict | None = None, n_paths: int = DEFAULT_PATHS, seed: int = DEFAULT_SEED) -> dict:
+    """The heavy, current-node-only part of ``expand``, for lazy loading: the deterministic
+    exploration analyses and the tornado of the node at the end of ``path``. Pair it with
+    ``expand(..., exploration=False, sensitivity=False)``, which then stays fast."""
+    tree = tree or load_tree()
+    profile = profile or load_profile()
+    prof = Profile.from_dict(profile)
+    aset = build_assumptions(tree.get("assumptions", []), assumptions)
+    path = normalise_path(tree, path)
+    current = path[-1] if path else str(tree["root"]["node_id"])
+    res = _cached_simulate(prof, tree, current, aset, normalise_weather(weather), n_paths, seed,
+                           sensitivity=True, include_flows=True, exploration=True)
+    return {"node_id": current, "path": [str(tree["root"]["node_id"])] + path, "trace_id": res["trace_id"],
+            "exploration": res["exploration"], "sensitivity": res["sensitivity"],
+            "plan_check": res["plan_check"]}
+
+
+def warm(profile: dict | None = None, *, tree: dict | None = None, explore_nodes: bool = False) -> int:
+    """Precompute every node of the tree for ``profile`` (default: the demo profile) so the
+    first clicks hit the cache. Meant for a background thread at API start-up. Returns the
+    number of paths warmed."""
+    tree = tree or load_tree()
+    idx = _index(tree)
+    n = 0
+    for nid in idx:
+        p = normalise_path(tree, nid)
+        expand(profile, p, tree=tree, exploration=False, sensitivity=False)
+        if explore_nodes:
+            explore(profile, p, tree=tree)
+        n += 1
+    return n
