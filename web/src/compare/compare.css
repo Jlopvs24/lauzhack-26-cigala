@@ -5,7 +5,7 @@
 
 /* ---------------------------------------------------------------- card strip (inside scene cards) */
 .ccs { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; width: 100%; text-align: left; }
-.ccs-scale { position: relative; display: block; height: 14px; margin-right: 34px; }
+.ccs-scale { position: relative; display: block; height: 14px; margin-bottom: 15px; } /* #103: the place line sits under the track */
 .ccs-track { position: absolute; left: 0; right: 0; top: 6px; height: 2px; border-radius: 2px; background: rgba(255, 255, 255, 0.22); }
 .ccs-peer, .ccs-me { position: absolute; top: 7px; border-radius: 50%; transform: translate(-50%, -50%); }
 .ccs-peer { width: 7px; height: 7px; background: rgba(255, 255, 255, 0.45); }
@@ -13,7 +13,7 @@
 .ccs-me.good { background: var(--leaf, #b9d98a); }
 .ccs-me.warn { background: #f3cf6a; }
 .ccs-me.bad { background: var(--warn, #f0a37e); }
-.ccs-rank { position: absolute; right: -34px; top: 0; font-size: 10.5px; line-height: 14px; color: var(--ink-faint, rgba(247, 244, 236, 0.6)); white-space: nowrap; }
+.ccs-rank { position: absolute; left: 0; top: 15px; font-size: 10.5px; line-height: 14px; color: var(--ink-faint, rgba(247, 244, 236, 0.6)); white-space: nowrap; }
 .ccs-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .ccs-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 999px; font-size: 11px; line-height: 1.35; background: rgba(255, 255, 255, 0.1); color: var(--ink-soft, rgba(247, 244, 236, 0.85)); font-variant-numeric: tabular-nums; }
 .ccs-chip b { font-weight: 700; }
@@ -278,3 +278,20 @@ body:has(.drawer, .path-report, [aria-modal="true"]:not(.cmp)) .cmp-bar { displa
   .cmp-options-mount { right: 20px; bottom: calc(143px + var(--chat-panel-h, 0px)); }
   #stage ~ .cmp-bar { right: 18px; bottom: calc(191px + var(--chat-panel-h, 0px)); }
 }
+
+/* #103: first-use hint and empty comparison */
+.cmp-hint { position: fixed; left: calc((100vw - var(--chat-panel-w, 0px)) / 2); top: calc(var(--top-h, 76px) + 6px); transform: translateX(-50%); z-index: 30;
+  display: flex; align-items: center; gap: 10px; max-width: min(520px, calc(100vw - 32px)); padding: 9px 10px 9px 12px;
+  border-radius: 14px; background: var(--card-bg); color: var(--card-ink); border: 1px solid var(--card-line);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18); font-size: 13px; line-height: 1.35; }
+.cmp-hint-plus, .cmp-empty-plus { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid currentColor; font-weight: 600; line-height: 1; }
+.cmp-hint button { flex: none; font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--card-line); background: transparent; color: inherit; }
+.cmp-hint button:focus-visible, .cmp-empty button:focus-visible { outline: 2px solid var(--card-ink); outline-offset: 2px; }
+.cmp-empty { display: grid; justify-items: center; gap: 10px; text-align: center; padding: 56px 16px; color: var(--card-ink); }
+.cmp-empty h3 { margin: 4px 0 0; font-size: 18px; }
+.cmp-empty p { margin: 0; max-width: 440px; color: var(--card-muted); }
+.cmp-empty-plus { width: 40px; height: 40px; font-size: 22px; color: var(--card-muted); }
+.cmp-empty button { font: inherit; padding: 9px 18px; border-radius: 999px; cursor: pointer; border: 1px solid var(--card-line); background: transparent; color: inherit; }
+

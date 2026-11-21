@@ -153,7 +153,13 @@ export default function ComparePage({ lang = 'en', tr, paths = [], source = 'pin
       <div className="cmp-body">
         {error && <div className="cmp-error" role="alert">{error}<button type="button" onClick={() => setAttempt((a) => a + 1)}>{L.retry}</button></div>}
         {!cols && !error && <div className="cmp-loading" role="status"><span className="cmp-pulse">{L.loading}</span></div>}
-        {cols && <>
+        {cols && !pending && shown.length === 0 && <div className="cmp-empty" role="status">
+          <span className="cmp-empty-plus" aria-hidden="true">+</span>
+          <h3>{L.emptyTitle}</h3>
+          <p>{L.emptyBody}</p>
+          <button type="button" onClick={onClose}>{L.emptyBack}</button>
+        </div>}
+        {cols && shown.length > 0 && <>
           <section className="cmp-sec cmp-over" aria-labelledby="cmp-over-h">
             <div className="cmp-sec-h"><h3 id="cmp-over-h">{L.overTime}</h3>
               <div className="cmp-seg" role="group" aria-label={L.overTime}>

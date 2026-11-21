@@ -17,7 +17,14 @@ export const signed = (n, f = chfFmt) => (Number.isFinite(n) ? (n > 0.5 ? '+' : 
 export const CI = {
   en: {
     // card strip
-    nOf: (r, n) => `${r} of ${n}`, scaleLabel: (m, v, r, n) => `${m}: ${v}, position ${r} of ${n} options (1 = highest)`,
+    nOf: (r, n) => `${r} of ${n}`, scaleLabel: (m, v, place) => `${m}: ${v}. ${place}`,
+    // #103: plain meaning of the position, never "best"
+    noun: { final_net_worth_real: 'net worth', min_cash: 'lowest cash', liquidity_months: 'buffer', final_debt: 'debt' },
+    place: (kind, n, noun) => ({ highest: n === 2 ? `Higher ${noun} of the 2` : `Highest ${noun} of these ${n}`,
+      lowest: n === 2 ? `Lower ${noun} of the 2` : `Lowest ${noun} of these ${n}`, middle: `In the middle of these ${n}`,
+      same: `Same ${noun} as the others` })[kind],
+    firstHint: 'Tap + on up to 4 options or reports to compare them side by side.', hintClose: 'Got it',
+    emptyTitle: 'Nothing to compare yet', emptyBody: 'Tap + on up to 4 options or reports, or use “Compare these options”, to see them side by side here.', emptyBack: 'Back to the tree',
     vs: (d, who) => `${d} vs ${who}`, gapVsNone: (k) => `funding gap · ${k === 1 ? '1 other has none' : `${k} others have none`}`,
     noGapVs: (k) => `no funding gap · ${k === 1 ? '1 other has one' : `${k} others have one`}`, sameAs: (who) => `same as ${who}`,
     metric: { final_net_worth_real: 'Net worth in 10 years', min_cash: 'Lowest cash', liquidity_months: 'Tightest buffer', final_debt: 'Debt in 10 years' },
@@ -53,7 +60,13 @@ export const CI = {
     colRemove: (l) => `Remove “${l}”`, pinnedHint: 'Use + on any card or report to add paths from other branches (up to 4).',
   },
   es: {
-    nOf: (r, n) => `${r} de ${n}`, scaleLabel: (m, v, r, n) => `${m}: ${v}, posición ${r} de ${n} opciones (1 = la más alta)`,
+    nOf: (r, n) => `${r} de ${n}`, scaleLabel: (m, v, place) => `${m}: ${v}. ${place}`,
+    noun: { final_net_worth_real: 'patrimonio', min_cash: 'liquidez mínima', liquidity_months: 'colchón', final_debt: 'deuda' },
+    place: (kind, n, noun) => ({ highest: n === 2 ? `Mayor ${noun} de las 2` : `Mayor ${noun} de estas ${n}`,
+      lowest: n === 2 ? `Menor ${noun} de las 2` : `Menor ${noun} de estas ${n}`, middle: `En medio de estas ${n}`,
+      same: `Mismo ${noun} que las demás` })[kind],
+    firstHint: 'Pulsa + en hasta 4 opciones o informes para compararlos lado a lado.', hintClose: 'Entendido',
+    emptyTitle: 'Aún no hay nada que comparar', emptyBody: 'Pulsa + en hasta 4 opciones o informes, o usa «Comparar estas opciones», para verlos aquí lado a lado.', emptyBack: 'Volver al árbol',
     vs: (d, who) => `${d} vs ${who}`, gapVsNone: (k) => `falta financiación · ${k === 1 ? 'otra opción no' : `otras ${k} no`}`,
     noGapVs: (k) => `sin falta de financiación · ${k === 1 ? 'otra opción sí' : `otras ${k} sí`}`, sameAs: (who) => `igual que ${who}`,
     metric: { final_net_worth_real: 'Patrimonio a 10 años', min_cash: 'Liquidez mínima', liquidity_months: 'Colchón mínimo', final_debt: 'Deuda a 10 años' },
@@ -87,7 +100,16 @@ export const CI = {
     colRemove: (l) => `Quitar «${l}»`, pinnedHint: 'Usa + en cualquier tarjeta o informe para añadir caminos de otras ramas (hasta 4).',
   },
   fr: {
-    nOf: (r, n) => `${r} sur ${n}`, scaleLabel: (m, v, r, n) => `${m} : ${v}, position ${r} sur ${n} options (1 = la plus haute)`,
+    nOf: (r, n) => `${r} sur ${n}`, scaleLabel: (m, v, place) => `${m} : ${v}. ${place}`,
+    noun: { final_net_worth_real: 'patrimoine', min_cash: 'liquidité minimale', liquidity_months: 'coussin', final_debt: 'dette' },
+    place: (kind, n, noun) => {
+      const f = noun === 'liquidité minimale' || noun === 'dette', N = noun.charAt(0).toUpperCase() + noun.slice(1);
+      const hi = f ? 'la plus élevée' : 'le plus élevé', lo = f ? 'la plus basse' : 'le plus bas';
+      return ({ highest: `${N} ${hi} des ${n}`, lowest: `${N} ${lo} des ${n}`, middle: `Au milieu des ${n}`,
+        same: `${N} identique aux autres` })[kind];
+    },
+    firstHint: 'Touchez + sur 4 options ou rapports au plus pour les comparer côte à côte.', hintClose: 'Compris',
+    emptyTitle: 'Rien à comparer pour l’instant', emptyBody: 'Touchez + sur 4 options ou rapports au plus, ou utilisez « Comparer ces options », pour les voir ici côte à côte.', emptyBack: 'Retour à l’arbre',
     vs: (d, who) => `${d} vs ${who}`, gapVsNone: (k) => `besoin de financement · ${k === 1 ? '1 autre n’en a pas' : `${k} autres n’en ont pas`}`,
     noGapVs: (k) => `sans besoin de financement · ${k === 1 ? '1 autre en a un' : `${k} autres en ont un`}`, sameAs: (who) => `comme ${who}`,
     metric: { final_net_worth_real: 'Patrimoine dans 10 ans', min_cash: 'Trésorerie minimale', liquidity_months: 'Coussin le plus bas', final_debt: 'Dette dans 10 ans' },
@@ -121,7 +143,13 @@ export const CI = {
     colRemove: (l) => `Retirer « ${l} »`, pinnedHint: 'Utilisez + sur une carte ou un rapport pour ajouter des chemins d’autres branches (jusqu’à 4).',
   },
   de: {
-    nOf: (r, n) => `${r} von ${n}`, scaleLabel: (m, v, r, n) => `${m}: ${v}, Rang ${r} von ${n} Optionen (1 = höchster Wert)`,
+    nOf: (r, n) => `${r} von ${n}`, scaleLabel: (m, v, place) => `${m}: ${v}. ${place}`,
+    noun: { final_net_worth_real: 'Vermögen', min_cash: 'Tiefster Kontostand', liquidity_months: 'Puffer', final_debt: 'Schulden' },
+    place: (kind, n, noun) => ({ highest: `${noun}: am höchsten ${n === 2 ? 'der beiden' : `dieser ${n}`}`,
+      lowest: `${noun}: am niedrigsten ${n === 2 ? 'der beiden' : `dieser ${n}`}`, middle: `In der Mitte dieser ${n}`,
+      same: `${noun}: gleich wie die anderen` })[kind],
+    firstHint: 'Tippen Sie bei bis zu 4 Optionen oder Berichten auf +, um sie nebeneinander zu vergleichen.', hintClose: 'Verstanden',
+    emptyTitle: 'Noch nichts zu vergleichen', emptyBody: 'Tippen Sie bei bis zu 4 Optionen oder Berichten auf + oder nutzen Sie «Diese Optionen vergleichen», um sie hier nebeneinander zu sehen.', emptyBack: 'Zurück zum Baum',
     vs: (d, who) => `${d} ggü. ${who}`, gapVsNone: (k) => `Finanzierungslücke · ${k === 1 ? '1 andere hat keine' : `${k} andere haben keine`}`,
     noGapVs: (k) => `keine Finanzierungslücke · ${k === 1 ? '1 andere hat eine' : `${k} andere haben eine`}`, sameAs: (who) => `gleich wie ${who}`,
     metric: { final_net_worth_real: 'Vermögen in 10 Jahren', min_cash: 'Tiefste Liquidität', liquidity_months: 'Knappster Puffer', final_debt: 'Schulden in 10 Jahren' },

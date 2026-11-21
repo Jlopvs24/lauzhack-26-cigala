@@ -48,6 +48,10 @@ export function compareSiblings(nodes = [], { metric = 'final_net_worth_real' } 
     for (const r of rows) {
       const others = rows.filter((o) => o !== r);
       const rank = fin(r.v) ? 1 + rows.filter((o) => fin(o.v) && o.v > r.v + 0.5).length : null;
+      // plain meaning of the position (#103): highest / lowest / in the middle / same as the others
+      const finite = rows.filter((o) => fin(o.v));
+      const place = !fin(r.v) ? null : span <= 0.5 ? 'same'
+        : rank === 1 ? 'highest' : !finite.some((o) => o.v < r.v - 0.5) ? 'lowest' : 'middle';
       const chips = [];
       // metric delta: the highest option vs the next one down, every other option vs the highest
       const ranked = others.filter((o) => fin(o.v)).sort((a, b) => b.v - a.v);
@@ -61,12 +65,19 @@ export function compareSiblings(nodes = [], { metric = 'final_net_worth_real' } 
       if (r.gap && othersNoGap) chips.push({ kind: 'gap_vs_none', count: othersNoGap, tone: 'bad' });
       else if (!r.gap && othersGap) chips.push({ kind: 'no_gap_vs', count: othersGap, tone: 'good' });
       out[r.node.node_id] = {
-        value: r.v, rank, n: rows.length, pos: posOf(r.v), level: r.level, tone: levelTone(r.level), gap: r.gap, metric,
+        value: r.v, rank, place, n: rows.length, pos: posOf(r.v), level: r.level, tone: levelTone(r.level), gap: r.gap, metric,
         peers: others.map((o) => ({ node_id: o.node.node_id, pos: posOf(o.v), tone: levelTone(o.level) })), chips,
       };
     }
   }
   return out;
+}
+
+/** "Highest net worth of these 3" / "In the middle of these 3" / … in the UI language (#103). */
+export function placeLabel(c, lang = 'en') {
+  const L = ci(lang);
+  if (!c?.place) return '';
+  return L.place(c.place, c.n, L.noun[c.metric] || L.noun.final_net_worth_real);
 }
 
 // Chip text in the UI language; `tr` translates a node label ({label} → {label}).
@@ -90,12 +101,13 @@ export function cardCompareHTML(node, nodes, { lang = 'en', label = (id, l) => l
   const L = ci(lang);
   const pct = (p) => `${(4 + p * 92).toFixed(1)}%`;
   const peers = c.peers.filter((p) => p.pos != null).map((p) => `<i class="ccs-peer ${p.tone}" style="left:${pct(p.pos)}"></i>`).join('');
-  const aria = L.scaleLabel(L.metric[metric] || metric, chfK(c.value), c.rank, c.n);
+  const placeText = placeLabel(c, lang);
+  const aria = L.scaleLabel(L.metric[metric] || metric, chfK(c.value), placeText);
   const chips = (compact ? c.chips.slice(0, 1) : c.chips.slice(0, 2))
     .map((ch) => `<span class="ccs-chip ${ch.tone}">${ch.kind === 'gap_vs_none' ? '<b aria-hidden="true">✕</b>' : ch.kind === 'no_gap_vs' ? '<b aria-hidden="true">✓</b>' : ''}${esc(chipText(ch, lang, label))}</span>`).join('');
   return `<span class="ccs ${c.tone}${compact ? ' compact' : ''}"><span class="ccs-scale" role="img" aria-label="${esc(aria)}">`
     + `<span class="ccs-track"></span>${peers}<i class="ccs-me ${c.tone}" style="left:${pct(c.pos)}"></i>`
-    + `<span class="ccs-rank" aria-hidden="true">${esc(L.nOf(c.rank, c.n))}</span></span>`
+    + `<span class="ccs-rank" aria-hidden="true">${esc(placeText)}</span></span>`
     + (chips ? `<span class="ccs-chips">${chips}</span>` : '') + '</span>';
 }
 

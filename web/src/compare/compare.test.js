@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compareSiblings, cardCompareHTML, chipText, optionPaths, buildComparison, onlyDifferences, markExtremes, seriesOf, pathKey } from './model.js';
+import { compareSiblings, cardCompareHTML, chipText, placeLabel, optionPaths, buildComparison, onlyDifferences, markExtremes, seriesOf, pathKey } from './model.js';
 import { createCompareStore } from './store.js';
 import { fromExpand, normalizeServer, loadComparison } from './data.js';
 
@@ -136,4 +136,25 @@ test('one pinned path is compared with its alternatives (siblings), up to 4', as
   const request = async (route, { body }) => ({ nodes: [{ node_id: body.path.at(-1), status: 'chosen' }, { node_id: '2.1', status: 'sibling' }, { node_id: '2.3', status: 'sibling' }, { node_id: '2.2.1', status: 'child' }] });
   assert.deepEqual(await withAlternatives(['2', '2.2'], { request }), [['2', '2.2'], ['2', '2.1'], ['2', '2.3']]);
   assert.deepEqual(await withAlternatives(['2'], { request: async () => { throw new Error('x'); } }), [['2']]);
+});
+
+test('#103: cards say what the position means in plain words, not "1 of 3"', () => {
+  const c = compareSiblings(tree.nodes);
+  assert.equal(c['1'].place, 'highest'); assert.equal(c['2'].place, 'middle'); assert.equal(c['3'].place, 'lowest');
+  assert.equal(placeLabel(c['1'], 'en'), 'Highest net worth of these 3');
+  assert.equal(placeLabel(c['2'], 'en'), 'In the middle of these 3');
+  assert.equal(placeLabel(c['3'], 'en'), 'Lowest net worth of these 3');
+  assert.equal(placeLabel(c['2.2'], 'en'), 'Higher net worth of the 2');
+  assert.equal(placeLabel(c['2.1'], 'en'), 'Lower net worth of the 2');
+  assert.equal(placeLabel(c['1'], 'es'), 'Mayor patrimonio de estas 3');
+  assert.equal(placeLabel(c['3'], 'fr'), 'Patrimoine le plus bas des 3');
+  assert.equal(placeLabel(c['1'], 'de'), 'Vermögen: am höchsten dieser 3');
+  for (const lang of ['en', 'es', 'fr', 'de']) {
+    const html = cardCompareHTML(tree.nodes[2], tree.nodes, { lang, cmp: c });
+    assert.doesNotMatch(html, /ccs-rank[^>]*>\s*\d+ (of|de|sur|von) \d/, lang);
+    assert.doesNotMatch(html, /\b(best|mejor|meilleur|beste)\b/i, lang);
+  }
+  // ties: every option equal
+  const same = compareSiblings([{ node_id: 'a', status: 'child', parent_id: 'p', result: res(1000, 10) }, { node_id: 'b', status: 'child', parent_id: 'p', result: res(1000, 10) }]);
+  assert.equal(same.a.place, 'same'); assert.equal(placeLabel(same.a, 'en'), 'Same net worth as the others');
 });
