@@ -41,6 +41,12 @@ An original little tree/sprout character, friendly and simple. It **never recomm
 - The user can talk back three ways: **type** in a chat, **record and send a voice note** (mic), or **call** the character (realtime conversational model, interruptible).
 - Numbers always come from the engine; the character never recommends.
 
+## Navigation and narration rules (DECIDED 15:00)
+
+- **Lumi reads aloud automatically.** Every new bubble is spoken without any button (the first user gesture, e.g. choosing a branch, unlocks browser audio). A mute toggle exists but is off by default.
+- **Free look is bounded.** The user may look around the current area, but cannot jump far: from level 4 you cannot fly to the roots. Navigation is one level back at a time (Back), plus free look around the current node.
+- **Past branches stay drawn in grey.** Branches pruned earlier (siblings of every ancestor) keep their geometry visible, greyed out, with their name only. They are not simulated and not clickable. The API returns them as `status: "pruned"` nodes with label only (no `result`).
+
 ## Demo persona (DECIDED)
 
 **Alexia** (UBS kit): fictional 20-year-old student in Lausanne, CHF 8,000 savings, choosing between start working / master's / move abroad. Represents any student. The UBS starter kit already shows the master's path runs out of cash in month 7 — a good hook.
