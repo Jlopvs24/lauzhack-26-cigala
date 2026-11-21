@@ -6,17 +6,35 @@ import { SPEECH_LANG } from './i18n.js';
 const API = (import.meta.env?.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {}) {
-  let unlocked = false, muted = false, audio = null, seq = 0, serverLangs = [];
+  let unlocked = false, muted = false, audio = null, seq = 0, serverLangs = [], disposed = false;
+  const inflight = new Set(); // AbortControllers of /voice/tts(/stream) requests: stop() aborts them all
+  function request(path, text, lang, ms) {
+    const c = new AbortController(); inflight.add(c);
+    const signal = AbortSignal.any ? AbortSignal.any([c.signal, AbortSignal.timeout(ms)]) : c.signal;
+    return fetch(`${API}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, language: lang }), signal }).finally(() => inflight.delete(c));
+  }
   const cache = new Map(); // `${lang}|${text}` -> object URL: the same sentence is synthesised once
   fetch(`${API}/health`).then((r) => r.json())
     .then((h) => { if (h.voice?.kokoro?.available) serverLangs = h.voice.kokoro.languages || []; })
     .catch(() => {});
 
+  // Silence everything at once: the playing sentence, the browser voice, every TTS request in flight
+  // and whatever was queued after it (seq invalidates the rest of the paragraph).
   function stop() {
     seq++;
-    if (audio) { audio.pause(); audio = null; }
+    for (const c of inflight) c.abort();
+    inflight.clear();
+    if (audio) { const a = audio; audio = null; a.onerror = null; a.pause(); // onpause resolves the awaiting sentence a.removeAttribute('src'); a.load(); }
     try { speechSynthesis.cancel(); } catch { /* not supported */ }
     onTalking(false);
+  }
+  // Lumi never talks to a page nobody is looking at: closing, leaving, hiding the tab or going back.
+  const onHidden = () => { if (document.visibilityState === 'hidden') stop(); };
+  const lifecycle = [['pagehide', stop], ['beforeunload', stop], ['popstate', stop], ['hashchange', stop]];
+  if (typeof window !== 'undefined') {
+    for (const [ev, fn] of lifecycle) addEventListener(ev, fn);
+    document.addEventListener('visibilitychange', onHidden);
   }
   function browserVoice(lang) {
     if (!('speechSynthesis' in window)) return null;
@@ -39,8 +57,7 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
     });
   }
   async function* streamUrls(text, lang, my) {
-    const r = await fetch(`${API}/voice/tts/stream`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, language: lang }), signal: AbortSignal.timeout(60000) });
+    const r = await request('/voice/tts/stream', text, lang, 60000);
     if (!r.ok || !r.body) throw new Error(`tts stream ${r.status}`);
     const rd = r.body.getReader(), dec = new TextDecoder();
     let buf = '';
@@ -79,8 +96,7 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
       }
     } catch (e) {
       if (started || my !== seq) return; // mid-paragraph failure: stop quietly rather than restart
-      const r = await fetch(`${API}/voice/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, language: lang }), signal: AbortSignal.timeout(30000) });
+      const r = await request('/voice/tts', text, lang, 30000);
       if (!r.ok) throw new Error(`tts ${r.status}`);
       const u = URL.createObjectURL(await r.blob());
       urls = [u]; complete = true;
@@ -94,7 +110,7 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
   }
   async function speak(text, lang) {
     stop();
-    if (muted || !unlocked || !text) return;
+    if (muted || !unlocked || !text || disposed || document.visibilityState === 'hidden') return;
     const my = seq;
     try {
       if (!serverLangs.includes(lang)) throw new Error(`no server voice for ${lang}`);
@@ -107,7 +123,7 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
       u.voice = v; u.lang = v.lang; u.rate = 1.02;
       u.onstart = () => onTalking(true);
       u.onend = u.onerror = () => onTalking(false);
-      speechSynthesis.speak(u);
+      if (my === seq) speechSynthesis.speak(u);
     }
   }
   return {
@@ -118,6 +134,12 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {} } = {})
       try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch { /* ignore */ }
     },
     speak, stop,
+    /** The app is going away: silence, and never speak again from this instance. */
+    dispose() {
+      disposed = true; stop();
+      for (const [ev, fn] of lifecycle) removeEventListener(ev, fn);
+      document.removeEventListener('visibilitychange', onHidden);
+    },
     setMuted(m) { muted = m; if (m) stop(); },
     get muted() { return muted; },
   };

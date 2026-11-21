@@ -108,7 +108,7 @@ function App() {
     const onPanel = (e) => { const d = e.detail || {}; scene.current?.setInsets(d.side === 'bottom' ? { bottom: d.height || 0 } : { right: d.width || 0 }); };
     const onPanelClose = () => scene.current?.setInsets({});
     addEventListener('panel:open', onPanel); addEventListener('panel:close', onPanelClose);
-    return () => { disposed = true; removeEventListener('resize', onResize); removeEventListener('panel:open', onPanel); removeEventListener('panel:close', onPanelClose); scene.current?.destroy(); voice.current?.stop(); lumi.current?.destroy?.(); };
+    return () => { disposed = true; removeEventListener('resize', onResize); removeEventListener('panel:open', onPanel); removeEventListener('panel:close', onPanelClose); scene.current?.destroy(); voice.current?.dispose(); lumi.current?.destroy?.(); };
   }, []);
 
   useEffect(() => { document.documentElement.lang = lang; store.set('cigala.lang', lang); }, [lang]);
