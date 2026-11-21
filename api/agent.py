@@ -18,7 +18,7 @@ from typing import Any
 from api import engine, llm
 
 log = logging.getLogger("api.agent")
-MAX_ROUNDS = 4
+MAX_ROUNDS = 5
 CHARACTER = "Sprout"  # placeholder: character name is OPEN (thread 4)
 
 
@@ -65,6 +65,7 @@ def _summary(res: dict, node: dict) -> dict:
         "top_sensitivities": res.get("sensitivity", [])[:3],
         "checks_passed": all(c["passed"] for c in res.get("checks", [])),
         "assumptions_used": node.get("assumptions_ref", []),
+        "interventions": node.get("interventions", []),
         "horizon_months": res.get("horizon_months"), "n_paths": res.get("n_paths"),
     }
 
@@ -87,7 +88,11 @@ class Toolbox:
 
     def get_node(self, node_id: str) -> dict:
         res, node = self._node(str(node_id))
-        return _summary(res, node)
+        out = _summary(res, node)
+        vals = {a["id"]: a for a in engine.assumptions(self.overrides)}
+        out["assumption_values"] = {i: {"value": vals[i]["value"], "unit": vals[i]["unit"]}
+                                    for i in out["assumptions_used"] if i in vals}
+        return out
 
     def compare_nodes(self, node_ids: list[str]) -> dict:
         rows = [self.get_node(n) for n in node_ids]
@@ -108,6 +113,22 @@ class Toolbox:
         return {"assumption_id": assumption_id, "new_value": value, "before": before, "after": after,
                 "delta_final_net_worth_p50": round(after["final_net_worth_p50"] - before["final_net_worth_p50"], 2),
                 "delta_min_cash": round(after["min_cash"] - before["min_cash"], 2)}
+
+    def preload(self, node_id: str) -> list[dict]:
+        """Current node + siblings, computed by the engine (free) so most questions need one LLM call.
+        Recorded as a tool call so grounding and traces include it."""
+        from api.mock_engine import children_ids, parent_of
+        par = parent_of(node_id)
+        siblings = [s for s in children_ids(par) if s != node_id] if par is not None else []
+        ids = [node_id] + siblings + children_ids(node_id)
+        rows = []
+        for i in ids:
+            try:
+                rows.append(self.get_node(i))
+            except Exception:  # noqa: BLE001
+                pass
+        self.calls.append({"tool": "preload", "args": {"node_ids": ids}, "result": {"nodes": rows}})
+        return rows
 
     def get_assumptions(self) -> dict:
         return {"assumptions": engine.assumptions(self.overrides)}
@@ -154,13 +175,17 @@ def _numbers_in(obj: Any, acc: list[float]) -> list[float]:
         for v in obj:
             _numbers_in(v, acc)
     elif isinstance(obj, str):
-        for m in re.findall(r"-?\d+(?:\.\d+)?", obj):
-            acc.append(float(m))
+        for tok in _NUM.findall(obj):
+            v = _parse(tok)
+            if v is not None:
+                acc.append(v)
     return acc
 
 
 def _parse(tok: str) -> float | None:
     t = tok.strip().lower()
+    if re.fullmatch(r"-?0,\d+", t):  # decimal comma (fr/es/de): 0,777
+        t = t.replace(",", ".")
     k = t.endswith("k")
     t = re.sub(r"[\s'’, k]", "", t)
     try:
@@ -170,9 +195,10 @@ def _parse(tok: str) -> float | None:
     return v * 1000 if k else v
 
 
-def check_grounding(answer: str, tool_outputs: list[Any]) -> dict:
-    """Every number >= 100 in the answer must match a tool number (tolerating rounding/percent)."""
-    known = _numbers_in(tool_outputs, [])
+def check_grounding(answer: str, tool_outputs: list[Any], user_text: str = "") -> dict:
+    """Every number >= 100 in the answer must match a tool number or one the user said
+    (tolerating rounding and probabilities written as percent)."""
+    known = _numbers_in(tool_outputs, []) + _numbers_in(user_text, [])
     known += [abs(x) for x in known] + [x * 100 for x in known if abs(x) <= 1]  # probabilities as %
     ungrounded = []
     for tok in _NUM.findall(answer):
@@ -238,9 +264,13 @@ Hard rules:
    the user decides.
 3. Cite where numbers come from: the node (e.g. "option 1.2") and the key assumption ids involved.
 4. Results are conditional simulations, not forecasts. Mention uncertainty (the 10–90% range) when relevant.
-5. Answer in {lang_name}. Plain words, max 4 short sentences: it will be read aloud. Money as "CHF 12'300".
+5. Answer in {lang_name}. Plain words, at most 3 short sentences, no markdown, no lists: it will be read aloud.
+   Money as "CHF 12'300". Say months as "month 7".
 Context: the user's current node is {node_id}; visible path {path}; active weather {weather}.
-Node ids: "0" today; "1","2","3" first decisions; "1.2" = option 2 under option 1, and so on."""
+Node ids: "0" today; "1","2","3" first decisions; "1.2" = option 2 under option 1, and so on.
+Engine results already loaded for the current node, its siblings and its children (the next decisions) (use these directly, call tools only
+for other nodes, comparisons you cannot read here, assumption details or what-if changes):
+{preloaded}"""
 
 _LANG_NAMES = {"en": "English", "es": "Spanish", "fr": "French", "de": "German", "it": "Italian"}
 
@@ -259,16 +289,20 @@ def ask(question: str, ctx: dict) -> dict:
     answer, mode, error = None, "llm", None
 
     if llm.available():
+        preloaded = box.preload(node_id)
         sysmsg = SYSTEM.format(name=ctx.get("character_name", CHARACTER), lang_name=_LANG_NAMES.get(lang, lang),
-                               node_id=node_id, path=ctx.get("path") or ["0"], weather=ctx.get("weather") or "none")
+                               node_id=node_id, path=ctx.get("path") or ["0"], weather=ctx.get("weather") or "none",
+                               preloaded=json.dumps(preloaded, ensure_ascii=False))
         msgs: list[dict] = [{"role": "system", "content": sysmsg}]
         for h in (ctx.get("history") or [])[-6:]:
             if h.get("role") in ("user", "assistant") and h.get("content"):
                 msgs.append({"role": h["role"], "content": str(h["content"])[:1000]})
         msgs.append({"role": "user", "content": question})
         try:
-            for _ in range(MAX_ROUNDS):
-                r = llm.chat(msgs, tools=TOOLS, model=used_model, purpose="agent", temperature=0.2, max_tokens=400)
+            for rnd in range(MAX_ROUNDS):
+                last = rnd == MAX_ROUNDS - 1
+                r = llm.chat(msgs, tools=TOOLS, model=used_model, purpose="agent", temperature=0.2, max_tokens=250,
+                             reasoning={"enabled": False}, **({"tool_choice": "none"} if last else {}))
                 used_model = r["model"]  # stick to the model that answered
                 cost += r["cost_usd"]
                 tokens["prompt"] += r["prompt_tokens"]
@@ -276,7 +310,7 @@ def ask(question: str, ctx: dict) -> dict:
                 msg = r["message"]
                 calls = msg.get("tool_calls") or []
                 if not calls:
-                    answer = (msg.get("content") or "").strip()
+                    answer = re.sub(r"[*_#`]+", "", msg.get("content") or "").strip()
                     break
                 msgs.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
                 for c in calls:
@@ -293,7 +327,7 @@ def ask(question: str, ctx: dict) -> dict:
 
     grounding = {"grounded": None, "ungrounded_numbers": []}
     if answer:
-        grounding = check_grounding(answer, [c["result"] for c in box.calls])
+        grounding = check_grounding(answer, [c["result"] for c in box.calls], question)
         if not grounding["grounded"]:
             log.warning("ungrounded numbers %s -> template", grounding["ungrounded_numbers"])
             answer = None
