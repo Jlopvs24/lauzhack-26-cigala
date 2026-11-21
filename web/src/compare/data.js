@@ -8,7 +8,6 @@ import { apiRequest } from '../api.js';
 import { pathKey } from './model.js';
 
 const clean = (p) => (p || []).map(String).filter((id) => id && id !== '0');
-const missing = (e) => / (404|405|501)\b/.test(e?.message || '');
 
 // A column from one /tree/expand response whose current node is the path's last node.
 export function fromExpand(data, path) {
@@ -35,25 +34,31 @@ export function fromExpand(data, path) {
   };
 }
 
-// /tree/compare (thread 2): accept `columns` or `paths` (or `results`) arrays of per-path objects that
-// carry a SimulationResult. Returns null when the shape is not one we can read (→ fallback).
+// /tree/compare (thread 2, docs/contracts.md "Compare options"): `options[]` with metrics, plan_check,
+// series and impact_alone {vs_parent, vs_today: {node_id, label, delta}}. Returns null when the shape
+// is not one we can read (→ fallback).
 export function normalizeServer(r) {
-  const list = Array.isArray(r?.columns) ? r.columns : Array.isArray(r?.paths) ? r.paths : Array.isArray(r?.results) ? r.results : null;
-  if (!list?.length || !list.every((c) => c && (c.result || c.metrics))) return null;
-  const baseline = r.baseline?.result || r.baseline || null;
-  return list.map((c) => {
-    const p = clean(c.path || []);
-    const result = c.result || c;
-    const parent = c.parent?.result ? c.parent : c.impact_alone?.parent ? { node_id: c.impact_alone.parent.node_id, label: c.impact_alone.parent.label, result: c.impact_alone.parent.result || c.impact_alone.parent } : null;
+  const list = Array.isArray(r?.options) ? r.options : null;
+  if (!list?.length || !list.every((o) => o && o.metrics)) return null;
+  return list.map((o) => {
+    const p = clean(o.path || []);
+    const labels = o.path_labels || [];
+    const pl = labels.length === p.length ? labels : p.map((id, i) => labels[i - (p.length - labels.length)] || id);
+    const m = o.metrics;
+    const result = {
+      metrics: m, plan_check: o.plan_check || null, headline: o.headline || null,
+      deterministic: { net_worth: o.series?.net_worth || [], net_worth_real: o.series?.net_worth_real || [], cash: o.series?.cash || [] },
+      weather_resilience: o.weather_resilience || null, assumptions_used: o.assumptions_used || null, trace_id: o.trace_id,
+    };
+    const personal = [];
+    if (o.custom) personal.push({ node_id: o.node_id, label: o.label, kind: 'custom' });
+    else if (o.patched) personal.push({ node_id: o.node_id, label: o.label, kind: 'patched' });
     return {
-      key: pathKey(p), path: p, node_id: c.node_id || p.at(-1) || '0', label: c.label || p.at(-1) || '',
-      crumbs: c.crumbs || (c.labels ? p.map((id, i) => ({ id, label: c.labels[i] || id })) : p.map((id) => ({ id, label: id }))),
-      node: c.node || null, result,
-      parent: parent?.result?.metrics ? parent : null,
-      baseline: c.baseline?.metrics ? c.baseline : baseline?.metrics ? baseline : null,
-      impact_alone: c.impact_alone || null,
-      assumptions: r.assumptions || c.assumptions || [], weather: r.weather || [], personal: c.personal || [],
-      exploration: c.exploration || result.exploration || null, smallest: c.smallest_change || null, timing: c.timing_scan || null,
+      key: pathKey(p), path: p, node_id: o.node_id || p.at(-1) || '0', label: o.label || p.at(-1) || '',
+      crumbs: p.map((id, i) => ({ id, label: pl[i] || id })), node: null, result,
+      parent: null, baseline: null, impact: o.impact_alone || null,
+      assumptions: r.assumptions || [], weather: r.weather || [], personal,
+      exploration: null, smallest: null, timing: null,
     };
   });
 }
@@ -65,16 +70,21 @@ export function normalizeServer(r) {
 export async function loadComparison({ paths, profile, assumptions = [], weather = [], fields = {}, request = apiRequest, signal, onPartial } = {}) {
   const ps = paths.map(clean);
   const common = { assumptions, weather, ...fields, ...(profile ? { profile } : {}) };
-  try {
-    const cols = normalizeServer(await request('/tree/compare', { body: { paths: ps, baseline: [], ...common }, signal }));
-    if (cols) return cols;
-  } catch (e) {
-    if (signal?.aborted || !missing(e)) throw e;
+  let cols = null;
+  if (ps.length >= 2 && ps.length <= 4) {
+    try {
+      cols = normalizeServer(await request('/tree/compare', { body: { paths: ps, baseline: 'parent', ...common }, signal }));
+    } catch (e) {
+      if (signal?.aborted || !/ (404|405|422|501)\b/.test(e?.message || '')) throw e;
+    }
   }
-  // fallback: one expand per path (fast path, no exploration), then the what-ifs in parallel
-  const cols = (await Promise.all(ps.map((p) => request('/tree/expand', { body: { path: p, exploration: false, uncertainty: false, ...common }, signal }).then((d) => fromExpand(d, p)))))
-    .filter(Boolean);
+  // fallback: one expand per path (fast path, no exploration)
+  if (!cols) {
+    cols = (await Promise.all(ps.map((p) => request('/tree/expand', { body: { path: p, exploration: false, uncertainty: false, ...common }, signal }).then((d) => fromExpand(d, p)))))
+      .filter(Boolean);
+  }
   onPartial?.(cols);
+  // then the what-ifs, in parallel, whatever answered first
   const soft = (route, body) => request(route, { body: { ...body, ...common }, signal }).catch((e) => { if (signal?.aborted) throw e; return null; });
   await Promise.all(cols.map(async (c) => {
     if (!c.path.length) return;

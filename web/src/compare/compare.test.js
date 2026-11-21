@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compareSiblings, cardCompareHTML, chipText, optionPaths, buildComparison, onlyDifferences, markExtremes, seriesOf, pathKey } from './model.js';
 import { createCompareStore } from './store.js';
-import { fromExpand, normalizeServer } from './data.js';
+import { fromExpand, normalizeServer, loadComparison } from './data.js';
 
 const res = (nw, min, extra = {}) => ({
   metrics: { final_net_worth_real: nw, final_net_worth: nw * 1.1, min_cash: min, min_cash_month: 20, first_negative_month: min < 0 ? 19 : null, liquidity_months: min / 1000, final_debt: 0 },
@@ -75,6 +75,24 @@ test('fallback columns from /tree/expand: parent, baseline, crumbs, personal mar
   assert.equal(normalizeServer({ nope: 1 }), null);
 });
 
+test('/tree/compare options map onto the same columns (impact alone from the server deltas)', () => {
+  const opt = (id, nw, gap, dParent, dToday) => ({ key: `x:${id}`, node_id: id, label: `L${id}`, path: ['0', '2', id], path_labels: ["Do a master's", `L${id}`],
+    plan_check: { level: gap ? 'needs_financing' : 'holds' }, patched: id === '2.2',
+    metrics: { final_net_worth_real: nw, min_cash: gap ? -gap : 100, min_cash_month: 3, first_negative_month: gap ? 2 : null, goals_met: 2, goals_total: 2, liquidity_months: 1, final_debt: 0 },
+    series: { net_worth: [0, nw], net_worth_real: [0, nw], cash: [0, 5] },
+    impact_alone: { vs_parent: { node_id: '2', delta: { final_net_worth_real: dParent, min_cash: 10, goals_met: 0 } }, vs_today: { node_id: '0', delta: { final_net_worth_real: dToday } } } });
+  const cols = normalizeServer({ options: [opt('2.1', 100000, 18000, 0, 120000), opt('2.2', 117000, 0, 14900, 137000)] });
+  assert.deepEqual(cols.map((c) => c.key), ['2/2.1', '2/2.2']);
+  assert.deepEqual(cols[1].crumbs.map((c) => c.label), ["Do a master's", 'L2.2']);
+  assert.equal(cols[1].personal[0].kind, 'patched');
+  const cmp = buildComparison(cols);
+  const impact = cmp.sections.find((s) => s.key === 'impact');
+  assert.deepEqual(impact.rows.find((r) => r.key === 'vsParent').cells.map((c) => c.text), ['±CHF 0', '+CHF 14’900']);
+  assert.equal(impact.rows.find((r) => r.key === 'vsToday').cells[1].mark, 'hi');
+  assert.equal(cmp.sections[0].rows.find((r) => r.key === 'goals').cells[0].text, '2 of 2');
+  assert.equal(seriesOf(cols)[0].values.at(-1), 100000);
+});
+
 test('buildComparison: grouped rows, highest/lowest marks, impact alone, differences only', () => {
   const cols = ['2', '1', '3'].map((id) => fromExpand(tree, [id]));
   cols[0].smallest = { already_holds: false, changes: [{ lever: 'more_income', status: 'threshold_found', value: 762 }, { lever: 'cash_now', status: 'threshold_found', value: 18531 }] };
@@ -94,4 +112,21 @@ test('buildComparison: grouped rows, highest/lowest marks, impact alone, differe
   assert.ok(only.every((s) => s.rows.every((r) => new Set(r.cells.map((c) => c.text)).size > 1)));
   assert.equal(markExtremes({ numeric: true, cells: [{ value: 1 }, { value: 1 }] }).cells[0].mark, undefined);
   assert.equal(seriesOf(cols)[1].values.at(-1), 112000);
+});
+
+test('loadComparison falls back to /tree/expand when /tree/compare is missing, and sends weather + conditions', async () => {
+  const calls = [];
+  const request = async (route, { body }) => {
+    calls.push([route, body]);
+    if (route === '/tree/compare') throw new Error('The API returned 404. Check the backend and try again.');
+    if (route === '/tree/expand') return { ...tree, current: body.path.at(-1), path: ['0', ...body.path] };
+    if (route === '/tree/smallest_change') return { already_holds: true, changes: [] };
+    return null;
+  };
+  const fields = { node_patches: { 2: [{ param: 'one_off_income', month: 0, value: 1 }] } };
+  const cols = await loadComparison({ paths: [['1'], ['3']], weather: [{ type: 'recession' }], fields, request });
+  assert.deepEqual(cols.map((c) => c.node_id), ['1', '3']);
+  assert.equal(cols[0].smallest.already_holds, true);
+  assert.ok(calls.every(([, b]) => b.weather?.[0]?.type === 'recession' && b.node_patches));
+  await assert.rejects(loadComparison({ paths: [['1'], ['3']], request: async () => { throw new Error('The API returned 500.'); } }));
 });

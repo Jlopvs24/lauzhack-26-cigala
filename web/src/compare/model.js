@@ -122,7 +122,11 @@ export const pathKey = (p = []) => p.filter((id) => id !== '0').join('/') || '0'
  *  baseline: result of "0", exploration, smallest, timing, assumptions: [{id,label,unit,value}],
  *  personal: [{label, kind}], peers_in_columns}
  */
-const goalsMet = (r) => { const g = r?.goals || []; return { met: g.filter((x) => x.met_deterministic).length, total: g.length }; };
+const goalsMet = (r) => {
+  if (Array.isArray(r?.goals)) return { met: r.goals.filter((x) => x.met_deterministic).length, total: r.goals.length };
+  const m = r?.metrics || {};
+  return { met: m.goals_met ?? null, total: m.goals_total ?? null };
+};
 const holdsIn = (r) => { const w = r?.weather_resilience || r?.plan_check?.resilience; if (!w) return null; return { h: w.holds_in ?? w.holds_in_weather ?? 0, of: w.of ?? 0 }; };
 const fixValue = (s, lever) => s?.changes?.find((c) => c.lever === lever);
 
@@ -157,17 +161,20 @@ export function buildComparison(cols = [], { lang = 'en', label = (id, l) => l, 
     numRow('low', L.r.low, cols, (c) => c.result?.metrics?.min_cash, (v, c) => L.lowAt(chf(v), (c.result.metrics.min_cash_month ?? 0) + 1)),
     numRow('gap', L.r.gap, cols, (c) => (c.result?.metrics ? Math.max(0, -(c.result.metrics.min_cash ?? 0)) : null),
       (v, c) => (v > 0.5 ? L.gapFrom(chf(v), (c.result.metrics.first_negative_month ?? 0) + 1) : L.none)),
-    numRow('goals', L.r.goals, cols, (c) => (c.result?.goals ? goalsMet(c.result).met : null), (v, c) => L.goalsOf(v, goalsMet(c.result).total), { tol: 0.5 }),
+    numRow('goals', L.r.goals, cols, (c) => goalsMet(c.result).met, (v, c) => L.goalsOf(v, goalsMet(c.result).total), { tol: 0.5 }),
     numRow('liq', L.r.liq, cols, (c) => c.result?.metrics?.liquidity_months, (v) => L.months(String(Math.round(v * 10) / 10).replace('-', '−')), { tol: 0.05 }),
     numRow('debt', L.r.debt, cols, (c) => c.result?.metrics?.final_debt, (v) => chf(v)),
   ]);
 
   const nwOf = (r) => metricOf(r, 'final_net_worth_real');
+  // "this choice alone": the server's impact_alone deltas, else this result minus its parent's / today's
+  const dParent = (c, k, own) => (c.impact?.vs_parent?.delta ? c.impact.vs_parent.delta[k] : c.parent?.result ? own(c.result) - own(c.parent.result) : null);
+  const dToday = (c) => (c.node_id === '0' ? null : c.impact?.vs_today?.delta ? c.impact.vs_today.delta.final_net_worth_real : c.baseline ? nwOf(c.result) - nwOf(c.baseline) : null);
   sec('impact', [
-    numRow('vsParent', L.r.vsParent, cols, (c) => (c.parent?.result ? nwOf(c.result) - nwOf(c.parent.result) : null), (v) => signed(v), { empty: () => L.noParent }),
-    numRow('lowVsParent', L.r.lowVsParent, cols, (c) => (c.parent?.result ? c.result.metrics.min_cash - c.parent.result.metrics.min_cash : null), (v) => signed(v), { empty: () => L.noParent }),
-    numRow('goalsVsParent', L.r.goalsVsParent, cols, (c) => (c.parent?.result ? goalsMet(c.result).met - goalsMet(c.parent.result).met : null), (v) => L.goalsDelta(v), { empty: () => L.noParent, tol: 0.5 }),
-    numRow('vsToday', L.r.vsToday, cols, (c) => (c.baseline && c.node_id !== '0' ? nwOf(c.result) - nwOf(c.baseline) : null), (v) => signed(v), { empty: () => L.rootDelta }),
+    numRow('vsParent', L.r.vsParent, cols, (c) => dParent(c, 'final_net_worth_real', nwOf), (v) => signed(v), { empty: () => L.noParent }),
+    numRow('lowVsParent', L.r.lowVsParent, cols, (c) => dParent(c, 'min_cash', (r) => r.metrics.min_cash), (v) => signed(v), { empty: () => L.noParent }),
+    numRow('goalsVsParent', L.r.goalsVsParent, cols, (c) => dParent(c, 'goals_met', (r) => goalsMet(r).met), (v) => L.goalsDelta(Math.round(v)), { empty: () => L.noParent, tol: 0.5 }),
+    numRow('vsToday', L.r.vsToday, cols, dToday, (v) => signed(v), { empty: () => L.rootDelta }),
   ]);
 
   const anyTruth = cols.some((c) => c.smallest || c.timing || c.exploration);
