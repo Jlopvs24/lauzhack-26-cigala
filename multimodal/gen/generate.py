@@ -17,7 +17,7 @@ from .degrade import VARIANTS
 from .render import render
 
 ROOT = Path(__file__).resolve().parents[2]
-VARIANT_CYCLE = ["pdf", "scan", "photo", "lowres"]
+VARIANT_CYCLE = ["pdf", "scan", "photo", "lowres", "hard"]
 
 
 def pick_people(n: int, seed: int):
@@ -66,7 +66,7 @@ def main():
                 img = VARIANTS[variant](pdf_path, rng)
                 ext = "png" if variant == "lowres" else "jpg"
                 file = out / "docs" / f"{doc_id}.{ext}"
-                img.save(file, quality=rng.randint(55, 80)) if ext == "jpg" else img.save(file)
+                img.save(file, quality=rng.randint(30, 45) if variant == "hard" else rng.randint(55, 80)) if ext == "jpg" else img.save(file)
                 pdf_path.unlink()
             manifest.append({
                 "doc_id": doc_id, "file": file.relative_to(out).as_posix(), "doc_type": doc_type,

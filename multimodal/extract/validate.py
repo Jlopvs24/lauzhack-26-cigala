@@ -120,7 +120,9 @@ def arithmetic_checks(doc_type: str, f: dict) -> list[dict]:
     return checks
 
 
-def confidence(doc_type: str, f: dict, text: str, line_conf: list[float] | None = None) -> tuple[dict, list[dict]]:
+def confidence(doc_type: str, f: dict, text: str, line_conf: list[float] | None = None,
+               grounding: bool = True) -> tuple[dict, list[dict]]:
+    """grounding=False when no trustworthy local text exists (image read by a VLM only)."""
     nums = numbers_in(text)
     ntext = strip_accents(text)
     checks = arithmetic_checks(doc_type, f)
@@ -141,7 +143,9 @@ def confidence(doc_type: str, f: dict, text: str, line_conf: list[float] | None 
             grounded = bool(toks) and sum(w in ntext for w in toks) / len(toks) >= 0.75
         else:
             grounded = bool(re.fullmatch(r"\d{4}-\d{2}(-\d{2})?", v))
-        c = 0.85 if grounded else 0.35
+        if not grounding:
+            grounded = None
+        c = 0.6 if grounded is None else (0.85 if grounded else 0.35)
         for ch in checks:
             if k in ch["fields"]:
                 c += 0.1 if ch["passed"] else -0.3

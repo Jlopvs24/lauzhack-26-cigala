@@ -56,6 +56,12 @@ def parse_json(text: str) -> dict | None:
         return None
 
 
+# OpenRouter falls back to these if the primary model is rate-limited or down
+FALLBACKS = {
+    "mistralai/mistral-small-24b-instruct-2501": ["mistralai/mistral-small-3.2-24b-instruct"],
+}
+
+
 def chat(model: str, messages: list, *, tag: str = "", max_tokens: int = 600, json_mode: bool = True,
          temperature: float = 0.0, reasoning_effort: str | None = None, timeout: float = 90) -> LLMResult:
     key = os.environ.get("OPENROUTER_API_KEY")
@@ -63,13 +69,15 @@ def chat(model: str, messages: list, *, tag: str = "", max_tokens: int = 600, js
         raise RuntimeError("OPENROUTER_API_KEY missing (put it in .env.local)")
     body = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature,
             "usage": {"include": True}}
+    if model in FALLBACKS:
+        body["models"] = [model, *FALLBACKS[model]]
     if json_mode:
         body["response_format"] = {"type": "json_object"}
     if reasoning_effort:
         body["reasoning"] = {"effort": reasoning_effort}
     t0 = time.perf_counter()
-    last = None
-    for attempt in range(3):
+    last, r = None, None
+    for attempt in range(5):
         try:
             r = httpx.post(OPENROUTER_URL, json=body, timeout=timeout,
                            headers={"Authorization": f"Bearer {key}", "X-Title": "cigala-lauzhack"})
@@ -80,7 +88,7 @@ def chat(model: str, messages: list, *, tag: str = "", max_tokens: int = 600, js
                 body.pop("response_format", None)
         except httpx.HTTPError as e:
             last = repr(e)
-        time.sleep(1.5 * (attempt + 1))
+        time.sleep(2.0 * 2 ** attempt if r is not None and getattr(r, "status_code", 0) == 429 else 1.5 * (attempt + 1))
     else:
         raise RuntimeError(f"{model} failed: {last}")
     dt = time.perf_counter() - t0

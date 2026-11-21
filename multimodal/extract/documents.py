@@ -3,7 +3,8 @@
 frugal     : local text (PDF layer / on-device OCR) -> keyword doc-type -> small text LLM (JSON)
              -> deterministic validation -> escalate to a cheap VLM only if checks fail.
 ocr_llm    : same without escalation (ablation).
-vlm_small  : image straight into a small vision model.
+vlm_small  : image straight into a small open vision model.
+vlm_cheap  : image straight into a cheap proprietary vision model.
 vlm_large  : image straight into a frontier vision model ("send everything to the big model").
 """
 from __future__ import annotations
@@ -20,9 +21,11 @@ from .validate import confidence, needs_escalation, normalise, strip_accents
 
 MODELS = {
     "text_small": "mistralai/mistral-small-24b-instruct-2501",
-    "escalation_vlm": "google/gemini-2.5-flash-lite",
+    "escalation_vlm": "google/gemini-3.1-flash-lite",
     "vlm_small": "google/gemma-3-12b-it",
+    "vlm_cheap": "google/gemini-3.1-flash-lite",
     "vlm_large": "anthropic/claude-fable-5.2",
+    "audio": "google/gemini-2.5-flash-lite",
 }
 
 RULES = """Rules:
@@ -83,9 +86,22 @@ def _image(data: bytes):
     return pdf_to_image(data, dpi=150) if is_pdf(data) else load_image(data)
 
 
+UNREADABLE_CONF = 0.85   # mean OCR confidence below this = capture too poor for OCR
+UNREADABLE_CHARS = 150
+
+
 def extract_frugal(data: bytes, *, escalate: bool = True, tag: str = "") -> DocResult:
     t0 = time.perf_counter()
     tr = get_text(data)
+    if escalate and tr.method == "ocr" and (tr.mean_conf < UNREADABLE_CONF or len(tr.text) < UNREADABLE_CHARS):
+        # OCR output is noise: do not pay a text model to read it, send the image to the escalation VLM
+        res = extract_vlm(data, "escalation_vlm", tag=f"{tag}:unreadable")
+        f = res.fields
+        conf, checks = confidence(res.doc_type, f, "", None, grounding=False)
+        res = DocResult(res.doc_type, f, conf, checks, "ocr_unreadable->vlm", res.models, res.cost_usd, 0, True,
+                        [f"unreadable_capture(ocr_conf={tr.mean_conf:.2f}, chars={len(tr.text)})"], len(tr.text))
+        res.seconds = time.perf_counter() - t0
+        return res
     doc_type, _ = classify(tr.text)
     line_conf = [c for _, c in tr.lines]
     r = llm.chat(MODELS["text_small"], [
@@ -104,9 +120,11 @@ def extract_frugal(data: bytes, *, escalate: bool = True, tag: str = "") -> DocR
                 llm.image_part(img)]}], tag=f"{tag}:escalation")
         f2 = normalise(doc_type, r2.data or {})
         conf2, checks2 = confidence(doc_type, f2, tr.text, line_conf)
-        # keep, per field, the more trustworthy candidate
+        # fields in a failed arithmetic check come from the VLM if its values add up
+        failed = {k for c in checks if not c["passed"] for k in c["fields"]}
+        vlm_consistent = all(c["passed"] for c in checks2)
         for k in f:
-            if conf2.get(k, {}).get("confidence", 0) > conf[k]["confidence"]:
+            if (k in failed and vlm_consistent and f2.get(k) is not None) or                     conf2.get(k, {}).get("confidence", 0) > conf[k]["confidence"]:
                 f[k], conf[k] = f2[k], conf2[k]
         f = normalise(doc_type, f)
         conf, checks = confidence(doc_type, f, tr.text, line_conf)
@@ -137,7 +155,7 @@ def extract_document(src: bytes | str | Path, strategy: str = "frugal", tag: str
         return extract_frugal(data, tag=tag)
     if strategy == "ocr_llm":
         return extract_frugal(data, escalate=False, tag=tag)
-    if strategy in ("vlm_small", "vlm_large"):
+    if strategy in ("vlm_small", "vlm_cheap", "vlm_large"):
         return extract_vlm(data, strategy, tag=tag)
     raise ValueError(strategy)
 

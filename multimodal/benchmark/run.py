@@ -116,6 +116,7 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--workers", type=int, default=4, help="parallel API calls for VLM strategies")
     ap.add_argument("--budget", type=float, default=3.0, help="abort if total logged spend exceeds this (USD)")
+    ap.add_argument("--reuse", default="", help="run_id whose rows are reused for strategies not re-run here")
     args = ap.parse_args()
 
     docs = [json.loads(l) for l in open(DATA / "manifest.jsonl", encoding="utf-8")]
@@ -138,15 +139,24 @@ def main():
         done = [r for r in rows if r["strategy"] == s]
         print(f"{s}: acc={statistics.mean(r['accuracy'] for r in done):.3f} "
               f"cost={sum(r['cost_usd'] for r in done):.4f} USD")
+    reused = []
+    if args.reuse:
+        ids = {d["doc_id"] for d in docs}
+        for l in open(RESULTS / args.reuse / "per_doc.jsonl", encoding="utf-8"):
+            r = json.loads(l)
+            if r["strategy"] not in args.strategies and r["doc_id"] in ids:
+                rows.append(r)
+                reused.append(r["strategy"])
     with open(out / "per_doc.jsonl", "w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     summary = summarise(rows)
     meta = {"run_id": run_id, "n_docs": len(docs), "strategies": args.strategies,
-            "models": {"frugal": f"local OCR + {MODELS['text_small']} (+{MODELS['escalation_vlm']} on failed checks)",
+            "models": {"frugal": f"local OCR + {MODELS['text_small']} (+{MODELS['escalation_vlm']} on failed checks / unreadable captures)",
                        "ocr_llm": f"local OCR + {MODELS['text_small']}",
-                       "vlm_small": MODELS["vlm_small"], "vlm_large": MODELS["vlm_large"]},
-            "spend_this_run_usd": round(llm.total_spend() - spent0, 6)}
+                       "vlm_small": MODELS["vlm_small"], "vlm_cheap": MODELS["vlm_cheap"], "vlm_large": MODELS["vlm_large"]},
+            "spend_this_run_usd": round(llm.total_spend() - spent0, 6),
+            "reused_from": {s: args.reuse for s in sorted(set(reused))}}
     (out / "summary.json").write_text(json.dumps({"meta": meta, "summary": summary}, indent=2), encoding="utf-8")
     (out / "report.md").write_text(report(summary, meta), encoding="utf-8")
     print(report(summary, meta))

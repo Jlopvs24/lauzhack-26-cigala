@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io
 import math
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +16,7 @@ import numpy as np
 from PIL import Image
 
 _OCR = None
+_OCR_LOCK = threading.Lock()  # one ONNX OCR session, shared; LLM calls still run in parallel
 MAX_SIDE = 1800
 
 
@@ -41,8 +43,8 @@ class TextResult:
 def load_image(data: bytes | str | Path) -> Image.Image:
     img = Image.open(io.BytesIO(data) if isinstance(data, bytes) else data).convert("RGB")
     s = MAX_SIDE / max(img.size)
-    if s < 1:
-        img = img.resize((int(img.width * s), int(img.height * s)), Image.LANCZOS)
+    if s < 1 or s > 1.3:  # shrink huge photos; upscale tiny captures so OCR sees bigger glyphs
+        img = img.resize((int(img.width * s), int(img.height * s)), Image.LANCZOS if s < 1 else Image.BICUBIC)
     return img
 
 
@@ -75,7 +77,8 @@ def pdf_to_image(data: bytes, dpi: int = 200) -> Image.Image:
 
 
 def ocr_lines(img: Image.Image) -> list[tuple[str, float]]:
-    res, _ = _ocr()(np.array(img))
+    with _OCR_LOCK:
+        res, _ = _ocr()(np.array(img))
     if not res:
         return []
     boxes = []

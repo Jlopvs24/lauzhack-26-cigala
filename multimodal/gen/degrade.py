@@ -62,4 +62,14 @@ def lowres(pdf_path, rng: random.Random) -> Image.Image:
     return Image.fromarray(img)
 
 
-VARIANTS = {"scan": scan, "photo": photo, "lowres": lowres}
+def hard(pdf_path, rng: random.Random) -> Image.Image:
+    """Worst case: low-dpi phone photo, strong blur, heavy JPEG, then downscaled."""
+    img = np.array(photo(pdf_path, rng))
+    img = cv2.GaussianBlur(img, (5, 5), rng.uniform(1.0, 1.6))
+    h, w = img.shape[:2]
+    s = rng.uniform(0.45, 0.6)
+    img = cv2.resize(img, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA)
+    return Image.fromarray(img)
+
+
+VARIANTS = {"scan": scan, "photo": photo, "lowres": lowres, "hard": hard}

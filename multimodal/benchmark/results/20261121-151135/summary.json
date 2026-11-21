@@ -1,0 +1,845 @@
+{
+  "meta": {
+    "run_id": "20261121-151135",
+    "n_docs": 60,
+    "strategies": [
+      "frugal",
+      "ocr_llm",
+      "vlm_cheap"
+    ],
+    "models": {
+      "frugal": "local OCR + mistralai/mistral-small-24b-instruct-2501 (+google/gemini-3.1-flash-lite on failed checks / unreadable captures)",
+      "ocr_llm": "local OCR + mistralai/mistral-small-24b-instruct-2501",
+      "vlm_small": "google/gemma-3-12b-it",
+      "vlm_cheap": "google/gemini-3.1-flash-lite",
+      "vlm_large": "anthropic/claude-fable-5.2"
+    },
+    "spend_this_run_usd": 0.049508,
+    "reused_from": {
+      "vlm_large": "20261121-145235",
+      "vlm_small": "20261121-145235"
+    }
+  },
+  "summary": {
+    "frugal": {
+      "all": {
+        "n": 60,
+        "field_accuracy": 0.9771,
+        "key_field_accuracy": 0.9778,
+        "doc_type_accuracy": 1,
+        "usd_per_doc": 0.000187044,
+        "usd_total": 0.01122264,
+        "latency_p50_s": 5.11,
+        "latency_mean_s": 6.01,
+        "escalation_rate": 0.267,
+        "errors": 0
+      },
+      "variant": {
+        "hard": {
+          "n": 12,
+          "field_accuracy": 0.9062,
+          "key_field_accuracy": 0.8889,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0005968766666666666,
+          "usd_total": 0.0071625199999999995,
+          "latency_p50_s": 6.2,
+          "latency_mean_s": 7.39,
+          "escalation_rate": 1,
+          "errors": 0
+        },
+        "lowres": {
+          "n": 12,
+          "field_accuracy": 0.9896,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00013313,
+          "usd_total": 0.00159756,
+          "latency_p50_s": 6.45,
+          "latency_mean_s": 6.72,
+          "escalation_rate": 0.167,
+          "errors": 0
+        },
+        "pdf": {
+          "n": 12,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.616333333333333e-05,
+          "usd_total": 0.00043396,
+          "latency_p50_s": 2.19,
+          "latency_mean_s": 2.04,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "photo": {
+          "n": 12,
+          "field_accuracy": 0.9896,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 8.383083333333334e-05,
+          "usd_total": 0.0010059700000000001,
+          "latency_p50_s": 4.84,
+          "latency_mean_s": 6.03,
+          "escalation_rate": 0.083,
+          "errors": 0
+        },
+        "scan": {
+          "n": 12,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 8.521916666666667e-05,
+          "usd_total": 0.00102263,
+          "latency_p50_s": 6.0,
+          "latency_mean_s": 7.85,
+          "escalation_rate": 0.083,
+          "errors": 0
+        }
+      },
+      "doc_type": {
+        "bank_statement": {
+          "n": 20,
+          "field_accuracy": 0.95,
+          "key_field_accuracy": 0.9333,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0002686005,
+          "usd_total": 0.00537201,
+          "latency_p50_s": 6.54,
+          "latency_mean_s": 6.18,
+          "escalation_rate": 0.4,
+          "errors": 0
+        },
+        "payslip": {
+          "n": 20,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.000142005,
+          "usd_total": 0.0028401,
+          "latency_p50_s": 4.54,
+          "latency_mean_s": 5.21,
+          "escalation_rate": 0.2,
+          "errors": 0
+        },
+        "rental_contract": {
+          "n": 20,
+          "field_accuracy": 0.9812,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001505265,
+          "usd_total": 0.00301053,
+          "latency_p50_s": 4.52,
+          "latency_mean_s": 6.63,
+          "escalation_rate": 0.2,
+          "errors": 0
+        }
+      },
+      "lang": {
+        "de": {
+          "n": 19,
+          "field_accuracy": 0.9709,
+          "key_field_accuracy": 0.9649,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00021442631578947368,
+          "usd_total": 0.0040741,
+          "latency_p50_s": 4.31,
+          "latency_mean_s": 5.97,
+          "escalation_rate": 0.316,
+          "errors": 0
+        },
+        "en": {
+          "n": 7,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00045014142857142855,
+          "usd_total": 0.00315099,
+          "latency_p50_s": 5.43,
+          "latency_mean_s": 5.61,
+          "escalation_rate": 0.714,
+          "errors": 0
+        },
+        "fr": {
+          "n": 18,
+          "field_accuracy": 0.9623,
+          "key_field_accuracy": 0.9815,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 9.82038888888889e-05,
+          "usd_total": 0.00176767,
+          "latency_p50_s": 5.0,
+          "latency_mean_s": 5.41,
+          "escalation_rate": 0.111,
+          "errors": 0
+        },
+        "it": {
+          "n": 16,
+          "field_accuracy": 0.9911,
+          "key_field_accuracy": 0.9792,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001393675,
+          "usd_total": 0.00222988,
+          "latency_p50_s": 5.33,
+          "latency_mean_s": 6.89,
+          "escalation_rate": 0.188,
+          "errors": 0
+        }
+      }
+    },
+    "ocr_llm": {
+      "all": {
+        "n": 60,
+        "field_accuracy": 0.8331,
+        "key_field_accuracy": 0.8278,
+        "doc_type_accuracy": 0.95,
+        "usd_per_doc": 3.422533333333333e-05,
+        "usd_total": 0.00205352,
+        "latency_p50_s": 4.2,
+        "latency_mean_s": 7.79,
+        "escalation_rate": 0,
+        "errors": 0
+      },
+      "variant": {
+        "hard": {
+          "n": 12,
+          "field_accuracy": 0.2579,
+          "key_field_accuracy": 0.2778,
+          "doc_type_accuracy": 0.75,
+          "usd_per_doc": 2.7895e-05,
+          "usd_total": 0.00033474,
+          "latency_p50_s": 4.47,
+          "latency_mean_s": 8.7,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "lowres": {
+          "n": 12,
+          "field_accuracy": 0.9658,
+          "key_field_accuracy": 0.9444,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.54425e-05,
+          "usd_total": 0.00042531,
+          "latency_p50_s": 4.73,
+          "latency_mean_s": 10.9,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "pdf": {
+          "n": 12,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.616333333333333e-05,
+          "usd_total": 0.00043396,
+          "latency_p50_s": 1.9,
+          "latency_mean_s": 2.28,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "photo": {
+          "n": 12,
+          "field_accuracy": 0.9539,
+          "key_field_accuracy": 0.9444,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.6018333333333334e-05,
+          "usd_total": 0.00043222000000000003,
+          "latency_p50_s": 4.2,
+          "latency_mean_s": 7.65,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "scan": {
+          "n": 12,
+          "field_accuracy": 0.9881,
+          "key_field_accuracy": 0.9722,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.56075e-05,
+          "usd_total": 0.00042729,
+          "latency_p50_s": 5.77,
+          "latency_mean_s": 9.42,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "doc_type": {
+        "bank_statement": {
+          "n": 20,
+          "field_accuracy": 0.7786,
+          "key_field_accuracy": 0.7333,
+          "doc_type_accuracy": 0.9,
+          "usd_per_doc": 4.0348e-05,
+          "usd_total": 0.00080696,
+          "latency_p50_s": 4.52,
+          "latency_mean_s": 8.73,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "payslip": {
+          "n": 20,
+          "field_accuracy": 0.9083,
+          "key_field_accuracy": 0.95,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.14125e-05,
+          "usd_total": 0.00062825,
+          "latency_p50_s": 3.92,
+          "latency_mean_s": 6.21,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "rental_contract": {
+          "n": 20,
+          "field_accuracy": 0.8125,
+          "key_field_accuracy": 0.8,
+          "doc_type_accuracy": 0.95,
+          "usd_per_doc": 3.09155e-05,
+          "usd_total": 0.00061831,
+          "latency_p50_s": 4.43,
+          "latency_mean_s": 8.44,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "lang": {
+        "de": {
+          "n": 19,
+          "field_accuracy": 0.797,
+          "key_field_accuracy": 0.7895,
+          "doc_type_accuracy": 0.8947,
+          "usd_per_doc": 3.227421052631579e-05,
+          "usd_total": 0.00061321,
+          "latency_p50_s": 4.38,
+          "latency_mean_s": 6.74,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "en": {
+          "n": 7,
+          "field_accuracy": 0.6497,
+          "key_field_accuracy": 0.619,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.422571428571429e-05,
+          "usd_total": 0.00023958,
+          "latency_p50_s": 18.21,
+          "latency_mean_s": 16.66,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "fr": {
+          "n": 18,
+          "field_accuracy": 0.9067,
+          "key_field_accuracy": 0.9074,
+          "doc_type_accuracy": 0.9444,
+          "usd_per_doc": 3.553055555555556e-05,
+          "usd_total": 0.00063955,
+          "latency_p50_s": 4.18,
+          "latency_mean_s": 7.48,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "it": {
+          "n": 16,
+          "field_accuracy": 0.8735,
+          "key_field_accuracy": 0.875,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 3.507375e-05,
+          "usd_total": 0.00056118,
+          "latency_p50_s": 3.75,
+          "latency_mean_s": 5.51,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      }
+    },
+    "vlm_cheap": {
+      "all": {
+        "n": 60,
+        "field_accuracy": 0.9792,
+        "key_field_accuracy": 0.9778,
+        "doc_type_accuracy": 1,
+        "usd_per_doc": 0.0005957416666666666,
+        "usd_total": 0.0357445,
+        "latency_p50_s": 2.36,
+        "latency_mean_s": 2.44,
+        "escalation_rate": 0,
+        "errors": 0
+      },
+      "variant": {
+        "hard": {
+          "n": 12,
+          "field_accuracy": 0.9062,
+          "key_field_accuracy": 0.8889,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0005975833333333333,
+          "usd_total": 0.007171,
+          "latency_p50_s": 2.2,
+          "latency_mean_s": 2.27,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "lowres": {
+          "n": 12,
+          "field_accuracy": 0.9896,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.000597,
+          "usd_total": 0.007164,
+          "latency_p50_s": 2.51,
+          "latency_mean_s": 2.69,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "pdf": {
+          "n": 12,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.000597125,
+          "usd_total": 0.0071655,
+          "latency_p50_s": 2.2,
+          "latency_mean_s": 2.3,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "photo": {
+          "n": 12,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.000586375,
+          "usd_total": 0.0070365,
+          "latency_p50_s": 2.06,
+          "latency_mean_s": 2.17,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "scan": {
+          "n": 12,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.000600625,
+          "usd_total": 0.0072075,
+          "latency_p50_s": 2.69,
+          "latency_mean_s": 2.78,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "doc_type": {
+        "bank_statement": {
+          "n": 20,
+          "field_accuracy": 0.95,
+          "key_field_accuracy": 0.9333,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0005878,
+          "usd_total": 0.011756,
+          "latency_p50_s": 2.44,
+          "latency_mean_s": 2.39,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "payslip": {
+          "n": 20,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.000577975,
+          "usd_total": 0.0115595,
+          "latency_p50_s": 2.15,
+          "latency_mean_s": 2.33,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "rental_contract": {
+          "n": 20,
+          "field_accuracy": 0.9875,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00062145,
+          "usd_total": 0.012428999999999999,
+          "latency_p50_s": 2.45,
+          "latency_mean_s": 2.61,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "lang": {
+        "de": {
+          "n": 19,
+          "field_accuracy": 0.9709,
+          "key_field_accuracy": 0.9649,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0005965789473684211,
+          "usd_total": 0.011335,
+          "latency_p50_s": 2.07,
+          "latency_mean_s": 2.2,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "en": {
+          "n": 7,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0005948571428571428,
+          "usd_total": 0.004164,
+          "latency_p50_s": 2.18,
+          "latency_mean_s": 2.39,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "fr": {
+          "n": 18,
+          "field_accuracy": 0.9692,
+          "key_field_accuracy": 0.9815,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0005954722222222223,
+          "usd_total": 0.0107185,
+          "latency_p50_s": 2.54,
+          "latency_mean_s": 2.68,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "it": {
+          "n": 16,
+          "field_accuracy": 0.9911,
+          "key_field_accuracy": 0.9792,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0005954375,
+          "usd_total": 0.009527,
+          "latency_p50_s": 2.58,
+          "latency_mean_s": 2.48,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      }
+    },
+    "vlm_small": {
+      "all": {
+        "n": 60,
+        "field_accuracy": 0.7774,
+        "key_field_accuracy": 0.7667,
+        "doc_type_accuracy": 1,
+        "usd_per_doc": 0.00016413,
+        "usd_total": 0.0098478,
+        "latency_p50_s": 2.99,
+        "latency_mean_s": 3.1,
+        "escalation_rate": 0,
+        "errors": 0
+      },
+      "variant": {
+        "hard": {
+          "n": 12,
+          "field_accuracy": 0.4484,
+          "key_field_accuracy": 0.3333,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.000159625,
+          "usd_total": 0.0019155,
+          "latency_p50_s": 2.73,
+          "latency_mean_s": 2.85,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "lowres": {
+          "n": 12,
+          "field_accuracy": 0.8695,
+          "key_field_accuracy": 0.8889,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00017465000000000002,
+          "usd_total": 0.0020958,
+          "latency_p50_s": 2.89,
+          "latency_mean_s": 2.92,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "pdf": {
+          "n": 12,
+          "field_accuracy": 0.8626,
+          "key_field_accuracy": 0.8889,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001625875,
+          "usd_total": 0.00195105,
+          "latency_p50_s": 3.09,
+          "latency_mean_s": 2.98,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "photo": {
+          "n": 12,
+          "field_accuracy": 0.8626,
+          "key_field_accuracy": 0.8056,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00016105,
+          "usd_total": 0.0019326,
+          "latency_p50_s": 3.08,
+          "latency_mean_s": 3.32,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "scan": {
+          "n": 12,
+          "field_accuracy": 0.8438,
+          "key_field_accuracy": 0.9167,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001627375,
+          "usd_total": 0.00195285,
+          "latency_p50_s": 3.38,
+          "latency_mean_s": 3.45,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "doc_type": {
+        "bank_statement": {
+          "n": 20,
+          "field_accuracy": 0.7071,
+          "key_field_accuracy": 0.6,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001579,
+          "usd_total": 0.003158,
+          "latency_p50_s": 2.72,
+          "latency_mean_s": 2.88,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "payslip": {
+          "n": 20,
+          "field_accuracy": 0.9,
+          "key_field_accuracy": 0.9,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001653175,
+          "usd_total": 0.00330635,
+          "latency_p50_s": 2.93,
+          "latency_mean_s": 3.08,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "rental_contract": {
+          "n": 20,
+          "field_accuracy": 0.725,
+          "key_field_accuracy": 0.8,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001691725,
+          "usd_total": 0.00338345,
+          "latency_p50_s": 3.34,
+          "latency_mean_s": 3.35,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "lang": {
+        "de": {
+          "n": 19,
+          "field_accuracy": 0.6999,
+          "key_field_accuracy": 0.6842,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0001693078947368421,
+          "usd_total": 0.00321685,
+          "latency_p50_s": 2.94,
+          "latency_mean_s": 2.98,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "en": {
+          "n": 7,
+          "field_accuracy": 0.602,
+          "key_field_accuracy": 0.4762,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.00016169285714285714,
+          "usd_total": 0.00113185,
+          "latency_p50_s": 2.77,
+          "latency_mean_s": 3.13,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "fr": {
+          "n": 18,
+          "field_accuracy": 0.873,
+          "key_field_accuracy": 0.8889,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.000161725,
+          "usd_total": 0.00291105,
+          "latency_p50_s": 3.18,
+          "latency_mean_s": 3.18,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "it": {
+          "n": 16,
+          "field_accuracy": 0.8385,
+          "key_field_accuracy": 0.8542,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.000161753125,
+          "usd_total": 0.00258805,
+          "latency_p50_s": 3.26,
+          "latency_mean_s": 3.15,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      }
+    },
+    "vlm_large": {
+      "all": {
+        "n": 60,
+        "field_accuracy": 0.9938,
+        "key_field_accuracy": 1.0,
+        "doc_type_accuracy": 1,
+        "usd_per_doc": 0.028761866666666667,
+        "usd_total": 1.725712,
+        "latency_p50_s": 4.8,
+        "latency_mean_s": 4.89,
+        "escalation_rate": 0,
+        "errors": 0
+      },
+      "variant": {
+        "hard": {
+          "n": 12,
+          "field_accuracy": 0.9792,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.024014666666666667,
+          "usd_total": 0.288176,
+          "latency_p50_s": 5.14,
+          "latency_mean_s": 5.01,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "lowres": {
+          "n": 12,
+          "field_accuracy": 0.9896,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.018269999999999998,
+          "usd_total": 0.21924,
+          "latency_p50_s": 4.21,
+          "latency_mean_s": 4.85,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "pdf": {
+          "n": 12,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.033676,
+          "usd_total": 0.404112,
+          "latency_p50_s": 4.63,
+          "latency_mean_s": 4.67,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "photo": {
+          "n": 12,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.032556,
+          "usd_total": 0.390672,
+          "latency_p50_s": 4.84,
+          "latency_mean_s": 4.66,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "scan": {
+          "n": 12,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.03529266666666667,
+          "usd_total": 0.423512,
+          "latency_p50_s": 5.18,
+          "latency_mean_s": 5.27,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "doc_type": {
+        "bank_statement": {
+          "n": 20,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0302872,
+          "usd_total": 0.605744,
+          "latency_p50_s": 5.23,
+          "latency_mean_s": 5.15,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "payslip": {
+          "n": 20,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0272336,
+          "usd_total": 0.544672,
+          "latency_p50_s": 4.27,
+          "latency_mean_s": 4.81,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "rental_contract": {
+          "n": 20,
+          "field_accuracy": 0.9812,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.0287648,
+          "usd_total": 0.575296,
+          "latency_p50_s": 4.77,
+          "latency_mean_s": 4.72,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      },
+      "lang": {
+        "de": {
+          "n": 19,
+          "field_accuracy": 0.9868,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.02784336842105263,
+          "usd_total": 0.529024,
+          "latency_p50_s": 5.07,
+          "latency_mean_s": 5.0,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "en": {
+          "n": 7,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.026558857142857144,
+          "usd_total": 0.185912,
+          "latency_p50_s": 5.17,
+          "latency_mean_s": 5.3,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "fr": {
+          "n": 18,
+          "field_accuracy": 0.9931,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.029098222222222223,
+          "usd_total": 0.523768,
+          "latency_p50_s": 4.44,
+          "latency_mean_s": 4.77,
+          "escalation_rate": 0,
+          "errors": 0
+        },
+        "it": {
+          "n": 16,
+          "field_accuracy": 1.0,
+          "key_field_accuracy": 1.0,
+          "doc_type_accuracy": 1,
+          "usd_per_doc": 0.030438,
+          "usd_total": 0.487008,
+          "latency_p50_s": 4.77,
+          "latency_mean_s": 4.73,
+          "escalation_rate": 0,
+          "errors": 0
+        }
+      }
+    }
+  }
+}
