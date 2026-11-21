@@ -146,7 +146,18 @@ export async function createScene({ world, labels, onTagClick }) {
       placed.push({ t, x, y });
     }
     if (avoid.narration && obstacles.narration) chooseSide(placed, obstacles, narrow);
-    for (const p of layoutLabels(placed, obstacles.list)) {
+    // phones: when the options cannot all fit as full cards without covering each other, every option
+    // becomes a name pill. Hysteresis: pills after ~0.3 s of overlap, full cards again after ~1.5 s clean.
+    const fresh = () => placed.map((p) => ({ t: p.t, x: p.x, y: p.y }));
+    let laid = layoutLabels(fresh(), obstacles.list, false);
+    if (!narrow) { pillMode = false; pillRun = 0; }
+    else {
+      pillRun = laid.childOverlap ? Math.max(1, pillRun + 1) : Math.min(-1, pillRun - 1);
+      if (!pillMode && pillRun >= 18) pillMode = true;
+      else if (pillMode && pillRun <= -90) pillMode = false;
+      if (pillMode) laid = layoutLabels(fresh(), obstacles.list, true);
+    }
+    for (const p of laid) {
       const hidden = p.hidden || !!p.t.off;
       if (p.t.compactShown !== !!p.compact) { p.t.compactShown = !!p.compact; p.t.el.classList.toggle('compact', !!p.compact); }
       if (p.t.occluded !== hidden) { p.t.occluded = hidden; p.t.el.classList.toggle('occluded', hidden); }
@@ -162,44 +173,54 @@ export async function createScene({ world, labels, onTagClick }) {
   const PRIORITY = { child: 0, sibling: 1, pruned: 2 };
   const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
   const rectAt = (x, y, t) => ({ left: x - t.w / 2 - 4, right: x + t.w / 2 + 4, top: y - t.h / 2 - 4, bottom: y + t.h / 2 + 4 });
-  function layoutLabels(placed, fixed) {
+  let pillMode = false, pillRun = 0, tagKey = '';
+  function layoutLabels(placed, fixed, pills = false) {
     const order = [...placed].sort((a, b) => (PRIORITY[a.t.status] ?? 3) - (PRIORITY[b.t.status] ?? 3) || a.y - b.y);
     const taken = [], minY = VW() < 720 ? 110 : 70, maxY = VH() - 40;
     for (const p of order) {
       p.hidden = false;
       if (p.t.off || !p.t.w) { continue; }
-      const step = p.t.h * 0.6 + 6, W2 = VW(), narrow = W2 < 720;
+      const pill = pills && (p.t.status === 'child' || p.t.status === 'sibling') && p.t.hc ? { ...p.t, h: p.t.hc } : null;
+      const tt = pill || p.t;
+      const step = tt.h * 0.6 + 6, W2 = VW(), narrow = W2 < 720;
       const cands = [[0, 0]];
-      for (let k = 1; k <= 4; k++) cands.push([0, -k * step], [0, k * step]);
-      if (narrow) { // phones: a card may also slide sideways (staying on screen)
-        const sx = p.t.w * 0.55 + 6;
-        for (const dx of [-sx, sx]) for (let k = 0; k <= 3; k++) for (const dy of k ? [-k * step, k * step] : [0]) cands.push([dx, dy]);
+      for (let k = 1; k <= (narrow ? 7 : 4); k++) cands.push([0, -k * step], [0, k * step]);
+      { // a card may also slide sideways (staying on screen)
+        const sx = tt.w * 0.55 + 6;
+        for (const dx of [-sx, sx]) for (let k = 0; k <= (narrow ? 5 : 3); k++) for (const dy of k ? [-k * step, k * step] : [0]) cands.push([dx, dy]);
       }
       if (p.t.slot) cands.unshift(p.t.slot);
       let best = null;
       const lo = p.t.w / 2 + 8, hi = W2 - p.t.w / 2 - 8; // a card is slid fully on screen, never dropped for touching an edge
+      // the whole card stays between the header and the bottom edge (not just its centre)
+      const yLo = minY + tt.h / 2, yHi = Math.max(yLo, VH() - 8 - tt.h / 2);
       for (let [dx, dy] of cands) {
-        const x = narrow ? p.x + dx : Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)), y = p.y + dy;
-        dx = x - p.x;
-        if (y < minY || y > maxY || x < lo || x > hi) continue; // phones: sideways candidates cover the edges
-        const r = rectAt(x, y, p.t);
+        const x = narrow ? p.x + dx : Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)), y = Math.min(Math.max(p.y + dy, yLo), yHi);
+        dx = x - p.x; dy = y - p.y;
+        if (x < lo || x > hi) continue; // phones: sideways candidates cover the edges
+        const r = rectAt(x, y, tt);
         const cost = taken.reduce((c, q) => c + overlap(r, q), 0) + fixed.reduce((c, q) => c + overlap(r, q), 0);
         if (cost === 0) { best = { dx, dy, r, cost }; break; }
         if (!best || cost < best.cost) best = { dx, dy, r, cost };
       }
       if (!best) { p.hidden = true; continue; }
-      p.compact = false;
+      p.compact = !!pill;
       const pri = PRIORITY[p.t.status] ?? 3;
-      if (best.cost > 0) {
+      if (best.cost > 0 && pill) { // already a pill: a grey alternative fades, an option takes the least-covered spot
+        if (pri > 0) { p.hidden = true; p.t.slot = null; continue; }
+        placed.childOverlap = true;
+      } else if (best.cost > 0) {
         // no free slot: try the name only (a small pill) before fading a grey alternative, or before
         // letting an option overlap another card on a phone
-        const small = (p.t.status === 'sibling' || p.t.status === 'child') && p.t.hc ? { ...p.t, h: p.t.hc } : null;
+        // (desktop options always stay full cards: there is room to move them instead)
+        const small = (p.t.status === 'sibling' || (narrow && p.t.status === 'child')) && p.t.hc ? { ...p.t, h: p.t.hc } : null;
         const fit = small && cands.map(([dx, dy]) => [narrow ? dx : Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)) - p.x, dy])
           .map(([dx, dy]) => [dx, dy, rectAt(p.x + dx, p.y + dy, small)])
           .find(([dx, dy, r]) => r.top >= minY && r.bottom <= maxY + 40 && r.left >= 4 && r.right <= W2 - 4
             && !taken.some((q) => overlap(r, q)) && !fixed.some((q) => overlap(r, q)));
         if (fit) { p.compact = true; p.t.slot = null; p.x += fit[0]; p.y += fit[1]; taken.push(fit[2]); continue; }
         if (pri > 0) { p.hidden = true; p.t.slot = null; continue; }
+        placed.childOverlap = true;
       }
       p.t.slot = [best.dx, best.dy]; p.x += best.dx; p.y += best.dy;
       taken.push(best.r);
@@ -259,6 +280,8 @@ export async function createScene({ world, labels, onTagClick }) {
   // ---------- labels ----------
   // items: [{id, status, name, meta (html), clickable}]
   function setTags(items) {
+    const key = items.map((it) => it.id).join(',');
+    if (key !== tagKey) { tagKey = key; pillMode = false; pillRun = 0; } // a new node: full cards first
     const keep = new Set();
     for (const it of items) {
       keep.add(it.id);
