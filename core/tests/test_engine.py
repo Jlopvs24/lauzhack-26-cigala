@@ -241,3 +241,37 @@ def test_sensitivity_sorted_and_relevant():
     assert swings == sorted(swings, reverse=True)
     assert "AS-alexia-abroad-salary" not in {s["assumption_id"] for s in sens}
     assert sens[0]["assumption_id"] == "AS-alexia-master-salary"
+
+
+def test_batched_run_matches_single_runs():
+    """Each block of a batch equals the same scenario run alone (common random numbers)."""
+    from core.assumptions import build_assumptions
+    from core.engine import run, run_batch
+    from core.models import Profile, parse_interventions
+    from core.schedule import build_schedule
+    from core.tree import flatten_interventions
+    from core.weather import build_weather
+    tree = load_tree()
+    prof = Profile.from_dict(load_profile())
+    w = build_weather(["recession"], prof.horizon_months)
+    scheds, As = [], []
+    for nid, ov in (("2", {}), ("2.2", {"AS-inflation-mean": 0.03}), ("1.3", {"AS-income-tax": 1.2})):
+        aset = build_assumptions(tree["assumptions"], ov)
+        A = aset.values()
+        scheds.append(build_schedule(prof, parse_interventions(flatten_interventions(tree, nid), A, prof.horizon_months)))
+        As.append(A)
+    batch = run_batch(scheds, As, prof.cash, prof.investments, aset.tax_table(), w, n_paths=50, seed=3, stochastic=True)
+    for k in range(3):
+        single = run(scheds[k], prof.cash, prof.investments, As[k], aset.tax_table(), w, n_paths=50, seed=3, stochastic=True)
+        assert batch.net_worth[k * 50:(k + 1) * 50] == pytest.approx(single.net_worth)
+        assert batch.cash[k * 50:(k + 1) * 50] == pytest.approx(single.cash)
+
+
+def test_tornado_fast():
+    simulate(None, "2")  # warm-up
+    best = float("inf")
+    for _ in range(3):
+        t = time.perf_counter()
+        simulate(None, "2", sensitivity=True)
+        best = min(best, time.perf_counter() - t)
+    assert best < 0.4  # node (~0.05-0.09 s) + tornado (~0.1 s), with margin for a busy machine
