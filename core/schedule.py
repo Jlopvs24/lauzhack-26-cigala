@@ -38,6 +38,10 @@ class Schedule:
     tax_zone: np.ndarray | None = None
     tax_tables: list | None = None
     tax_segments: list[dict] = field(default_factory=list)
+    # pillar 3a (#48 item 4): planned payment (today's prices), calendar-year index per month, opening balance
+    pillar_3a: np.ndarray | None = None
+    calendar_year: np.ndarray | None = None
+    opening_pillar_3a: float = 0.0
 
     @property
     def expenses(self) -> np.ndarray:
@@ -109,6 +113,7 @@ def build_schedule(profile: Profile, interventions: list[Intervention], A: dict 
         "monthly_rent": np.full(H, profile.monthly_rent),
         "monthly_other_expenses": np.full(H, profile.monthly_other_expenses),
         "monthly_investment_contribution": np.full(H, profile.monthly_investment_contribution),
+        "monthly_pillar_3a": np.full(H, profile.monthly_pillar_3a),
     }
     one_off_cost = np.zeros(H)
     one_off_income = np.zeros(H)
@@ -199,6 +204,9 @@ def build_schedule(profile: Profile, interventions: list[Intervention], A: dict 
         rent=series["monthly_rent"],
         other_expenses=series["monthly_other_expenses"],
         investment_contribution=series["monthly_investment_contribution"],
+        pillar_3a=series["monthly_pillar_3a"],
+        calendar_year=(profile.as_of.month - 1 + np.arange(H)) // 12,
+        opening_pillar_3a=profile.pillar_3a,
         one_off_cost=one_off_cost,
         one_off_income=one_off_income,
         liabilities=liabilities,

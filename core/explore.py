@@ -101,11 +101,11 @@ def explore_node(profile, interventions, own_interventions, aset, weather, compa
     H = profile.horizon_months
     wx = build_weather(weather, H)
 
-    def run_cases(cases):
+    def run_cases(cases, keep_flows=False):
         values = [a.with_node_values(ivs).values() for ivs, a in cases]
         schedules = [build_schedule(profile, parse_interventions(ivs, v, H), v) for (ivs, _), v in zip(cases, values)]
         return run_batch(schedules, values, profile.cash,
-                         profile.investments, profile.tax_table(aset), wx, stochastic=False)
+                         profile.investments, profile.tax_table(aset), wx, stochastic=False, keep_flows=keep_flows)
 
     def summary(out, row=0):
         cash = out.cash[row]
@@ -123,7 +123,7 @@ def explore_node(profile, interventions, own_interventions, aset, weather, compa
             out = run_cases(cases)
             wealth = out.cash[:, k] + out.investments[:, k]
             if goal.metric == "net_worth":
-                wealth = wealth - out.debt[:, k]
+                wealth = wealth + out.pillar_3a[:, k] - out.debt[:, k]
             return wealth - goal.target
 
         answer = threshold(goal_margin, 0.0, SEARCH_LIMIT)
@@ -141,7 +141,7 @@ def explore_node(profile, interventions, own_interventions, aset, weather, compa
             k = goal.target_month + 1
             wealth = out.cash[:, k] + out.investments[:, k]
             if goal.metric == "net_worth":
-                wealth -= out.debt[:, k]
+                wealth += out.pillar_3a[:, k] - out.debt[:, k]
             margins = np.minimum(margins, wealth - goal.target)
         return -margins
 
@@ -154,7 +154,8 @@ def explore_node(profile, interventions, own_interventions, aset, weather, compa
         reverse["result"] = summary(witness)
         reverse["missed_goals"] = [g.name for g in profile.goals if
             (witness.cash[0, g.target_month + 1] + witness.investments[0, g.target_month + 1] -
-             (witness.debt[0, g.target_month + 1] if g.metric == "net_worth" else 0)) < g.target]
+             (witness.debt[0, g.target_month + 1] - witness.pillar_3a[0, g.target_month + 1]
+              if g.metric == "net_worth" else 0)) < g.target]
         if reverse["status"] == "already_satisfied":
             reverse["status"] = "already_broken"
 
@@ -210,4 +211,69 @@ def explore_node(profile, interventions, own_interventions, aset, weather, compa
 
     return {"basis": "deterministic", "condition": "If these inputs hold, then these consequences follow under the stated assumptions.",
             "levers": levers or [], "break_even": comparisons, "goal_seek": goals,
-            "reverse_stress": reverse, "timing": timing}
+            "reverse_stress": reverse, "timing": timing,
+            "pillar_3a": pillar_3a_options(profile, interventions, aset, run_cases)}
+
+
+def pillar_3a_options(profile, interventions, aset, run_cases) -> dict:
+    """#48 item 4: the same monthly amount (this node's pillar 3a maximum / 12, today's prices)
+    paid into pillar 3a, invested, or kept in cash, from month 0 to the horizon, instead of any 3a
+    payment the node already plans; plus the largest
+    monthly 3a payment that still meets every dated goal (3a money is locked, so it does not
+    count for liquid goals). Payments happen only when cash allows."""
+    H = profile.horizon_months
+    A = aset.with_node_values(interventions).values()
+    sched = build_schedule(profile, parse_interventions(interventions, A, H), A)
+    earned = sched.gross if sched.gross is not None and (sched.gross > 0).any() else sched.income
+    paid = np.flatnonzero(earned > 0)
+    if not paid.size:
+        return {"status": "no_earned_income", "note": "Pillar 3a needs earned income (or unemployment benefits)."}
+    m0 = int(paid[0])
+    annual = 12.0 * float(earned[m0])
+    has_bvg = annual >= A["payroll_bvg_entry"]
+    cap = A["pillar3a_max"] if has_bvg else min(A["pillar3a_no_bvg_share"] * annual, A["pillar3a_max_no_bvg"])
+    x = round(cap / 12.0, 2)
+    none = {"param": "monthly_pillar_3a", "op": "set", "value": 0.0, "from_month": 0}
+    cases = [("keep_in_cash", interventions + [none]),
+             ("pay_into_3a", interventions + [{**none, "value": x}]),
+             ("invest", interventions + [none, {"param": "monthly_investment_contribution", "op": "add",
+                                                "value": x, "from_month": 0}])]
+    out = run_cases([(ivs, aset) for _, ivs in cases], keep_flows=True)
+    options = []
+    for j, (name, _) in enumerate(cases):
+        f = out.flows
+        options.append({"option": name, "final_net_worth": r2(out.net_worth[j, -1]),
+                        "final_liquid": r2(out.cash[j, -1] + out.investments[j, -1]),
+                        "final_pillar_3a": r2(out.pillar_3a[j, -1]), "min_cash": r2(out.cash[j, 1:].min()),
+                        "paid_into_3a": r2(f["pillar_3a_contribution"][j].sum()),
+                        "invested": r2(f["contribution"][j].sum()),
+                        "income_tax": r2(f["income_tax"][j].sum()),
+                        "tax_saved_by_3a": r2(f["pillar_3a_tax_saving"][j].sum())})
+    best = max(options, key=lambda o: o["final_net_worth"])["option"]
+    seek = {"status": "no_dated_goals", "value": None}
+    if profile.goals:
+        def breaking(values):
+            res = run_cases([(interventions + [{**none, "value": float(v)}], aset) for v in values])
+            margins = np.full(len(values), np.inf)
+            for goal in profile.goals:
+                k = goal.target_month + 1
+                wealth = res.cash[:, k] + res.investments[:, k]
+                if goal.metric == "net_worth":
+                    wealth = wealth + res.pillar_3a[:, k] - res.debt[:, k]
+                margins = np.minimum(margins, wealth - goal.target)
+            return -margins
+        ans = threshold(breaking, 0.0, x, strict=True)
+        st = ans["status"]
+        if st == "threshold_found":
+            seek = {"status": "found", "value": max(r2(ans["value"] - 0.01), 0.0)}
+        elif st in ("not_reached_within_bounds", "lever_has_no_effect"):
+            seek = {"status": "full_amount_keeps_goals", "value": x}
+        elif st == "already_satisfied":
+            seek = {"status": "goals_already_missed", "value": None}
+        else:
+            seek = {"status": st, "value": None}
+    return {"status": "evaluated", "monthly_amount": x, "annual_cap": r2(cap), "has_pension_fund": bool(has_bvg),
+            "unit": "CHF/month in month-0 prices, then indexed like other spending; capped per calendar year",
+            "options": options, "highest_final_net_worth": best,
+            "max_monthly_3a_keeping_goals": seek,
+            "note": "3a money is locked until retirement (early withdrawal only for a home, self-employment or leaving Switzerland): it counts in net worth, not in cash, investments or liquid goals."}

@@ -18,6 +18,7 @@ SERIES_PARAMS = (
     "monthly_rent",
     "monthly_other_expenses",
     "monthly_investment_contribution",
+    "monthly_pillar_3a",  # #48 item 4: planned pillar 3a payment (capped per calendar year, tax-deductible)
 )
 EVENT_PARAMS = ("one_off_cost", "one_off_income", "new_liability", "loan_change", "cancel_one_off",
                 "tax_residence")  # #48 item 3: where/as what income is taxed from from_month
@@ -115,6 +116,8 @@ class Profile:
     canton: str | None = None
     household_type: str | None = None  # single / couple / family / shared_housing
     country: str = "CH"
+    monthly_pillar_3a: float = 0.0  # planned 3a payment per month, today's prices
+    pillar_3a: float = 0.0  # opening 3a balance (assets of type pension_3a): locked, in net worth, not liquid
 
     def tax_residence(self) -> dict:
         from . import tax
@@ -142,10 +145,13 @@ class Profile:
             raise ValueError("monthly_gross_income is converted to net before income tax; it cannot be used with income_basis 'take_home'")
         investments = 0.0
         pension_bvg = 0.0
+        pillar_3a = 0.0
         for i, a in enumerate(d.get("assets", []) or []):
             value = num(a.get("value", 0), f"assets[{i}].value", minimum=0)
-            if a.get("type", "investment") in ("investment", "investment_portfolio", "pension_3a"):
+            if a.get("type", "investment") in ("investment", "investment_portfolio"):
                 investments += value
+            elif a.get("type") == "pension_3a":
+                pillar_3a += value
             elif a.get("type") == "pension_bvg":
                 pension_bvg += value
             # other asset types (property, car...) are out of scope for v1
@@ -183,6 +189,8 @@ class Profile:
             monthly_gross_income=num(d.get("monthly_gross_income", 0), "monthly_gross_income", minimum=0),
             age=None if d.get("age") is None else num(d.get("age"), "age", minimum=0),
             pension_bvg=pension_bvg,
+            pillar_3a=pillar_3a,
+            monthly_pillar_3a=num(d.get("monthly_pillar_3a", 0), "monthly_pillar_3a", minimum=0),
             city=None if d.get("city") in (None, "") else str(d["city"]),
             canton=None if d.get("canton") in (None, "") else str(d["canton"]),
             household_type=_household(d.get("household_type")),

@@ -19,7 +19,7 @@ from .tree import (_index, _personal_tree, assumptions_introduced, comparators, 
 LIMITATIONS = [
     "Synthetic profile and illustrative figures (UBS starter kit); assumptions with verified=false are modelling choices.",
     "Deterministic 'if these inputs hold, then...' paths under stated assumptions: not a forecast and not financial advice.",
-    "One effective income-tax table (Lausanne, single person) at today's prices; no wealth tax, deductions or pillar 2/3a.",
+    "Income tax: official ESTV 2026 rates for the city and household (abroad: one assumed rate) at today's prices; no wealth or church tax. Pillar 3a payments are deducted and locked (in net worth, not liquid); pillar 2 savings are shown apart, not in net worth.",
     "One currency (CHF) with a constant exchange rate; non-financial assets (car, property) are not modelled.",
     "Shocks in the optional uncertainty lens are independent; its shares of paths are not real-world probabilities.",
     "Every number comes from the engine; the language model only words them and cannot compute new figures.",

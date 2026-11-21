@@ -10,7 +10,7 @@ import numpy as np
 
 from . import analysis as an
 from .assumptions import AssumptionSet, build_assumptions
-from .engine import FLOW_KEYS, PAYROLL_KEYS, run, run_batch
+from .engine import FLOW_KEYS, PAYROLL_KEYS, PILLAR3A_KEYS, run, run_batch
 from .models import Profile, parse_interventions
 from .schedule import build_schedule
 from .explore import explore_node, levers
@@ -121,6 +121,9 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
         "total_debt_interest": an.r2(f["debt_interest"].sum()),
         "total_investment_return": an.r2(f["investment_return"].sum()),
         "final_debt": an.r2(det.debt[-1]),
+        "final_pillar_3a": an.r2(det.pillar_3a[0, -1]),
+        "total_pillar_3a_contributions": an.r2(f["pillar_3a_contribution"].sum()),
+        "total_pillar_3a_tax_saving": an.r2(f["pillar_3a_tax_saving"].sum()),
         "avg_unemployed_months": round(float(mc.unemployed_months.mean()), 2) if uncertainty else None,
         "goal_probability": {g["name"]: g["probability"] for g in goals} if uncertainty else {},
     }
@@ -135,10 +138,15 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
         "net_worth": an.series(det.net_worth[0]),
         "net_worth_real": an.series(real_nw),
     }
+    has_3a = bool(det.pillar_3a[0].any())
+    if has_3a:  # locked: part of net worth, not of cash or investments
+        deterministic["pillar_3a"] = an.series(det.pillar_3a[0])
     if include_flows:
         deterministic["flows"] = {k: an.series(f[k]) for k in FLOW_KEYS}
         if sched.gross is not None:
             deterministic["flows"].update({k: an.series(f[k]) for k in PAYROLL_KEYS})
+        if has_3a:
+            deterministic["flows"].update({k: an.series(f[k]) for k in PILLAR3A_KEYS})
 
     tornado = sensitivity_analysis(prof, interventions, aset, weather, seed) if (sensitivity or exploration) else None
     result = {

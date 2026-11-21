@@ -39,6 +39,8 @@ from .weather import WeatherArrays
 FLOW_KEYS = ("income", "income_tax", "living_expenses", "one_off_cost", "one_off_income",
              "debt_payment", "debt_interest", "loan_proceeds", "cash_interest",
              "investment_return", "contribution", "withdrawal")
+# pillar 3a (#48 item 4): cash -> locked 3a account, its return, and (informational) the income tax it saved
+PILLAR3A_KEYS = ("pillar_3a_contribution", "pillar_3a_return", "pillar_3a_tax_saving")
 # informational payroll lines (#48 item 2): already deducted from `income`, not cash flows themselves
 PAYROLL_KEYS = ("gross_income", "social_contributions", "bvg_employee", "bvg_employer")
 
@@ -46,13 +48,15 @@ PARAMS = ("inflation_mean", "inflation_sd", "real_wage_growth", "investment_retu
           "investment_return_vol", "cash_interest_rate", "job_loss_annual_prob",
           "unemployment_mean_duration_months", "unemployment_replacement_rate",
           "unexpected_expense_annual_prob", "unexpected_expense_mean", "income_tax_scale",
-          "auto_liquidate_investments")
+          "auto_liquidate_investments", "pillar3a_max", "pillar3a_max_no_bvg", "pillar3a_no_bvg_share",
+          "pillar3a_return", "payroll_bvg_entry")
 
 
 @dataclass
 class RunOutput:
     cash: np.ndarray          # (N, H+1)
     investments: np.ndarray   # (N, H+1)
+    pillar_3a: np.ndarray     # (N, H+1) locked 3a balance: in net worth, not liquid (#48 item 4)
     debt: np.ndarray          # (H+1,) for a single scenario, (N, H+1) for a batch
     net_worth: np.ndarray     # (N, H+1)
     cpi: np.ndarray           # (N, H+1) price index, 1 at as_of
@@ -115,6 +119,13 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
     cost_plan = stack("one_off_cost")
     extra_plan = stack("one_off_income")
     contrib_plan = stack("investment_contribution")
+    zeros_h = np.zeros(H)
+    p3_plan = np.repeat(np.stack([s.pillar_3a if s.pillar_3a is not None else zeros_h for s in scheds]), n, axis=0)
+    earned_plan = np.repeat(np.stack([np.where(s.gross > 0, s.gross, s.income) if s.gross is not None else s.income
+                                      for s in scheds]), n, axis=0)  # for the 3a cap: gross if known
+    cal_year = np.repeat(np.stack([s.calendar_year if s.calendar_year is not None else np.arange(H) // 12
+                                   for s in scheds]), n, axis=0)
+    p3_open = np.repeat(np.array([float(s.opening_pillar_3a) for s in scheds]), n)
     zeros = np.zeros(H)
     pay_plan = {k: np.repeat(np.stack([getattr(s, a) if getattr(s, a) is not None else zeros for s in scheds]), n, axis=0)
                 for k, a in (("gross_income", "gross"), ("social_contributions", "social"),
@@ -209,7 +220,12 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
     inv = np.empty((N, H + 1))
     cash[:, 0] = opening_cash
     inv[:, 0] = opening_investments
-    flows = {k: np.zeros((N, H)) for k in FLOW_KEYS + PAYROLL_KEYS} if keep_flows else None
+    flows = {k: np.zeros((N, H)) for k in FLOW_KEYS + PAYROLL_KEYS + PILLAR3A_KEYS} if keep_flows else None
+    p3 = np.empty((N, H + 1))
+    p3[:, 0] = p3_open
+    g3 = _monthly(P["pillar3a_return"])
+    paid_year = np.zeros(N)
+    any_3a = bool(p3_plan.any())
     remaining = np.zeros(N, dtype=int)
     unemployed_count = np.zeros(N, dtype=int)
 
@@ -227,19 +243,21 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
         income = planned_income * emp * wage_t[:, t]
         # tax rate looked up on annualised income at today's prices (no bracket creep)
         annual = 12.0 * planned_income * emp
-        if zone_rows is None:
-            rate = np.interp(annual, tax_x, tax_y)
-        else:
+
+        def tax_rate(x):
+            if zone_rows is None:
+                return np.interp(x, tax_x, tax_y)
             zt = zone_rows[:, t]
             if len(zones_at[t]) == 1:
                 z = zones_at[t][0]
-                rate = np.interp(annual, XS[z], YS[z])
-            else:
-                rate = np.empty(N)
-                for z in zones_at[t]:
-                    m = zt == z
-                    rate[m] = np.interp(annual[m], XS[z], YS[z])
-        tax = rate * tax_scale * income
+                return np.interp(x, XS[z], YS[z])
+            r = np.empty(N)
+            for z in zones_at[t]:
+                m = zt == z
+                r[m] = np.interp(x[m], XS[z], YS[z])
+            return r
+
+        tax = tax_rate(annual) * tax_scale * income
         living = expense_plan[:, t] * price_t[:, t]
         cost = cost_plan[:, t] * price_t[:, t] + unexpected[:, t]
         extra = extra_plan[:, t] * price_t[:, t]
@@ -247,6 +265,26 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
         c_int = np.maximum(C, 0.0) * r_cash
 
         pre = C + income - tax - living - cost + extra - d_pay[:, t] + d_new[:, t] + c_int
+        # pillar 3a first (when cash allows, up to what is left of this calendar year's cap); the
+        # payment is deducted from taxable income, so the month's tax is recomputed on net - 3a
+        c3 = saving = 0.0
+        if any_3a:
+            if t > 0:
+                paid_year = np.where(cal_year[:, t] != cal_year[:, t - 1], 0.0, paid_year)
+            earned = 12.0 * earned_plan[:, t]  # today's prices; the caps are not indexed
+            cap = np.where(earned >= P["payroll_bvg_entry"], P["pillar3a_max"],
+                           np.minimum(P["pillar3a_no_bvg_share"] * earned, P["pillar3a_max_no_bvg"]))
+            room = np.where(planned_income > 0, np.maximum(cap - paid_year, 0.0), 0.0)
+            c3 = np.minimum(np.minimum(p3_plan[:, t] * price_t[:, t], room), np.maximum(pre, 0.0))
+            if c3.any():
+                deducted = annual - 12.0 * c3 / wage_t[:, t]
+                tax_3a = tax_rate(np.maximum(deducted, 0.0)) * tax_scale * np.maximum(income - c3, 0.0)
+                saving = np.where(c3 > 0, tax - tax_3a, 0.0)
+                tax = tax - saving
+                pre = pre + saving - c3
+                paid_year = paid_year + c3
+        ret3 = p3[:, t] * (g3 - 1.0)
+        p3[:, t + 1] = p3[:, t] + ret3 + c3
         contrib = np.clip(pre, 0.0, contrib_plan[:, t] * price_t[:, t])
         i_mid = I + inv_ret + contrib
         after = pre - contrib
@@ -267,11 +305,14 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
             flows["investment_return"][:, t] = inv_ret
             flows["contribution"][:, t] = contrib
             flows["withdrawal"][:, t] = withdraw
+            flows["pillar_3a_contribution"][:, t] = c3
+            flows["pillar_3a_return"][:, t] = ret3
+            flows["pillar_3a_tax_saving"][:, t] = saving
             on_pay = np.where(unemployed, 0.0, 1.0) * wage_t[:, t]  # no payslip while unemployed
             for k, plan in pay_plan.items():
                 flows[k][:, t] = plan[:, t] * on_pay
 
-    net_worth = cash + inv - d_bal
-    return RunOutput(cash=cash, investments=inv, debt=d_bal, net_worth=net_worth, cpi=cpi,
+    net_worth = cash + inv + p3 - d_bal
+    return RunOutput(cash=cash, investments=inv, pillar_3a=p3, debt=d_bal, net_worth=net_worth, cpi=cpi,
                      flows=flows, unemployed_months=unemployed_count,
                      debt_detail=debts[0] if K == 1 else None)

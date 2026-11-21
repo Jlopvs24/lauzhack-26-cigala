@@ -98,7 +98,8 @@ def weather_resilience(profile, sched, A, aset, weather, goals) -> dict:
         missed = []
         for g in goals:
             k = g["target_month"] + 1
-            v = out.cash[j, k] + out.investments[j, k] - (out.debt[j, k] if g["metric"] == "net_worth" else 0)
+            v = out.cash[j, k] + out.investments[j, k] + (
+                out.pillar_3a[j, k] - out.debt[j, k] if g["metric"] == "net_worth" else 0)
             if v < g["target"]:
                 missed.append(g["name"])
         gap = first_negative(out.cash[j])

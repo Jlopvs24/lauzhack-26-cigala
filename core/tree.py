@@ -146,7 +146,7 @@ def describe_intervention(iv: dict, values: dict[str, float]) -> str:
 
     names = {"monthly_net_income": "net income", "monthly_gross_income": "gross salary", "monthly_rent": "rent",
              "monthly_other_expenses": "other living costs",
-             "monthly_investment_contribution": "monthly investing"}
+             "monthly_investment_contribution": "monthly investing", "monthly_pillar_3a": "pillar 3a payment"}
     p = iv["param"]
     if p in names:
         win = f"from month {iv.get('from_month', 0) + 1}"
