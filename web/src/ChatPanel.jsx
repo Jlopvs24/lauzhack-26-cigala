@@ -4,6 +4,8 @@ import { createHistory } from './chatHistory.js';
 import { announcePanel, panelLayout } from './chatPanel.js';
 import Dictation from './Dictation.jsx';
 import { useVoiceNote } from './VoiceNote.jsx';
+import { createGuide } from '../assets/character/guide/guide.js';
+import '../assets/character/guide/guide.css';
 import './chatPanel.css';
 
 const TEXT = {
@@ -43,6 +45,12 @@ const SEND = ['M5 12h13M13 6l6 6-6 6'];
 const CLOSE = ['M6 6l12 12M18 6L6 18'];
 const PLAY = ['M8 5l11 7-11 7z'];
 
+// mouth: speaking on/off and, when the guide has it (thread 4), an opening level 0-1
+function mouth(g, speaking, level) {
+  if (speaking !== undefined) g.setTalking?.(!!speaking);
+  if (Number.isFinite(level)) (g.setMouthLevel || g.setMouth || g.setLevel)?.call(g, Math.max(0, Math.min(1, level)));
+}
+
 const viewport = () => panelLayout(globalThis.innerWidth || 1280, globalThis.innerHeight || 800);
 
 /**
@@ -56,9 +64,19 @@ const viewport = () => panelLayout(globalThis.innerWidth || 1280, globalThis.inn
  * onAnswer(text, data) (the parent speaks it as Lumi unless muted), onCost(usd),
  * onOpenChange(open), onUnlock() (audio unlock on a user gesture), replay(text, lang),
  * history (optional store, for tests and demos).
+ *
+ * Docked Lumi (lead's layout): with `lumi`, Lumi lives at the bottom right just above the chat
+ * line, with her bubble beside her; opening the conversation moves her into the panel header, so
+ * Lumi + history + input are one panel and nothing floats over the tree.
+ *   Events (main.jsx, #90): it announces itself with 'lumi:dock' {mounted} (the flying Lumi then steps
+ *   aside), shows the narration from 'lumi:say' {text, lang, speaking} and moves the mouth with
+ *   'lumi:level' {level 0-1}.
+ *   Props (optional, override the events): say, sayNote (small node under the line), extra (node
+ *   under the bubble), speaking, level; onGuide(guide) hands over the live Lumi (createGuide API).
  */
 export default function ChatPanel({ context = {}, lang = 'en', disabled = false, callUrl, onAnswer, onCost,
-  onOpenChange, onUnlock, replay, history: externalHistory }) {
+  onOpenChange, onUnlock, replay, history: externalHistory,
+  lumi = false, say = '', sayNote = null, extra = null, speaking, level, onGuide }) {
   const T = TEXT[lang] || TEXT.en;
   const history = useMemo(() => externalHistory || createHistory(), [externalHistory]);
   const [messages, setMessages] = useState(() => history.all());
@@ -74,7 +92,29 @@ export default function ChatPanel({ context = {}, lang = 'en', disabled = false,
   const opener = useRef(null);
   const titleId = useId();
   const latest = useRef({});
-  latest.current = { context, lang, onAnswer, onCost, onUnlock };
+  latest.current = { context, lang, onAnswer, onCost, onUnlock, onGuide };
+
+  // docked Lumi: one live guide for the panel's whole life; it only changes place (CSS)
+  const lumiEl = useRef(null), guide = useRef(null);
+  const [heard, setHeard] = useState(''); // the narration from 'lumi:say'
+  useEffect(() => {
+    if (!lumi || !lumiEl.current) return undefined;
+    const g = createGuide(lumiEl.current, { mood: 70, onTap: () => setOpen(true) });
+    guide.current = g;
+    latest.current.onGuide?.(g);
+    const onLevel = (e) => mouth(g, e.detail?.speaking, e.detail?.level);
+    const onSay = (e) => { setHeard(String(e.detail?.text || '')); if (e.detail?.speaking !== undefined) mouth(g, e.detail.speaking); };
+    addEventListener('lumi:level', onLevel);
+    addEventListener('lumi:say', onSay);
+    dispatchEvent(new CustomEvent('lumi:dock', { detail: { mounted: true } }));
+    return () => {
+      removeEventListener('lumi:level', onLevel); removeEventListener('lumi:say', onSay);
+      dispatchEvent(new CustomEvent('lumi:dock', { detail: { mounted: false } }));
+      g.destroy?.(); guide.current = null;
+    };
+  }, [lumi]);
+  const sayText = say || heard;
+  useEffect(() => { if (guide.current && (speaking !== undefined || level !== undefined)) mouth(guide.current, speaking, level); }, [speaking, level]);
 
   useEffect(() => history.subscribe((list) => setMessages([...list])), [history]);
   useEffect(() => () => request.current?.abort(), []);
@@ -137,10 +177,17 @@ export default function ChatPanel({ context = {}, lang = 'en', disabled = false,
   const status = voice.preparing ? T.preparing : busy ? T.thinking : '';
   const problem = error || voice.error;
   const turns = Math.ceil(messages.length / 2);
+  const lastLumi = [...messages].reverse().find((m) => m.role === 'assistant')?.content;
+  const line = sayText && sayText !== lastLumi ? sayText : ''; // in the open panel: the narration, unless it is the last answer
 
-  return <div className={`chatp ${open ? 'is-open' : ''}`} data-side={layout.side}
+  return <div className={`chatp ${open ? 'is-open' : ''} ${lumi ? 'has-lumi' : ''}`} data-side={layout.side}
     style={{ '--chatp-w': `${layout.width}px`, '--chatp-h': `${layout.height}px` }}>
+    {lumi && <div className="chatp-lumi-host" data-layout-obstacle=""><div className="chatp-lumi" ref={lumiEl} /></div>}
     {!open && <div className="chatp-dock-wrap">
+      {lumi && (sayText || extra) && <div className="chatp-say-col">
+        {sayText && <div className="chatp-say" aria-live="polite"><p>{sayText}</p>{sayNote}</div>}
+        {extra && <div className="chatp-extra">{extra}</div>}
+      </div>}
       {(status || problem) && <p className={`chatp-bubble ${problem ? 'is-error' : ''}`} role={problem ? 'alert' : 'status'}>{problem || status}</p>}
       <form className="chatp-dock" autoComplete="off" onSubmit={(e) => { e.preventDefault(); send({ text: question }); }}>
         <input ref={field} className="chatp-dock-input" value={question} onChange={(e) => setQuestion(e.target.value)}
@@ -162,6 +209,10 @@ export default function ChatPanel({ context = {}, lang = 'en', disabled = false,
           <button type="button" className="chatp-btn" onClick={() => setOpen(false)} aria-label={T.close} title={T.close}><Icon d={CLOSE} /></button>
         </div>
       </header>
+      {lumi && (line || extra) && <div className="chatp-now">
+        {line && <p className="chatp-now-line">{line}</p>}
+        {extra && open && <div className="chatp-extra">{extra}</div>}
+      </div>}
       <div className="chatp-log" ref={log} role="log" aria-live="polite" aria-label={T.title}>
         {messages.length === 0 && !pending && <p className="chatp-empty">{T.empty}</p>}
         {messages.map((m, i) => <article key={`${m.at}-${i}`} className={`chatp-msg ${m.role}`}>

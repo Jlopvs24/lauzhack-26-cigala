@@ -362,7 +362,7 @@ function App() {
 
     {started && tree && <WeatherControl lang={lang} tree={tree} busy={busy} onChange={onWeather} />}
     {/* the chat stays mounted (its history survives) but never floats over a report */}
-    {started && <div className="chat-host" hidden={pathReport || panel === 'report'}><ChatPanel lang={lang} disabled={!tree} callUrl={CALL_URL} onOpenChange={setConvOpen}
+    {started && <div className="chat-host" hidden={pathReport || panel === 'report'}><ChatPanel lumi lang={lang} disabled={!tree} callUrl={CALL_URL} onOpenChange={setConvOpen}
       context={{ profile, path, node_id: tree?.current, assumptions: overrides, weather: tree?.weather || [], ...engineFields() }}
       onAnswer={(text, d) => { say(text); if (d?.personalize) dispatchEvent(new CustomEvent(PROPOSAL_EVENT, { detail: { node_id: tree?.current, ...d.personalize } })); }} onCost={addCost} onUnlock={() => voice.current?.unlock()}
       replay={(text, l) => voice.current?.speak(text, l)} /></div>}

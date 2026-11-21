@@ -131,3 +131,39 @@
   .chatp-btn, .chatp-compose .back { transition: background-color 160ms ease; }
   .chatp-btn:active:not(:disabled) { transform: none; }
 }
+
+/* ---------- docked Lumi (with the `lumi` prop) ----------
+   Collapsed: Lumi sits at the right just above the chat line, her bubble to her left.
+   Open: she moves into the panel header (right panel) or the sheet's header (phones). */
+.chatp { --chatp-lumi: 76px; --chatp-dock-h: 58px; }
+.chatp-lumi-host {
+  position: fixed; z-index: 46; right: 28px; bottom: calc(28px + var(--chatp-dock-h) + 8px); width: var(--chatp-lumi);
+  transition: right 320ms var(--chatp-ease-drawer), bottom 320ms var(--chatp-ease-drawer), width 320ms var(--chatp-ease-drawer);
+}
+.chatp-lumi { width: 100% !important; }
+.chatp-lumi .guide-say { display: none !important; } /* the bubble is ours (.chatp-say) */
+.chatp.has-lumi .chatp-dock-wrap { gap: 10px; }
+.chatp-say-col { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; width: calc(100% - var(--chatp-lumi) - 10px); margin-right: calc(var(--chatp-lumi) + 10px); }
+.chatp-say {
+  margin: 0; padding: 14px 18px; border-radius: 18px 18px 6px 18px; max-height: 34vh; overflow-y: auto;
+  background: var(--card-bg, rgba(250, 248, 242, 0.93)); color: var(--card-ink, #1d2420); border: 1px solid var(--card-line, rgba(0, 0, 0, 0.08));
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  font-size: 14.5px; line-height: 1.5; transform-origin: 100% 100%; animation: chatp-say-in 260ms var(--chatp-ease-out) both;
+}
+.chatp-say p { margin: 0; text-wrap: pretty; }
+.chatp-extra { pointer-events: auto; }
+@keyframes chatp-say-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+/* open: Lumi in the header, the current line pinned above the history */
+.chatp.has-lumi .chatp-head { padding-left: 72px; min-height: 64px; box-sizing: border-box; }
+.chatp.is-open[data-side="right"] .chatp-lumi-host { right: calc(var(--chatp-w) - 16px - 46px); bottom: calc(100vh - 62px); width: 46px; }
+.chatp-now { padding: 12px 16px; border-bottom: 1px solid var(--chatp-line); display: grid; gap: 10px; }
+.chatp-now-line { margin: 0; font-size: 14px; line-height: 1.5; color: var(--chatp-soft); max-height: 22vh; overflow-y: auto; text-wrap: pretty; }
+@media (max-width: 719px) {
+  .chatp { --chatp-lumi: 56px; --chatp-dock-h: 50px; }
+  .chatp-lumi-host { right: 12px; bottom: calc(12px + var(--chatp-dock-h) + 6px); }
+  .chatp-say { font-size: 13px; padding: 10px 14px; max-height: 26vh; }
+  .chatp.is-open[data-side="bottom"] .chatp-lumi-host { right: calc(100vw - 16px - 42px); bottom: calc(var(--chatp-h) - 58px); width: 42px; }
+}
+@media (prefers-reduced-motion: reduce) { .chatp-lumi-host { transition: none; } .chatp-say { animation: none; } }
+/* phones: "Make it mine" (main's narration aside, bottom-left) keeps its row under the bubble */
+@media (max-width: 719px) { body:has(.narration.docked .pz-mount) .chatp-say-col { margin-bottom: 58px; } }
