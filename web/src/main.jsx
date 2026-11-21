@@ -339,10 +339,11 @@ function App() {
     </aside>
 
     {started && tree && <WeatherControl lang={lang} tree={tree} busy={busy} onChange={onWeather} />}
-    {started && <ChatPanel lang={lang} disabled={!tree} callUrl={CALL_URL} onOpenChange={setConvOpen}
+    {/* the chat stays mounted (its history survives) but never floats over a report */}
+    {started && <div className="chat-host" hidden={pathReport || panel === 'report'}><ChatPanel lang={lang} disabled={!tree} callUrl={CALL_URL} onOpenChange={setConvOpen}
       context={{ profile, path, node_id: tree?.current, assumptions: overrides, weather: tree?.weather || [], ...engineFields() }}
       onAnswer={(text, d) => { say(text); if (d?.personalize) dispatchEvent(new CustomEvent(PROPOSAL_EVENT, { detail: { node_id: tree?.current, ...d.personalize } })); }} onCost={addCost} onUnlock={() => voice.current?.unlock()}
-      replay={(text, l) => voice.current?.speak(text, l)} />}
+      replay={(text, l) => voice.current?.speak(text, l)} /></div>}
 
     {panel === 'report' && cur && <aside className="report drawer" aria-label="Report">
       <button className="close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
