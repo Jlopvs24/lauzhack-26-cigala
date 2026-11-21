@@ -269,3 +269,10 @@ td.lo .cmp-mark { color: var(--c-lo-ink); }
 .cmp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 body:has(.path-report) .cmp-bar { display: none; } /* the report header has its own "Compare (n)" */
 @media (max-width: 720px) { .cmp-add-group .cmp-add.on span { display: none; } .cmp-add-group .cmp-add.on { padding: 7px 10px; } .cmp-add-go { padding: 7px 10px; font-size: 12px; } }
+
+/* docked Lumi (ChatPanel `lumi`): keep clear of the open conversation panel; on phones stack above Lumi */
+.cmp-options-mount ~ .cmp-bar, #stage ~ .cmp-bar { right: calc(28px + var(--chat-panel-w, 0px)); }
+@media (max-width: 720px) {
+  .cmp-options-mount { right: 20px; bottom: calc(143px + var(--chat-panel-h, 0px)); }
+  #stage ~ .cmp-bar { right: 18px; bottom: calc(191px + var(--chat-panel-h, 0px)); }
+}
