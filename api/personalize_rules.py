@@ -60,6 +60,16 @@ FOR_N = re.compile(r"\b(?:for|durante|pendant|f[üu]r)\s+(\d+|one|two|three|four
                    r"ans?|ann[ée]es?|mois|jahre?n?|monate?n?)", re.I)
 NEXT_YEAR = re.compile(r"next year|in a year|año que viene|pr[oó]ximo año|l'ann[ée]e prochaine|l'an prochain|"
                        r"dans un an|n[äa]chste[smnr]? jahr|in einem jahr", re.I)
+# #117: chat / voice what-ifs. "invest 300 instead of 500", "save 200 more a month", in EN / ES / FR / DE.
+INVEST = re.compile(r"\b(?:invest(?:ing|ed)?|put\s+into\s+(?:a\s+)?fund|invertir(?:ía|ia)?|invierto|invirtiera|"
+                    r"investir(?:ais)?|j'investis|investis|placer|placerais|investieren|investiere|anlegen|anlege)\b", re.I)
+SAVE_MORE = re.compile(r"\b(?:save|saving)\b.{0,40}\bmore\b|\bmore\b.{0,20}\bsav(?:e|ing)\b|"
+                       r"\bahorr(?:ar|o|ara|aría)\b.{0,40}\bm[aá]s\b|\bm[aá]s\b.{0,20}\bahorr|"
+                       r"\b[eé]pargner?(?:ais)?\b.{0,40}\bde plus\b|\bde plus\b.{0,20}\b[eé]pargn|"
+                       r"\bmehr\b.{0,30}\bspar(?:en|e)\b|\bspar(?:en|e)\b.{0,30}\bmehr\b", re.I)
+INSTEAD_OF = re.compile(r"\b(?:instead\s+of|rather\s+than|en\s+vez\s+de|en\s+lugar\s+de|au\s+lieu\s+de|plut[oô]t\s+que|"
+                        r"(?:an)?statt)\b", re.I)
+SALARY = re.compile(r"\b(?:salary|wage|sueldo|salario|salaire|gehalt|lohn)\b", re.I)
 _WORDNUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "un": 1, "una": 1, "uno": 1, "dos": 2, "tres": 3,
             "cuatro": 4, "cinco": 5, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5, "ein": 1, "eins": 1, "zwei": 2,
             "drei": 3, "vier": 4, "fünf": 5, "funf": 5}
@@ -179,6 +189,37 @@ def parse(text: str, ctx: dict) -> dict | None:
         iv["label"] = label
         return {"interventions": [iv], "label": label, "mode": mode}
 
+    # 1b. monthly investing: "invest 300 instead of 500" -> a new monthly amount on this branch (#117)
+    if INVEST.search(t) and amounts and not (RENT.search(t) or COSTS.search(t)):
+        if len(amounts) > 1 and not INSTEAD_OF.search(t):
+            return None
+        v = amounts[0]  # the new amount comes first: "300 instead of 500"
+        per_month = round(v / 12, 2) if PER_YEAR.search(t) and not PER_MONTH.search(t) else v
+        own = [iv for iv in ctx["node"]["interventions"] + [iv for c in ctx.get("path_above", []) for iv in
+               c["interventions"]] if iv.get("param") == "monthly_investment_contribution" and iv.get("op") == "set"]
+        fm = int(own[0].get("from_month") or 0) if own else first_month
+        label = f"Invest CHF {per_month:,.0f} a month".replace(",", "'")
+        return {"interventions": [{"param": "monthly_investment_contribution", "op": "set", "value": per_month,
+                                   "from_month": fm, "to_month": H, "label": label}], "label": label, "mode": mode}
+    # 1c. "save 200 more a month": spending down by that amount on this branch (#117)
+    if SAVE_MORE.search(t) and len(amounts) == 1:
+        v = amounts[0]
+        per_month = round(v / 12, 2) if PER_YEAR.search(t) and not PER_MONTH.search(t) else v
+        fm, tm = _window(t, ctx, "costs")
+        label = f"Save CHF {per_month:,.0f} more a month".replace(",", "'")
+        return {"interventions": [{"param": "monthly_other_expenses", "op": "add", "value": -per_month,
+                                   "from_month": fm, "to_month": tm, "label": label}], "label": label, "mode": mode}
+
+    # 1d. "what if my salary is 4800": the branch's own salary assumption, when it has one (#117)
+    if SALARY.search(t) and len(amounts) == 1 and not GROSS.search(t) and not (PER_YEAR.search(t) and
+                                                                                not PER_MONTH.search(t)):
+        refs = [a for a in ctx.get("assumptions") or [] if "salary" in str(a.get("id", "")).lower()]
+        if len(refs) == 1 and amounts[0] < 20000:
+            a = refs[0]
+            return {"interventions": [{"param": "assumption", "id": a["id"], "value": amounts[0],
+                                       "label": "Salary"}], "label": f"Salary CHF {amounts[0]:,.0f}".replace(",", "'"),
+                    "mode": mode}
+
     # 2. what kind of money
     kind = next((k for k, (pat, _) in INCOME.items() if re.search(rf"\b(?:{pat})\b", t, re.I)), None)
     is_rent, is_costs = bool(RENT.search(t)), bool(COSTS.search(t))
@@ -189,9 +230,9 @@ def parse(text: str, ctx: dict) -> dict | None:
         return None
     if not amounts:
         return {"missing": "amount", "kind": kind or ("rent" if is_rent else "money")}
-    if len(amounts) > 1 and not PERCENT_JOB.search(t):
+    if len(amounts) > 1 and not PERCENT_JOB.search(t) and not INSTEAD_OF.search(t):
         return None  # several amounts: let the LLM sort them out
-    v = amounts[0]
+    v = amounts[0]  # with "X instead of Y" the new amount comes first
 
     # 3. one-off gift / purchase (no period)
     if not monthly and not yearly and (is_gift or is_purchase) and kind in (None, "family"):
@@ -200,7 +241,13 @@ def parse(text: str, ctx: dict) -> dict | None:
         return {"interventions": [{"param": param, "month": first_month, "value": v, "label": label}],
                 "label": label, "mode": mode}
     if not monthly and not yearly:
-        return None  # an amount without a period for a recurring item: ambiguous, LLM
+        # rent is monthly; a salary below 20'000 is a monthly one (#117: "what if my rent is 1300?")
+        if is_rent and kind is None:
+            monthly = True
+        elif SALARY.search(t) and kind == "job" and v < 20000:
+            monthly = True
+        else:
+            return None  # an amount without a period for a recurring item: ambiguous, LLM
     per_month = round(v / 12, 2) if yearly and not monthly else v
 
     # 4. rent (new total) / extra costs

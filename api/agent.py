@@ -648,11 +648,17 @@ class Toolbox:
         from api.personalize import personalize
         out = personalize(self.profile, self.path, str(node_id), text, self.language, mode, self.overrides)
         self.cost += out.get("cost_usd") or 0.0
+        sim = None
         if out.get("proposal"):
             self.proposal = out
+            try:  # #117: what it would change, computed by the engine on this branch
+                sim = simulate_patch(self, str(node_id), out["proposal"].get("interventions") or [])
+            except Exception as e:  # noqa: BLE001
+                log.warning("proposal simulation failed: %s", e)
         return {"proposal": out.get("proposal") and {k: out["proposal"].get(k) for k in
                                                      ("mode", "node_id", "parent_id", "label", "interventions")},
                 "explanation": out.get("explanation"), "clarifying_question": out.get("clarifying_question"),
+                "if_applied": sim,
                 "note": "nothing is applied until the user confirms the proposal in the app"}
 
     def get_assumptions(self) -> dict:
@@ -1017,7 +1023,11 @@ def ask(question: str, ctx: dict) -> dict:
     used_model = None
     answer, mode, error = None, "llm", None
 
-    if llm.available():
+    t_start = time.perf_counter()
+    fast = whatif_fast(question, ctx, lang, box)
+    if fast:
+        answer, mode = fast, "whatif"
+    elif llm.available():
         preloaded = box.preload(node_id)
         sysmsg = SYSTEM.format(name=ctx.get("character_name", CHARACTER), lang_name=_LANG_NAMES.get(lang, lang),
                                max_sentences=CALL_MAX_SENTENCES if ctx.get("mode") == "call" else 3,
@@ -1031,9 +1041,15 @@ def ask(question: str, ctx: dict) -> dict:
         msgs.append({"role": "user", "content": question})
         try:
             for rnd in range(MAX_ROUNDS):
-                last = rnd == MAX_ROUNDS - 1
+                left = AGENT_LLM_DEADLINE_S - (time.perf_counter() - t_start)
+                if left < 1.0:  # #117: never keep the user (or a voice note) waiting: template instead
+                    error = f"deadline {AGENT_LLM_DEADLINE_S:.0f} s"
+                    answer = None
+                    break
+                last = rnd == MAX_ROUNDS - 1 or left < 3.0
                 r = llm.chat(msgs, tools=TOOLS, model=used_model, purpose="agent", temperature=0.2, max_tokens=250,
-                             reasoning={"enabled": False}, **({"tool_choice": "none"} if last else {}))
+                             reasoning={"enabled": False}, timeout=left,
+                             **({"tool_choice": "none"} if last else {}))
                 used_model = r["model"]  # stick to the model that answered
                 cost += r["cost_usd"]
                 tokens["prompt"] += r["prompt_tokens"]
@@ -1062,7 +1078,7 @@ def ask(question: str, ctx: dict) -> dict:
     grounding = {"grounded": None, "ungrounded_numbers": []}
     removed: list[str] = []
     softened = 0
-    if answer:
+    if answer and mode != "whatif":
         answer, removed = strip_advice(answer)
         answer, softened = soften_forecasts(answer)
         if ctx.get("mode") == "call":
@@ -1083,7 +1099,7 @@ def ask(question: str, ctx: dict) -> dict:
     return {
         "answer": answer,
         "language": lang,
-        "mode": mode,  # "llm" or "template" (plan B)
+        "mode": mode,  # "llm", "whatif" (rules + engine, #117) or "template" (plan B)
         "grounding": grounding,
         "advice_removed": removed,  # sentences dropped by the no-recommendation guard
         "forecast_phrases_softened": softened,  # "you will" -> "you would" etc.
@@ -1100,6 +1116,159 @@ def ask(question: str, ctx: dict) -> dict:
         "personalize": box.proposal,  # a proposal for the UI's confirm chip, or None
         **_answered_by(used_model, llm.models()[0]),
     }
+
+
+# ------------------------------------------------------------------ what-ifs said in the chat (#117)
+# "What if I invest 300 instead of 500?" goes through the Make-it-mine rules (no LLM, ~ms), is simulated on the
+# current branch by the engine and answered with its numbers, plus the proposal for the confirm chip.
+AGENT_LLM_DEADLINE_S = float(os.environ.get("AGENT_LLM_DEADLINE_S", "8"))
+
+_WI = {
+    "en": {"with": "With “{change}” on “{node}”, under these assumptions you would have about CHF {nw} in {y} years "
+                   "(today's money): CHF {d} {dir} than on this branch as it is now. ",
+           "same": "With “{change}” on “{node}”, under these assumptions you would still have about CHF {nw} in {y} "
+                   "years (today's money), the same as now. ",
+           "more": "more", "less": "less",
+           "cash_ok": "Cash never runs short", "cash_neg": "Cash would run short from month {m}",
+           "was_ok": " (now it never does). ", "was_neg": " (now from month {m}). ", "end": ". ",
+           "goals": "Goals reached: {k} of {n} (now {k0}). ",
+           "chip": "Nothing is changed yet: confirm “Make it mine” to put it on the tree."},
+    "es": {"with": "Con «{change}» en «{node}», con estos supuestos tendrías unos CHF {nw} en {y} años "
+                   "(en dinero de hoy): CHF {d} {dir} que en esta rama tal como está. ",
+           "same": "Con «{change}» en «{node}», con estos supuestos seguirías teniendo unos CHF {nw} en {y} años "
+                   "(en dinero de hoy), lo mismo que ahora. ",
+           "more": "más", "less": "menos",
+           "cash_ok": "La caja nunca se queda corta", "cash_neg": "La caja se quedaría corta desde el mes {m}",
+           "was_ok": " (ahora nunca). ", "was_neg": " (ahora desde el mes {m}). ", "end": ". ",
+           "goals": "Metas alcanzadas: {k} de {n} (ahora {k0}). ",
+           "chip": "Aún no se cambia nada: confirma «Hazlo mío» para ponerlo en el árbol."},
+    "fr": {"with": "Avec « {change} » sur « {node} », avec ces hypothèses tu aurais environ CHF {nw} dans {y} ans "
+                   "(en argent d'aujourd'hui) : CHF {d} de {dir} que sur cette branche telle qu'elle est. ",
+           "same": "Avec « {change} » sur « {node} », avec ces hypothèses tu aurais toujours environ CHF {nw} dans "
+                   "{y} ans (en argent d'aujourd'hui), comme maintenant. ",
+           "more": "plus", "less": "moins",
+           "cash_ok": "La trésorerie ne manque jamais", "cash_neg": "La trésorerie manquerait dès le mois {m}",
+           "was_ok": " (maintenant jamais). ", "was_neg": " (maintenant dès le mois {m}). ", "end": ". ",
+           "goals": "Objectifs atteints : {k} sur {n} (maintenant {k0}). ",
+           "chip": "Rien n'est encore changé : confirme « Faire mien » pour l'ajouter à l'arbre."},
+    "de": {"with": "Mit „{change}“ auf „{node}“ hättest du unter diesen Annahmen in {y} Jahren etwa CHF {nw} "
+                   "(in heutigem Geld): CHF {d} {dir} als auf diesem Zweig, so wie er jetzt ist. ",
+           "same": "Mit „{change}“ auf „{node}“ hättest du unter diesen Annahmen in {y} Jahren weiterhin etwa "
+                   "CHF {nw} (in heutigem Geld), gleich wie jetzt. ",
+           "more": "mehr", "less": "weniger",
+           "cash_ok": "Das Geld reicht immer", "cash_neg": "Ab Monat {m} würde das Geld knapp",
+           "was_ok": " (jetzt reicht es immer). ", "was_neg": " (jetzt ab Monat {m}). ", "end": ". ",
+           "goals": "Erreichte Ziele: {k} von {n} (jetzt {k0}). ",
+           "chip": "Noch ist nichts geändert: bestätige „Mach es zu meinem“, um es in den Baum zu übernehmen."},
+}
+
+_CHANGE = {  # the change in the user's language, from the intervention (the rules' labels are English)
+    "invest": {"en": "invest CHF {v} a month", "es": "invertir CHF {v} al mes", "fr": "investir CHF {v} par mois",
+               "de": "CHF {v} im Monat anlegen"},
+    "save": {"en": "save CHF {v} more a month", "es": "ahorrar CHF {v} más al mes",
+             "fr": "épargner CHF {v} de plus par mois", "de": "CHF {v} mehr im Monat sparen"},
+    "rent": {"en": "a rent of CHF {v}", "es": "un alquiler de CHF {v}", "fr": "un loyer de CHF {v}",
+             "de": "eine Miete von CHF {v}"},
+    "salary": {"en": "a salary of CHF {v}", "es": "un sueldo de CHF {v}", "fr": "un salaire de CHF {v}",
+               "de": "ein Lohn von CHF {v}"},
+}
+
+
+def _change_text(ivs: list[dict], label: str, lang: str) -> str:
+    if len(ivs) == 1:
+        iv, kind = ivs[0], None
+        p, v = iv.get("param"), iv.get("value")
+        if p == "monthly_investment_contribution" and iv.get("op") == "set":
+            kind = "invest"
+        elif p == "monthly_other_expenses" and iv.get("op") == "add" and isinstance(v, (int, float)) and v < 0:
+            kind, v = "save", -v
+        elif p == "monthly_rent" and iv.get("op") == "set":
+            kind = "rent"
+        elif p == "assumption" and "salary" in str(iv.get("id", "")).lower():
+            kind = "salary"
+        if kind and isinstance(v, (int, float)):
+            return _CHANGE[kind].get(lang, _CHANGE[kind]["en"]).format(v=_fmt(v))
+    return label
+
+
+def _whatif_numbers(res: dict) -> dict:
+    m = res.get("metrics") or {}
+    goals = res.get("goals") or []
+    return {"final_net_worth_real": m.get("final_net_worth_real", m.get("final_net_worth")),
+            "final_net_worth": m.get("final_net_worth"), "min_cash": m.get("min_cash"),
+            "first_negative_month": _month(m.get("first_negative_month")),
+            "goals_reached": sum(1 for g in goals if g.get("met_deterministic")), "goals": len(goals),
+            "plan_check": (res.get("plan_check") or {}).get("level"), "trace_id": res.get("trace_id")}
+
+
+def simulate_patch(box: "Toolbox", node_id: str, ivs: list[dict]) -> dict:
+    """The current branch with these interventions added (as a Make-it-mine patch), vs as it is now.
+    Deterministic engine path (fast=True), both runs under the user's own conditions."""
+    ex = engine.extras()
+    before = engine.simulate(box.profile, {"node_id": node_id}, box.overrides, box.weather, fast=True)
+    patches = {k: list(v) for k, v in (ex.get("node_patches") or {}).items()}
+    patches[node_id] = patches.get(node_id, []) + list(ivs)
+    with engine.using_extras(ex.get("custom_nodes"), patches):
+        after = engine.simulate(box.profile, {"node_id": node_id}, box.overrides, box.weather, fast=True)
+    b, a = _whatif_numbers(before), _whatif_numbers(after)
+    d = None if a["final_net_worth_real"] is None or b["final_net_worth_real"] is None else \
+        round(a["final_net_worth_real"] - b["final_net_worth_real"], 2)
+    return {"reading": "if this change were made on this branch, then (everything else unchanged)",
+            "node_id": node_id, "interventions": ivs, "before": b, "after": a,
+            "delta_final_net_worth_real": d, "horizon_months": after.get("horizon_months") or 120}
+
+
+def whatif_answer(sim: dict, change: str, node_label: str, lang: str) -> str:
+    t = _WI.get(lang, _WI["en"])
+    a, b, d = sim["after"], sim["before"], sim["delta_final_net_worth_real"] or 0.0
+    y = int(sim["horizon_months"]) // 12
+    if abs(d) < 50:
+        txt = t["same"].format(change=change, node=node_label, nw=_fmt(a["final_net_worth_real"]), y=y)
+    else:
+        txt = t["with"].format(change=change, node=node_label, nw=_fmt(a["final_net_worth_real"]), y=y,
+                               d=_fmt(abs(d)), dir=t["more"] if d > 0 else t["less"])
+    cash = t["cash_neg"].format(m=a["first_negative_month"]) if a["first_negative_month"] else t["cash_ok"]
+    if a["first_negative_month"] != b["first_negative_month"]:
+        cash += t["was_neg"].format(m=b["first_negative_month"]) if b["first_negative_month"] else t["was_ok"]
+    else:
+        cash += t["end"]
+    txt += cash
+    if a["goals"]:
+        txt += t["goals"].format(k=a["goals_reached"], n=a["goals"], k0=b["goals_reached"])
+    return txt + t["chip"]
+
+
+def whatif_fast(question: str, ctx: dict, lang: str, box: "Toolbox") -> str | None:
+    """Rules fast path: a recognised what-if -> engine numbers + the Make-it-mine proposal. None = not a what-if
+    the rules know (the LLM path takes over)."""
+    from api.personalize import personalize, _node as pnode
+
+    node_id = str(ctx.get("node_id") or (ctx.get("path") or ["0"])[-1])
+    try:
+        out = personalize(box.profile, box.path, node_id, question, lang, "auto", box.overrides, rules_only=True)
+    except Exception as e:  # noqa: BLE001  a rules problem must never break the chat
+        log.warning("what-if rules failed: %s", e)
+        return None
+    prop = out.get("proposal")
+    if not prop:
+        return None
+    ivs = prop.get("interventions") or []
+    try:
+        sim = simulate_patch(box, node_id, ivs)
+        node_label = pnode(node_id).get("label") or node_id
+    except Exception as e:  # noqa: BLE001
+        log.warning("what-if simulation failed: %s", e)
+        return None
+    node_label = translate_label(node_label, lang)
+    box.calls.append({"tool": "what_if_condition", "args": {"node_id": node_id, "interventions": ivs},
+                      "result": {**sim, "node_id": node_id}})
+    box.proposal = out
+    return whatif_answer(sim, _change_text(ivs, prop.get("label") or "", lang), node_label, lang)
+
+
+def translate_label(label: str, lang: str) -> str:
+    """Node labels are English in the engine; the web translates them. Keep the English label (it is a name)."""
+    return label
 
 
 # ------------------------------------------------------------------ streaming (SSE)
@@ -1170,6 +1339,21 @@ def ask_stream(question: str, ctx: dict):
             dropped_sents.append(f"{why}: {part}")
         return None
 
+    fast = whatif_fast(question, ctx, lang, box)  # #117: a what-if the rules know -> engine numbers, no LLM
+    if fast:
+        for i, sent in enumerate(split_sentences(fast)):
+            yield {"type": "sentence", "index": i, "text": sent}
+        yield {"type": "done", "answer": fast, "language": lang, "mode": "whatif",
+               "grounding": {"grounded": True, "ungrounded_numbers": [], "checked": "engine numbers only"},
+               "dropped_sentences": [], "tool_traces": [{"tool": c["tool"], "args": c["args"],
+                                                         "trace_id": c["result"].get("after", {}).get("trace_id"),
+                                                         "node_id": c["result"].get("node_id")} for c in box.calls],
+               "cited_nodes": [str(node_id)], "cost_usd": 0.0, "tokens": {"prompt": 0, "completion": 0},
+               "model": "rules", "error": None, "history_used": len(history), "history_dropped": dropped,
+               "personalize": box.proposal, "first_sentence_ms": int((time.perf_counter() - t0) * 1000),
+               "latency_ms": int((time.perf_counter() - t0) * 1000)}
+        return
+
     if llm.available():
         msgs = [{"role": "system", "content": _sysmsg(box, ctx, lang, node_id, reason)}, *history,
                 {"role": "user", "content": question}]
@@ -1177,9 +1361,14 @@ def ask_stream(question: str, ctx: dict):
             for rnd in range(MAX_ROUNDS):
                 last = rnd == MAX_ROUNDS - 1
                 buf, final, stopped, offtopic = "", None, False, False
+                left = AGENT_LLM_DEADLINE_S - (time.perf_counter() - t0)
+                if left < 1.0:  # #117: hard deadline, then the template
+                    error = f"deadline {AGENT_LLM_DEADLINE_S:.0f} s"
+                    break
                 for kind, val in llm.chat_stream(msgs, tools=TOOLS, model=used_model, purpose="agent",
                                                  temperature=0.2, max_tokens=250, reasoning={"enabled": False},
-                                                 **({"tool_choice": "none"} if last else {})):
+                                                 timeout=left,
+                                                 **({"tool_choice": "none"} if last or left < 3.0 else {})):
                     if kind == "final":
                         final = val
                         continue
@@ -1232,7 +1421,7 @@ def ask_stream(question: str, ctx: dict):
         except Exception as e:  # noqa: BLE001
             log.warning("agent stream failed: %s", e)
             error = str(e)[:200]
-    if error and not sent_out and stream_model:  # the fast model failed before saying anything: normal chain
+    if error and not sent_out and stream_model and not error.startswith("deadline"):  # failed early: normal chain
         log.info("stream model %s failed, falling back to ask()", stream_model)
         out = ask(question, ctx)
         yield {"type": "replace", "text": out["answer"], "mode": out["mode"]}

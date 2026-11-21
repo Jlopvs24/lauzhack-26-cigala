@@ -581,7 +581,8 @@ async def voice_ask(audio: UploadFile = File(...), context: str = Form("{}"), la
         ctx["profile"] = ALEXIA
     if heard.get("language") and not ctx.get("language"):
         ctx["language"] = heard["language"]
-    out = agent.ask(heard["text"], ctx)
+    with engine.using_extras(ctx.get("custom_nodes"), ctx.get("node_patches")):  # the user's conditions
+        out = agent.ask(heard["text"], ctx)
     return {**out, "transcript": heard["text"], "stt": {k: heard.get(k) for k in ("model", "cost_usd", "provider_latency_ms")},
             "cost_usd": round(out["cost_usd"] + heard["cost_usd"], 6),
             "latency_ms": int((time.perf_counter() - t0) * 1000)}
