@@ -416,9 +416,12 @@ def test_report_has_12_sections_and_engine_numbers():
     assert [d["node_id"] for d in S["decisions"]] == ["2", "2.1"]
     assert S["alternatives"]["levels"][0]["siblings"] and S["alternatives"]["status_quo_baseline"]["node_id"] == "0"
     assert [r["weather"] for r in S["stress"]["rows"]] == ["none", "recession", "inflation", "market_crash", "job_loss"]
-    assert S["constraints"]["items"][0]["name"] == "liquidity_floor"
+    assert S["constraints"]["items"][0]["name"] in ("liquidity_floor", "no_funding_gap")
+    assert any(not c["passed"] for c in S["constraints"]["items"])  # master's path has a funding gap
     assert S["uncertainty"]["enabled"] is False
-    assert S["validation"]["reproduce"]["body"]["path"] == ["2", "2.1"]
+    rep_body = (S["validation"].get("reproduce_report") or S["validation"]["reproduce"])["body"]
+    assert rep_body["path"] == ["2", "2.1"]
+    assert j["source"] in ("core.report_data", "api (derived from expand/simulate)")
     assert S["summary"]["mode"] == "template" and j["cost_usd"] == 0
     assert S["summary"]["text"].startswith("If ") and "advice" in S["summary"]["text"]
     from api.agent import check_grounding
@@ -429,6 +432,7 @@ def test_report_uncertainty_lens_and_bad_path():
     j = _report(path=["1"], uncertainty=True)
     u = j["sections"]["uncertainty"]
     assert u["enabled"] is True and u["n_paths"] and u["n_paths"] > 0
+    assert u.get("final_net_worth_p50") is not None
     assert c.post("/report", json={"path": ["9.9"]}).status_code == 422
     assert _report(path=[])["leaf"] == "0"
 

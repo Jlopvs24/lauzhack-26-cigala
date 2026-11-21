@@ -329,8 +329,8 @@ def _template_summary(rep: dict) -> str:
     return s + "This is an exploration, not a prediction or advice."
 
 
-def _summary(rep: dict, language: str) -> dict:
-    template = _template_summary(rep)
+def _summary(rep: dict, language: str, template: str | None = None) -> dict:
+    template = template or _template_summary(rep)
     if not llm.available():
         return {"text": template, "mode": "template", "cost_usd": 0.0, "model": "template"}
     lang = agent._LANG_NAMES.get(language[:2], "English")
@@ -357,14 +357,135 @@ def _summary(rep: dict, language: str) -> dict:
             "advice_removed": removed, "template": template}
 
 
+# ------------------------------------------------------------------ thin wrapper over core.report_data (#27)
+def _core_report_data():
+    core = getattr(engine, "_CORE", None)
+    return getattr(core, "report_data", None) if core else None
+
+
+def _row(node_id, label, summ: dict, headline: dict | None = None, status: str | None = None) -> dict:
+    """One alternatives row. Months stay as the engine gives them (0-based)."""
+    return {"node_id": node_id, "label": label, "status": status, **(summ or {}),
+            "headline": headline}
+
+
+def _sections_from_core(data: dict, body: dict) -> dict:
+    steps = data.get("steps") or []
+    q = data.get("question") or {}
+    scope = {**q, "basis": "deterministic if-then paths; not a forecast, not advice",
+             "question_text": "If " + " then ".join(f"“{s['label']}”" for s in steps) +
+                              ", what would follow under the stated assumptions?" if steps
+             else "What follows if nothing changes, under the stated assumptions?"}
+    decisions = [{
+        "step": s.get("depth"), "node_id": s["node_id"], "label": s.get("label"), "description": s.get("description"),
+        "changes": s.get("changes") or [], "interventions": s.get("interventions") or [],
+        "ubs_catalog": s.get("catalog") or [], "assumptions_introduced": s.get("assumptions_introduced") or [],
+        "delta_vs_parent": s.get("delta_vs_parent"), "headline": s.get("headline"),
+        "events": (s.get("result") or {}).get("events") or [], "debts": (s.get("result") or {}).get("debts") or [],
+    } for s in steps]
+    base = data.get("baseline") or {}
+    from core.report import summary as core_summary  # type: ignore  # noqa: PLC0415
+    levels = [{"step": s.get("depth"),
+               "chosen": _row(s["node_id"], s.get("label"), core_summary(s["result"]), s.get("headline"), "chosen"),
+               "siblings": [_row(a["node_id"], a.get("label"), a.get("summary"), a.get("headline"), a.get("status"))
+                            for a in s.get("alternatives") or []]} for s in steps]
+    alternatives = {"status_quo_baseline": _row(base.get("node_id"), base.get("label"), base.get("summary"),
+                                                base.get("headline"), "baseline"),
+                    "levels": levels, "months": "0-based, as in the engine",
+                    "reading": "each row is a deterministic if-then path under the same assumptions"}
+    exploration = [{"step": s.get("depth"), "node_id": s["node_id"], "label": s.get("label"),
+                    "facts": [f["text"] for f in agent.exploration_facts((s.get("result") or {}).get("exploration"),
+                                                                        s.get("label"))],
+                    "exploration": (s.get("result") or {}).get("exploration"),
+                    "tornado": (s.get("result") or {}).get("sensitivity") or []} for s in steps]
+    leaf = data.get("leaf") or {}
+    wr = leaf.get("weather_resilience") or {}
+    stress_rows = data.get("stress") or []
+    stress = {"node_id": leaf.get("node_id"), "rows": stress_rows, "weather_resilience": wr,
+              "holds_in": wr.get("holds_in"), "of": wr.get("of"),
+              "reading": "named deterministic what-ifs, not probabilities"}
+    surplus = leaf.get("monthly_surplus") or []
+    constraints = {"items": leaf.get("constraints") or [], "plan_check": leaf.get("plan_check"),
+                   "monthly_surplus": surplus,
+                   "average_monthly_surplus": round(sum(surplus) / len(surplus), 2) if surplus else None,
+                   "funding_gap_months": next((c.get("months_in_breach") for c in leaf.get("constraints") or []
+                                               if c.get("name") == "no_funding_gap"), None),
+                   "derived_by": "core"}
+    unc = data.get("uncertainty")
+    uncertainty = {"enabled": True, **unc} if unc else {"enabled": False,
+                                                        "reading": "off by default; ask with uncertainty=true"}
+    validation = {**(data.get("validation") or {}),
+                  "all_checks_passed": all(c.get("passed") for c in (data.get("validation") or {}).get("checks") or []),
+                  "reproduce_report": {"route": "POST /report", "body": body}}
+    limitations = list(data.get("limitations") or []) + [
+        "The summary is a deterministic template; a language model may only reword or translate it, and its text "
+        "is rejected if it contains any number that is not in the template."]
+    nodes = [{"label": s.get("label"), "description": s.get("description")} for s in steps]
+    return {"scope": scope, "starting_state": {"fields": data.get("starting_state") or []},
+            "decisions": decisions, "alternatives": alternatives, "exploration": exploration, "stress": stress,
+            "constraints": constraints, "tradeoffs": _tradeoffs([{"node": {"node_id": s["node_id"], **n}}
+                                                                 for s, n in zip(steps, nodes)]),
+            "uncertainty": uncertainty, "validation": validation, "limitations": limitations,
+            "_engine_version": data.get("engine_version")}
+
+
+def _template_from_core(S: dict) -> str:
+    fmt = agent._fmt
+    lv = S["alternatives"]["levels"]
+    leaf = lv[-1]["chosen"] if lv else S["alternatives"]["status_quo_baseline"]
+    path_txt = " then ".join(f"“{d['label']}”" for d in S["decisions"]) or "nothing changes"
+    years = (S["scope"].get("horizon_months") or 120) // 12
+    s = (f"If {path_txt}, then under these assumptions net worth after {years} years would be "
+         f"CHF {fmt(leaf['final_net_worth'])}")
+    if leaf.get("final_net_worth_real") is not None:
+        s += f" (CHF {fmt(leaf['final_net_worth_real'])} in today's prices)"
+    s += ". "
+    pc = S["constraints"].get("plan_check") or {}
+    if pc.get("label"):
+        s += f"Plan check: {pc['label']}. "
+    if leaf.get("first_negative_month") is not None:
+        s += (f"Cash would drop below zero in month {leaf['first_negative_month'] + 1} "
+              f"(lowest CHF {fmt(leaf['min_cash'])}). ")
+    else:
+        s += f"Cash would stay positive (lowest CHF {fmt(leaf['min_cash'])}). "
+    s += f"{leaf.get('goals_met')} of {leaf.get('goals_total')} goals would be reached. "
+    st = S["stress"]
+    if st.get("of"):
+        held = st.get("holds_in")
+        n_held = len(held) if isinstance(held, list) else held
+        s += f"Under the named stress scenarios, the plan holds in {n_held} of {st['of']}. "
+    facts = [f for e in S["exploration"] for f in e["facts"]]
+    pick = next((f for f in facts if "at least" in f), None) or (facts[0] if facts else None)
+    if pick:
+        s += pick + " "
+    return s + "This is an exploration, not a prediction or advice."
+
+
 # ------------------------------------------------------------------ build
 def build_report(profile: dict | None, path: list[str], overrides: list[dict] | None = None,
                  uncertainty: bool = False, language: str = "en") -> dict:
     t0 = time.perf_counter()
     overrides = overrides or []
+    path = [p for p in (path or []) if p and p != "0"]
+    body = {"path": path, "assumptions": overrides, "uncertainty": uncertainty}
+    report_data = _core_report_data()
+    if report_data:  # core >= #27: thin wrapper, every number from core.report_data
+        data = report_data(profile, path, overrides, [], uncertainty=uncertainty)
+        rep = _sections_from_core(data, body)
+        engine_version = rep.pop("_engine_version", None)
+        summ = _summary(rep, language, _template_from_core(rep))
+        return {
+            "report_version": REPORT_VERSION, "source": "core.report_data", "engine_version": engine_version,
+            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "path": ["0"] + path, "leaf": (data.get("leaf") or {}).get("node_id") or (path[-1] if path else "0"),
+            "section_order": [{"key": k, "title": t, "n": i + 1} for i, (k, t) in enumerate(SECTION_ORDER)],
+            "sections": {"summary": summ, **rep},
+            "cost_usd": round(summ.get("cost_usd", 0.0), 6),
+            "latency_ms": int((time.perf_counter() - t0) * 1000), "model": summ.get("model"),
+        }
+    # fallback (mock engine / older core): derive the same sections from expand + simulate
     demo = not profile
     profile = profile or engine.default_profile()
-    path = [p for p in (path or []) if p and p != "0"]
     steps, root = [], None
     for i in range(len(path)):
         tree = engine.expand(profile, path[: i + 1], overrides, [])
@@ -396,7 +517,7 @@ def build_report(profile: dict | None, path: list[str], overrides: list[dict] | 
     summ = _summary(rep, language)
     rep = {"summary": summ, **rep}
     return {
-        "report_version": REPORT_VERSION,
+        "report_version": REPORT_VERSION, "source": "api (derived from expand/simulate)",
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "path": ["0"] + path, "leaf": leaf["node_id"],
         "section_order": [{"key": k, "title": t, "n": i + 1} for i, (k, t) in enumerate(SECTION_ORDER)],
