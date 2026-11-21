@@ -448,6 +448,30 @@ def _analysis(route: str, req: _AnalysisBase, name: str, call) -> dict:
     return {**out, "cached": hit, **_meta(t0)}
 
 
+class CompareReq(_AnalysisBase):
+    paths: list[list[str]] = Field(..., description='2-4 node paths from any branches, e.g. [["1"], ["2", "2.3"]]')
+    baseline: str = Field("parent", description='Which delta goes in `delta`: "parent" (this option alone) or '
+                                                '"today" (vs the status quo). Both are always in impact_alone.')
+
+
+@app.post("/tree/compare")
+@with_extras
+def tree_compare(req: CompareReq):
+    """Compare 2-4 options side by side: headline, plan check, key metrics, series, impact of the option's own
+    decision (vs its parent and vs today) and per-metric orders. Deterministic, no LLM, cached."""
+    from api.compare import compare
+    t0 = time.perf_counter()
+    if req.baseline not in ("parent", "today"):
+        raise HTTPException(422, 'baseline must be "parent" or "today"')
+    body = _engine_body(req, "profile", "paths", "assumptions", "weather", "baseline")
+    try:
+        out, hit = cache.cached("/tree/compare", body, engine.version(), lambda: compare(
+            req.profile, req.paths, req.assumptions, req.weather, req.baseline))
+    except (KeyError, ValueError) as e:
+        raise HTTPException(422, str(e)) from e
+    return {**out, "cached": hit, **_meta(t0)}
+
+
 @app.post("/tree/combine")
 def tree_combine(req: CombineReq):
     """Path to `a` plus `b`'s own decisions (conflicts listed, later wins), with a combined / A / B comparison."""
