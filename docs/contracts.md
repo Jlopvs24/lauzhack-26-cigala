@@ -123,8 +123,8 @@ Visible nodes = root + chosen path (`status: "chosen"`) + siblings of the curren
                         "liability": {"type": "student_loan", "principal": 15000, "annual_rate": 0.02, "monthly_payment": 300, "payment_start_month": 24}}],
      "changes": ["Study loan: borrow CHF 15,000 at 2.0%, CHF 300/month, in month 1"],
      "assumptions_ref": [],
-     "delta_vs_parent": {"final_net_worth": -1216.83, "final_net_worth_p50": -1221.15, "min_cash": 15046.86,
-                         "shortfall_probability": 0.0, "final_cash": -1216.83, "health_score": -1.8},
+     "delta_vs_parent": {"final_net_worth": -1284.77, "final_net_worth_p50": -1287.09, "min_cash": 15015.42,
+                         "shortfall_probability": 0.0, "final_cash": -1284.77, "health_score": -1.6},
      "result": {"...": "SimulationResult"}}
   ],
   "weather": [],
@@ -151,7 +151,7 @@ Real values for Alexia, node "2" (master's), seed 42, 1,000 paths:
   "n_paths": 1000,
   "horizon_months": 120,
   "deterministic": {
-    "cash": [8000.0, 4602.0, 3703.39, 2804.79, "... 121 points"],
+    "cash": [8000.0, 4589.15, 3678.23, 2767.46, "... 121 points"],
     "investments": ["121 points"], "debt": ["121 points"], "net_worth": ["121 points"],
     "net_worth_real": ["121 points, in today's prices"],
     "flows": {"income": ["120 points"], "income_tax": [], "living_expenses": [], "one_off_cost": [], "one_off_income": [],
@@ -160,38 +160,38 @@ Real values for Alexia, node "2" (master's), seed 42, 1,000 paths:
   },
   "bands": {"cash": {"p10": [], "p50": [], "p90": []}, "net_worth": {"p10": [], "p50": [], "p90": []}},
   "metrics": {
-    "final_cash": 137546.43, "final_net_worth": 137546.43, "final_net_worth_real": 124518.99,
-    "final_net_worth_p10": 121703.6, "final_net_worth_p50": 132362.41, "final_net_worth_p90": 137670.97,
-    "min_cash": -18549.53, "min_cash_month": 23, "first_negative_month": 6,
-    "shortfall_probability": 1.0, "min_cash_p10": -21631.89,
-    "total_income": 548403.65, "total_income_tax": 48427.36, "total_living_expenses": 366744.56,
+    "final_cash": 121727.55, "final_net_worth": 121727.55, "final_net_worth_real": 110198.37,
+    "final_net_worth_p10": 106421.38, "final_net_worth_p50": 116690.25, "final_net_worth_p90": 121688.17,
+    "min_cash": -18835.02, "min_cash_month": 23, "first_negative_month": 6,
+    "shortfall_probability": 1.0, "min_cash_p10": -21915.64,
+    "total_income": 548403.65, "total_income_tax": 63294.46, "total_living_expenses": 366744.56,
     "total_one_off_costs": 5025.0, "total_debt_interest": 0.0, "total_investment_return": 0.0,
     "final_debt": 0.0, "avg_unemployed_months": 1.72,
-    "goal_probability": {"Emergency savings": 0.989, "Career transition": 1.0},
-    "liquidity_months": -8.67
+    "goal_probability": {"Emergency savings": 0.977, "Career transition": 0.998},
+    "liquidity_months": -8.8
   },
   "goals": [{"name": "Emergency savings", "target": 12800.0, "target_month": 59, "priority": "high", "metric": "liquid",
-             "deterministic_value": 33837.72, "met_deterministic": true, "first_reached_month_deterministic": 46,
-             "probability": 0.989, "p50_value": 31878.62}],
+             "deterministic_value": 28284.46, "met_deterministic": true, "first_reached_month_deterministic": 48,
+             "probability": 0.977, "p50_value": 26341.3}],
   "health": {
-    "score": 49.8, "level": "ok",
+    "score": 49.5, "level": "ok",
     "components": {
-      "liquidity": {"score": 0.0, "value": -8.67, "unit": "months of expenses at the tightest month", "worst_month": 23,
+      "liquidity": {"score": 0.0, "value": -8.8, "unit": "months of expenses at the tightest month", "worst_month": 23,
                     "today_value": 3.81, "weight": 0.3,
-                    "explanation": "At the tightest point (month 24) the plan is short by 8.7 months of living expenses (unfunded); 3 months counts as healthy."},
+                    "explanation": "At the tightest point (month 24) the plan is short by 8.8 months of living expenses (unfunded); 3 months counts as healthy."},
       "debt": {"score": 1.0, "value": 0.0, "unit": "max debt payments / income", "weight": 0.2, "explanation": "No debt payments."},
       "resilience": {"score": 0.0, "value": 1.0, "unit": "share of simulated paths where cash goes negative", "weight": 0.2,
                      "explanation": "In 100% of 1000 simulated futures cash runs out at least once."},
-      "goals": {"score": 0.993, "value": 0.993, "unit": "priority-weighted probability of meeting goals", "weight": 0.3,
-                "explanation": "Emergency savings: 99% chance; Career transition: 100% chance"}
+      "goals": {"score": 0.985, "value": 0.985, "unit": "priority-weighted probability of meeting goals", "weight": 0.3,
+                "explanation": "Emergency savings: 98% chance; Career transition: 100% chance"}
     },
     "method": "Weighted average of component scores (0-1) x 100. Weights are a value judgement and shown openly."
   },
   "sensitivity": [
     {"assumption_id": "AS-alexia-master-salary", "label": "Net salary after the master's", "unit": "CHF/month",
      "base_value": 4800, "low_value": 4200, "high_value": 5600,
-     "final_net_worth_low": 77694.01, "final_net_worth_high": 199629.6, "delta_final_net_worth": 121935.59,
-     "shortfall_probability_low": 1.0, "shortfall_probability_high": 1.0, "base_final_net_worth": 131038.51}
+     "final_net_worth_low": 63478.06, "final_net_worth_high": 182467.1, "delta_final_net_worth": 118989.04,
+     "shortfall_probability_low": 1.0, "shortfall_probability_high": 1.0, "base_final_net_worth": 115404.36}
   ],
   "checks": [
     {"name": "cash_flow_identity", "passed": true, "max_abs_error": 0.0, "detail": "Closing cash = opening cash + all cash flows, every month"},
@@ -208,7 +208,7 @@ Real values for Alexia, node "2" (master's), seed 42, 1,000 paths:
              "type": "student_loan", "payment_start_month": 24, "paid_off_month": 78, "final_balance": 0.0}],
   "weather": [{"type": "recession", "label": "Recession", "start_month": 12, "duration_months": 18, "end_month": 30, "...": "..."}],
   "assumptions_used": [{"id": "AS-inflation-mean", "value": 0.01}],
-  "trace_id": "sim-12a09e4da527",
+  "trace_id": "sim-75778ab8c2c3",
   "timing_ms": 55.0
 }
 ```
