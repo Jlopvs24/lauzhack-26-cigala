@@ -5,7 +5,7 @@
 // model's wording of the summary whenever /report answers: nothing waits for the LLM.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { buildFromLevels, loadExploration, loadLevels, loadLiveValidation, loadSummary, mergeExploration } from './pathReport.js';
-import { chf, compareLevels, constraintRows, fmtVal, heroTiles, oneLiner, plainTemplate, qualKeys, signedChf, stressRows, timeSeries, tornadoRows, whatIfCards } from './reportModel.js';
+import { chf, compareLevels, constraintRows, fmtVal, heroTiles, taxSegments, oneLiner, plainTemplate, qualKeys, signedChf, stressRows, timeSeries, tornadoRows, whatIfCards } from './reportModel.js';
 import { ri } from './reportI18n.js';
 import { usePersonalItems } from '../personalize/YourConditions.jsx';
 import { describe as describeOwn } from '../personalize/model.js';
@@ -119,6 +119,12 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
   const introducedIds = new Set(introduced.map((a) => a.id));
   const shared = (data.assumptions || []).filter((a) => !introducedIds.has(a.id));
   const checks = (data.validation.checks || []).filter((c) => c.applicable !== false);
+  const tax = taxSegments(data.leaf.tax_residence, lang, data.assumptions);
+  const taxList = <ul className="vr-tax">{tax.map((g) => <li key={g.key} className={g.fallback ? 'fallback' : ''}>
+    <b>{g.place}</b>{g.household && <span> · {g.household}</span>}{g.months && <small> · {g.months}</small>}
+    {g.fallback && <span className="vr-chip warn sm"><span aria-hidden="true">!</span>{L.taxFallback}</span>}
+    {g.unverified && <span className="vr-chip warn sm"><span aria-hidden="true">!</span>{L.notVerified}</span>}
+  </li>)}</ul>;
   const runLive = () => { setLive({ running: true }); loadLiveValidation().then((r) => setLive(r)).catch(() => setLive({ na: true })); };
   const assumptionRow = (a) => <tr key={a.id}>
     <th scope="row">{a.label || a.id}{a.user_edited && <small className="vr-tag">{L.edited}</small>}</th>
@@ -267,7 +273,7 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
               <dt>{L.question}</dt><dd>{[data.baseline, ...steps].map(name).join(' → ')}</dd>
               <dt>{L.horizon}</dt><dd>{L.months(data.question.horizon_months)}</dd>
               <dt>{L.currency}</dt><dd>{data.question.currency}</dd>
-              <dt>{L.where}</dt><dd>{data.question.jurisdiction}</dd>
+              <dt>{L.where}</dt><dd>{tax.length ? taxList : data.question.jurisdiction}</dd>
               <dt>{L.asOf}</dt><dd>{data.question.as_of}</dd>
               <dt>{L.values}</dt><dd>{L.valuesText}</dd>
             </dl>
@@ -281,6 +287,7 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
             </table></div> : <p className="vr-muted">–</p>}
           </Disclosure>
           <Disclosure n={4} title={L.dAssume}>
+            {tax.length > 0 && <><h4>{L.taxTitle}</h4>{taxList}</>}
             {mine.length > 0 && <><h4>{L.aYours}</h4><ul className="vr-own">{mine.map((it) => <li key={it.id}>
               <span className={`vr-chip sm ${it.mode === 'branch' ? 'own solid' : 'own'}`}>{it.mode === 'branch' ? L.yourBranch : L.yourCond}</span>
               <span><b>{it.label}</b>{it.mode === 'patch' ? <small> · {(() => { const st = [data.baseline, ...steps].find((x) => x.node_id === it.node_id); return st ? name(st) : it.node_label; })()}</small> : null}
