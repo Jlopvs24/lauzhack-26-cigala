@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chat panel demo</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: #101614; color: #f7f4ec; font-family: system-ui, sans-serif; }
+    /* stand-in for the tree scene: it shrinks into the space the panel leaves (thread 6 does this for real) */
+    .scene { position: fixed; inset: 0 var(--chat-panel-w, 0px) var(--chat-panel-h, 0px) 0; display: grid; place-items: center;
+      background: radial-gradient(circle at 50% 60%, #2c4a32, #101614 70%); transition: inset 320ms cubic-bezier(0.32, 0.72, 0, 1); }
+    .scene p { max-width: 36ch; text-align: center; line-height: 1.5; opacity: 0.8; }
+    .events { position: fixed; top: 12px; left: 12px; font: 12px ui-monospace, monospace; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <div class="scene"><p>Demo only (#34). The tree scene sits here; it reflows into the width the chat panel leaves free.</p></div>
+  <pre class="events" id="events"></pre>
+  <div id="root"></div>
+  <script type="module" src="/src/chatPanelDemo.jsx"></script>
+</body>
+</html>
