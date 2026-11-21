@@ -39,9 +39,22 @@ def supports_uncertainty_flag() -> bool:
     return (not _CORE) or _accepts(_CORE.expand, "uncertainty")
 
 
-def expand(profile: dict | None, path: list[str], assumptions=None, weather=None, uncertainty: bool = False) -> dict:
+def version() -> str:
+    """Engine identity for cache keys: changes when core/ code or tree data changes (restart reloads)."""
+    if _CORE:
+        return str(getattr(_CORE, "ENGINE_VERSION", "core"))
+    return "mock"
+
+
+def expand(profile: dict | None, path: list[str], assumptions=None, weather=None, uncertainty: bool = False,
+           exploration: bool = True, sensitivity: bool = True) -> dict:
+    """exploration=False skips the current node's what-would-have-to-be-true analyses (~7x faster)."""
     if _CORE:
         kw = {"uncertainty": uncertainty} if _accepts(_CORE.expand, "uncertainty") else {}
+        if _accepts(_CORE.expand, "exploration"):
+            kw["exploration"] = exploration
+        if _accepts(_CORE.expand, "sensitivity"):
+            kw["sensitivity"] = sensitivity
         return _CORE.expand(profile, path, assumptions, weather, **kw)
     return mock_engine.expand(profile or default_profile(), path, assumptions, weather, uncertainty=uncertainty)
 
@@ -106,3 +119,18 @@ def default_profile() -> dict:
     if _CORE and hasattr(_CORE, "load_profile"):
         return _CORE.load_profile()
     return json.loads((Path(__file__).parent / "fixtures" / "alexia.json").read_text(encoding="utf-8"))
+
+
+def explore_fn():
+    """core.explore(profile, path, assumptions, weather) once core ships it (issue #33), else None."""
+    fn = getattr(_CORE, "explore", None) if _CORE else None
+    return fn if callable(fn) else None  # older core has a `core.explore` submodule, not the function
+
+
+def warm(profile: dict | None = None) -> None:
+    """Precompute a profile's tree in core's LRU (issue #33), if core offers it. None = the demo profile."""
+    fn = getattr(_CORE, "warm", None) if _CORE else None
+    if callable(fn):
+        t0 = __import__("time").perf_counter()
+        fn(profile)
+        log.info("core.warm done in %.1f s", __import__("time").perf_counter() - t0)

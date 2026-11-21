@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import time
 from typing import Any
 
 from api import engine, llm
@@ -274,6 +276,18 @@ def _headline_text(res: dict) -> dict | None:
     return {"does_it_hold": a.get("text"), "what_it_trades": b.get("text"), "vs_parent": b.get("vs_parent_text")}
 
 
+_COMPACT_KEYS = ("node_id", "label", "status", "final_net_worth", "min_cash", "first_negative_month", "goals",
+                 "plan_check", "headline", "delta_vs_parent", "changes", "trace_id")
+
+
+def _compact(row: dict) -> dict:
+    """Sibling/child rows in the prompt: just what is needed to compare (full rows stay in the trace)."""
+    out = {k: row[k] for k in _COMPACT_KEYS if k in row}
+    if isinstance(out.get("plan_check"), dict):
+        out["plan_check"] = {k: out["plan_check"].get(k) for k in ("level", "label")}
+    return out
+
+
 def _summary(res: dict, node: dict, uncertainty: bool = False) -> dict:
     """Engine-agnostic digest of a SimulationResult. Deterministic first; the Monte Carlo
     lens is included only when the user asked for it (uncertainty=True)."""
@@ -401,7 +415,7 @@ class Toolbox:
         res, node = self._node(node_id)
         out: dict[str, Any] = {"node_id": node_id, "label": node.get("label"), "target": target,
                                "reading": "what would have to be true under the other assumptions; not a forecast"}
-        expl = res.get("exploration") or node.get("exploration")
+        expl = self._exploration_for(node_id)
         if expl:
             out["engine_facts"] = [f["text"] for f in exploration_facts(expl, node.get("label"))
                                    if f["kind"] in {"cash_never_negative": ("reverse_stress",),
@@ -482,7 +496,7 @@ class Toolbox:
         """Current node + siblings + children via one engine expand (free) so most questions need one LLM call.
         Recorded as a tool call so grounding and traces include it."""
         try:
-            tree = engine.expand(self.profile, engine.path_to(node_id), self.overrides, self.weather,
+            tree = engine.expand(self.profile, engine.path_to(node_id), self.overrides, self.weather, exploration=False,
                                  uncertainty=self.uncertainty)
         except Exception as e:  # noqa: BLE001
             log.warning("preload failed: %s", e)
@@ -495,19 +509,47 @@ class Toolbox:
                      key=lambda n: (n["node_id"] != node_id, order.get(n["status"], 9)))
         ids = [n["node_id"] for n in vis]
         rows = [{**self.get_node(i), "status": n["status"]} for i, n in zip(ids, vis)]
+        explore = engine.explore_fn()
+        if explore and rows:  # current node's what-would-have-to-be-true facts (core.explore, cached, ~0.1 s)
+            try:
+                ex = explore(self.profile, engine.path_to(node_id), self.overrides, self.weather)
+                self.fast_cache["expl:" + self._key(node_id)] = ex.get("exploration") or {}
+                rows[0]["exploration_facts"] = [f["text"] for f in exploration_facts(ex.get("exploration"),
+                                                                                    rows[0].get("label"))]
+                rows[0]["levers"] = [_sens(x) for x in (ex.get("sensitivity") or [])[:3]]
+            except Exception as e:  # noqa: BLE001
+                log.warning("explore failed: %s", e)
         self.calls.append({"tool": "preload", "args": {"node_ids": ids}, "result": {"nodes": rows}})
-        return rows
+        return [rows[0]] + [_compact(r) for r in rows[1:]] if rows else rows
+
+    def _exploration_for(self, node_id: str) -> dict | None:
+        """Exploration of a node; computed on demand (preload skips it for speed)."""
+        res, node = self._node(str(node_id))
+        expl = res.get("exploration") or node.get("exploration")
+        if expl:
+            return expl
+        key = "expl:" + self._key(str(node_id))
+        if key not in self.fast_cache:
+            try:
+                explore = engine.explore_fn()
+                full = explore(self.profile, engine.path_to(str(node_id)), self.overrides, self.weather)                     if explore else engine.simulate(self.profile, {"node_id": str(node_id)}, self.overrides,
+                                                     self.weather)
+                self.fast_cache[key] = full.get("exploration") or {}
+            except Exception as e:  # noqa: BLE001
+                log.warning("exploration failed: %s", e)
+                self.fast_cache[key] = {}
+        return self.fast_cache[key] or None
 
     def get_exploration(self, node_id: str, kind: str | None = None) -> dict:
         res, node = self._node(str(node_id))
-        expl = res.get("exploration") or node.get("exploration")
+        expl = self._exploration_for(str(node_id))
         if not expl:
             return {"node_id": node_id, "available": False,
                     "hint": "use what_would_have_to_be_true for an engine-computed threshold search"}
         if kind:
             match = {k: v for k, v in expl.items() if kind.replace("_", "") in k.replace("_", "")}                 if isinstance(expl, dict) else {}
             expl = match or {"error": f"no {kind!r} in exploration", "available_kinds": list(expl)}
-        facts = exploration_facts(res.get("exploration") or node.get("exploration"), node.get("label"))
+        facts = exploration_facts(expl, node.get("label"))
         if kind:
             facts = [f for f in facts if kind.replace("_", "") in f["kind"].replace("_", "")]
         return {"node_id": str(node_id), "label": node.get("label"), "available": True,
@@ -643,7 +685,7 @@ def template_answer(ctx: dict, lang: str, box: Toolbox) -> str:
     if pc.get("label") and lang == "en":
         txt += f"Plan check: {pc['label']}. "
     res_, node_ = box._node(str(node_id))
-    facts = exploration_facts(res_.get("exploration") or node_.get("exploration"), node_.get("label"))
+    facts = exploration_facts(box._exploration_for(str(node_id)), node_.get("label"))
     pick = next((f for f in facts if f["kind"] == "break_even" and f["status"] == "threshold_found"), None) or         next((f for f in facts if f["kind"] == "reverse_stress"), None)
     if pick and lang == "en":
         txt += pick["text"] + " "
@@ -929,3 +971,155 @@ def ask(question: str, ctx: dict) -> dict:
         "history_used": len(history),
         "history_dropped": dropped,
     }
+
+
+# ------------------------------------------------------------------ streaming (SSE)
+def _sysmsg(box: "Toolbox", ctx: dict, lang: str, node_id: str, reason: str | None) -> str:
+    preloaded = box.preload(node_id)
+    return SYSTEM.format(name=ctx.get("character_name", CHARACTER), lang_name=_LANG_NAMES.get(lang, lang),
+                         max_sentences=CALL_MAX_SENTENCES if ctx.get("mode") == "call" else 3,
+                         call_rule=CALL_RULE if ctx.get("mode") == "call" else "",
+                         lens_rule=LENS_ON if ctx.get("uncertainty") else LENS_OFF,
+                         scope_rule="" if reason == "on_topic" else SCOPE_SENTINEL_RULE,
+                         node_id=node_id, path=ctx.get("path") or ["0"], weather=ctx.get("weather") or "none",
+                         preloaded=json.dumps(preloaded, ensure_ascii=False))
+
+
+def _clean_sentence(sent: str, box: "Toolbox", question: str) -> tuple[str | None, str | None]:
+    """Apply the same guards as ask() to one sentence. Returns (text or None, reason dropped)."""
+    sent = re.sub(r"[*_#`]+", "", sent).strip()
+    if not sent:
+        return None, None
+    if _ADVICE.search(sent):
+        return None, "advice"
+    sent, _ = soften_forecasts(sent)
+    g = check_grounding(sent, [c["result"] for c in box.calls], question)
+    if not g["grounded"]:
+        return None, "ungrounded:" + ",".join(g["ungrounded_numbers"])
+    return sent, None
+
+
+def ask_stream(question: str, ctx: dict):
+    """Generator of events for SSE. Sentences are released one by one, each checked before it is sent
+    (scope, no advice, if-then wording, every number grounded in engine tool outputs). Events:
+      {"type": "start", "language"}                       immediately
+      {"type": "sentence", "index", "text"}               as soon as a checked sentence is complete
+      {"type": "replace", "text", "mode"}                 fallback text (template or redirect) when nothing passed
+      {"type": "done", ...same fields as /agent/ask}      at the end"""
+    t0 = time.perf_counter()
+    question = (question or "").strip()[:2000]
+    lang = detect_language(question, ctx.get("language"))
+    history, dropped = trim_history(ctx.get("history"))
+    yield {"type": "start", "language": lang}
+    reason = scope_gate(question)
+    if reason in ("off_topic", "injection"):
+        out = _redirect(lang, reason, history_dropped=dropped)
+        yield {"type": "replace", "text": out["answer"], "mode": "redirect"}
+        yield {"type": "done", **out, "latency_ms": int((time.perf_counter() - t0) * 1000)}
+        return
+    box = Toolbox(ctx)
+    node_id = ctx.get("node_id") or (ctx.get("path") or ["0"])[-1]
+    # Fastest first token measured (~1.3 s vs ~2 s for qwen); override with AGENT_STREAM_MODEL.
+    stream_model = os.environ.get("AGENT_STREAM_MODEL", "anthropic/claude-haiku-5.5") or None
+    cost, tokens, used_model, error = 0.0, {"prompt": 0, "completion": 0}, stream_model, None
+    sent_out: list[str] = []
+    dropped_sents: list[str] = []
+    first_ms = None
+    max_sent = CALL_MAX_SENTENCES if ctx.get("mode") == "call" else 4
+
+    def emit(part: str):
+        nonlocal first_ms
+        text, why = _clean_sentence(part, box, question)
+        if text:
+            sent_out.append(text)
+            if first_ms is None:
+                first_ms = int((time.perf_counter() - t0) * 1000)
+            return {"type": "sentence", "index": len(sent_out) - 1, "text": text}
+        if why:
+            dropped_sents.append(f"{why}: {part}")
+        return None
+
+    if llm.available():
+        msgs = [{"role": "system", "content": _sysmsg(box, ctx, lang, node_id, reason)}, *history,
+                {"role": "user", "content": question}]
+        try:
+            for rnd in range(MAX_ROUNDS):
+                last = rnd == MAX_ROUNDS - 1
+                buf, final, stopped, offtopic = "", None, False, False
+                for kind, val in llm.chat_stream(msgs, tools=TOOLS, model=used_model, purpose="agent",
+                                                 temperature=0.2, max_tokens=250, reasoning={"enabled": False},
+                                                 **({"tool_choice": "none"} if last else {})):
+                    if kind == "final":
+                        final = val
+                        continue
+                    if stopped or offtopic:
+                        continue
+                    buf += val
+                    if not sent_out and re.sub(r"[^A-Z]", "", buf.upper()).startswith("OFFTOPIC"):
+                        offtopic = True
+                        continue
+                    parts = split_sentences(buf)
+                    if len(parts) > 1:
+                        for part in parts[:-1]:  # complete sentences
+                            ev = emit(part)
+                            if ev:
+                                yield ev
+                            if len(sent_out) >= max_sent:
+                                stopped = True
+                                break
+                        tail = buf.rfind(parts[-1])  # keep the unfinished sentence with its whitespace
+                        buf = "" if stopped else (buf[tail:] if tail >= 0 else parts[-1])
+                used_model = final["model"]
+                cost += final["cost_usd"]
+                tokens["prompt"] += final["prompt_tokens"]
+                tokens["completion"] += final["completion_tokens"]
+                calls = final["message"].get("tool_calls") or []
+                if calls and not sent_out:
+                    msgs.append({"role": "assistant", "content": final["message"].get("content") or "",
+                                 "tool_calls": calls})
+                    for c in calls:
+                        try:
+                            args = json.loads(c["function"].get("arguments") or "{}")
+                        except json.JSONDecodeError:
+                            args = {}
+                        out = box.run(c["function"]["name"], args)
+                        msgs.append({"role": "tool", "tool_call_id": c["id"], "content": json.dumps(out)})
+                    continue
+                if offtopic or (not sent_out and re.sub(r"[^A-Z]", "", buf.upper()).startswith("OFFTOPIC")):
+                    out = _redirect(lang, "off_topic_llm", cost, tokens, used_model or "llm", dropped)
+                    yield {"type": "replace", "text": out["answer"], "mode": "redirect"}
+                    yield {"type": "done", **out, "latency_ms": int((time.perf_counter() - t0) * 1000)}
+                    return
+                if buf.strip() and not stopped and len(sent_out) < max_sent:  # the last sentence
+                    if re.search(r"[.!?…)\]»\"']\s*$", buf.strip()):
+                        ev = emit(buf)
+                        if ev:
+                            yield ev
+                    else:  # cut by the token limit: never send half a sentence
+                        dropped_sents.append("truncated: " + buf.strip())
+                break
+        except Exception as e:  # noqa: BLE001
+            log.warning("agent stream failed: %s", e)
+            error = str(e)[:200]
+    if error and not sent_out and stream_model:  # the fast model failed before saying anything: normal chain
+        log.info("stream model %s failed, falling back to ask()", stream_model)
+        out = ask(question, ctx)
+        yield {"type": "replace", "text": out["answer"], "mode": out["mode"]}
+        yield {"type": "done", **out, "first_sentence_ms": None, "latency_ms": int((time.perf_counter() - t0) * 1000)}
+        return
+    mode = "llm"
+    answer = " ".join(sent_out)
+    if not sent_out:
+        mode = "template"
+        answer = template_answer(ctx, lang, box)
+        yield {"type": "replace", "text": answer, "mode": "template"}
+    yield {"type": "done", "answer": answer, "language": lang, "mode": mode,
+           "grounding": {"grounded": True, "ungrounded_numbers": [], "checked": "per sentence before sending"},
+           "dropped_sentences": dropped_sents,
+           "tool_traces": [{"tool": c["tool"], "args": c["args"],
+                            "trace_id": c["result"].get("trace_id") or c["result"].get("after", {}).get("trace_id"),
+                            "node_id": c["result"].get("node_id")} for c in box.calls],
+           "cited_nodes": sorted({c["result"].get("node_id") for c in box.calls if c["result"].get("node_id")}),
+           "cost_usd": round(cost, 6), "tokens": tokens, "model": used_model or "template", "error": error,
+           "history_used": len(history), "history_dropped": dropped,
+           "first_sentence_ms": first_ms, "latency_ms": int((time.perf_counter() - t0) * 1000)}

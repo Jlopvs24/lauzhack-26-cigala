@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import logging
 import time
 from typing import Any
@@ -17,7 +18,7 @@ from fastapi.responses import RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from api import engine
+from api import cache, engine
 from api.env import load_env
 
 load_env()
@@ -44,6 +45,11 @@ class ExpandReq(Loose):
                                description='Named stress what-ifs: "recession" | "inflation" | "market_crash" | "job_loss" or {type, ...}')
     uncertainty: bool = Field(False, description="Optional Monte Carlo lens (bands). Off by default: results are "
                                                  "deterministic if-then paths.")
+    exploration: bool = Field(False, description="Include the current node's exploration (break-even, goal-seek, "
+                                                 "reverse stress, timing). Off by default for speed: fetch it with "
+                                                 "POST /tree/explore when needed.")
+    sensitivity: bool = Field(False, description="Include the current node's tornado. Off by default; "
+                                                 "/tree/explore returns it.")
 
 
 class SimulateReq(Loose):
@@ -71,9 +77,30 @@ def _meta(t0: float, cost: float = 0.0, model: str | None = None) -> dict:
             "model": model or f"engine:{engine.ENGINE_NAME}"}
 
 
+@app.on_event("startup")
+def _warm_up() -> None:
+    """Background warm-up: core's default tree (issue #33) and the TTS worker. Never blocks startup."""
+    import threading
+
+    def run():
+        try:
+            engine.warm()
+        except Exception as e:  # noqa: BLE001
+            log.warning("engine warm failed: %s", e)
+        try:
+            from api import tts_local
+            tts_local.warm_worker()
+        except Exception as e:  # noqa: BLE001
+            log.warning("tts warm failed: %s", e)
+
+    if os.environ.get("API_WARM", "1") == "1":
+        threading.Thread(target=run, name="warm", daemon=True).start()
+
+
 @app.get("/health")
 def health():
-    return {"ok": True, "engine": engine.ENGINE_NAME, "llm": agent.llm_status(), "voice": voice.status()}
+    return {"ok": True, "engine": engine.ENGINE_NAME, "engine_version": engine.version(), "llm": agent.llm_status(),
+            "voice": voice.status(), "cache": cache.CACHE.stats(), "pid": __import__("os").getpid()}
 
 
 @app.get("/call", include_in_schema=False)
@@ -87,15 +114,49 @@ def demo_profile():
     return {"profile": ALEXIA}
 
 
+def _engine_body(req: Loose, *fields: str) -> dict:
+    return {f: getattr(req, f) for f in fields}
+
+
 @app.post("/tree/expand")
 def tree_expand(req: ExpandReq):
+    """Visible tree. Cached by request (deterministic engine): repeated or concurrent identical calls are instant."""
     t0 = time.perf_counter()
+    body = _engine_body(req, "profile", "path", "assumptions", "weather", "uncertainty", "exploration", "sensitivity")
     try:
-        out = engine.expand(req.profile, req.path, req.assumptions, req.weather, uncertainty=req.uncertainty)
+        out, hit = cache.cached("/tree/expand", body, engine.version(), lambda: engine.expand(
+            req.profile, req.path, req.assumptions, req.weather, uncertainty=req.uncertainty,
+            exploration=req.exploration, sensitivity=req.sensitivity))
     except (KeyError, ValueError) as e:
         raise HTTPException(422, f"bad path: {e}") from e
-    return {**out, "engine": engine.ENGINE_NAME, "uncertainty": req.uncertainty,
-            "uncertainty_flag_supported": engine.supports_uncertainty_flag(), **_meta(t0)}
+    return {**out, "engine": engine.ENGINE_NAME, "uncertainty": req.uncertainty, "exploration": req.exploration,
+            "uncertainty_flag_supported": engine.supports_uncertainty_flag(), "cached": hit, **_meta(t0)}
+
+
+@app.post("/tree/explore")
+def tree_explore(req: ExpandReq):
+    """Exploration of the current node only (levers, break-even, goal-seek, reverse stress, timing, tornado),
+    for clients that expand with exploration=false. Cached like /tree/expand."""
+    t0 = time.perf_counter()
+    body = _engine_body(req, "profile", "path", "assumptions", "weather")
+    split = engine.explore_fn()
+
+    def compute():
+        if split:  # core's own split (issue #33), when it lands
+            return split(req.profile, req.path, req.assumptions, req.weather)
+        tree = engine.expand(req.profile, req.path, req.assumptions, req.weather, exploration=True, sensitivity=True)
+        cur = next(n for n in tree["nodes"] if n["node_id"] == tree["current"])
+        res = cur.get("result") or {}
+        return {"node_id": cur["node_id"], "label": cur.get("label"), "exploration": res.get("exploration"),
+                "sensitivity": res.get("sensitivity"), "trace_id": res.get("trace_id")}
+
+    try:
+        out, hit = cache.cached("/tree/explore", body, engine.version(), compute)
+    except (KeyError, ValueError, StopIteration) as e:
+        raise HTTPException(422, f"bad path: {e}") from e
+    from api.agent import exploration_facts
+    facts = [f["text"] for f in exploration_facts(out.get("exploration"), out.get("label"))]
+    return {**out, "facts": facts, "cached": hit, **_meta(t0)}
 
 
 @app.post("/simulate")
@@ -166,8 +227,24 @@ def profiles_extract(files: list[UploadFile] | None = File(None), text: str | No
     except Exception as e:  # noqa: BLE001
         log.exception("extract failed")
         raise HTTPException(502, f"extraction failed: {type(e).__name__}: {e}") from e
+    _warm_profile(out.get("profile"))
     return {**out, "cost_usd": round(float(out.get("cost_usd") or 0), 6),
             "latency_ms": int((time.perf_counter() - t0) * 1000), "model": out.get("extractor")}
+
+
+def _warm_profile(profile: dict | None) -> None:
+    """A new profile was just extracted: precompute its tree in the background (~1 s) so the first clicks are instant."""
+    if not profile:
+        return
+    import threading
+
+    def run():
+        try:
+            engine.warm(profile)
+        except Exception as e:  # noqa: BLE001
+            log.warning("warm for new profile failed: %s", e)
+
+    threading.Thread(target=run, name="warm-profile", daemon=True).start()
 
 
 class ReportReq(Loose):
@@ -182,10 +259,16 @@ class ReportReq(Loose):
 def report(req: ReportReq):
     """Path report (docs/report-spec.md §3): 12 structured sections, numbers only from the engine."""
     from api.report import build_report
+    t0 = time.perf_counter()
+    body = _engine_body(req, "profile", "path", "assumptions", "uncertainty", "language")
     try:
-        return build_report(req.profile, req.path, req.assumptions, req.uncertainty, req.language)
+        out, hit = cache.cached("/report", body, engine.version(), lambda: build_report(
+            req.profile, req.path, req.assumptions, req.uncertainty, req.language))
     except (KeyError, ValueError, StopIteration) as e:
         raise HTTPException(422, f"bad path: {e}") from e
+    if hit:
+        out = {**out, "cost_usd": 0.0, "latency_ms": int((time.perf_counter() - t0) * 1000)}
+    return {**out, "cached": hit}
 
 
 @app.post("/agent/ask")
@@ -196,6 +279,30 @@ def agent_ask(req: AskReq):
         ctx["profile"] = ALEXIA
     out = agent.ask(req.question, ctx)
     return {**out, "latency_ms": int((time.perf_counter() - t0) * 1000)}
+
+
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@app.post("/agent/ask/stream")
+def agent_ask_stream(req: AskReq):
+    """Server-Sent Events: `start` at once, then `sentence` events as soon as each sentence has passed the
+    guards (grounded numbers, no advice, if-then wording), `replace` if a fallback text is used, and `done`
+    with the same fields as /agent/ask. Each event: `event: <type>` + `data: <json>`."""
+    ctx = dict(req.context)
+    if not ctx.get("profile"):
+        ctx["profile"] = ALEXIA
+
+    def gen():
+        try:
+            for ev in agent.ask_stream(req.question, ctx):
+                yield _sse(ev["type"], ev)
+        except Exception as e:  # noqa: BLE001
+            yield _sse("error", {"type": "error", "error": str(e)[:200]})
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 @app.post("/voice/stt")
