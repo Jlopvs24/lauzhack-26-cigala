@@ -199,11 +199,11 @@ $("#langs").addEventListener("click", (e) => {
 });
 
 // ---------- light / dark: the scene is graded, not only the UI ----------
-function setTheme(th, animate = true) {
+function setTheme(th) {
   document.documentElement.dataset.theme = th;
   try { localStorage.setItem("cigala.theme", th); } catch {}
   $("#theme").textContent = th === "dark" ? t("light") : t("dark");
-  if (animate && !reduced) gsap.fromTo(".grade, .moon", { opacity: th === "dark" ? 0 : 1 }, { opacity: th === "dark" ? 1 : 0, duration: 1.4, ease: "power2.inOut", clearProps: "opacity" });
+  // the grade, moon and world filter cross-fade through CSS transitions
 }
 $("#theme").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
 
@@ -298,11 +298,16 @@ function browserVoice(l) {
   return vs.find((v) => v.lang.toLowerCase() === want) || vs.find((v) => v.lang.toLowerCase().startsWith(base)) || null;
 }
 let warnedNoVoice = {};
+// Server voice only for languages it really speaks (Kokoro: en, es, fr, it, pt). Kokoro falls back to an
+// English voice for other languages, so German goes to a German browser voice, or stays silent.
+let serverLangs = [];
+fetch(`${API}/health`).then((r) => r.json()).then((h) => { if (h.voice?.kokoro?.available) serverLangs = h.voice.kokoro.languages || []; }).catch(() => {});
 async function speak(text) {
   stopSpeech();
   if (muted || !audioUnlocked || !text) return;
   const seq = speakSeq, l = lang;
-  try { // server voice: Kokoro (EN, ES, FR) or the configured provider, asked for this language
+  try { // server voice (local Kokoro) in this language, if it has one
+    if (!serverLangs.includes(l)) throw new Error("no server voice for " + l);
     const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 9000);
     const r = await fetch(`${API}/voice/tts`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, language: l }), signal: ctl.signal });
     clearTimeout(timer);

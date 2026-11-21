@@ -131,3 +131,56 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .mist, .tag .dot::after { animation: none; }
 }
+
+/* ---------- theme: dawn (light) / dusk (dark). The scene is graded, not only the chrome ---------- */
+:root { --card-bg: rgba(250, 248, 242, 0.93); --card-ink: #1d2420; --card-muted: #5b645e; --card-line: rgba(0, 0, 0, 0.08); --band: #8fb56a; --band-line: #3e6b3a; color-scheme: light; }
+:root[data-theme="dark"] { --card-bg: rgba(16, 22, 30, 0.9); --card-ink: #eef0ea; --card-muted: #9aa3a6; --card-line: rgba(255, 255, 255, 0.1); --band: #7fa86a; --band-line: #c6e3a3; color-scheme: dark; }
+#world { transition: filter 1.4s ease; }
+:root[data-theme="dark"] #world { filter: brightness(0.56) saturate(0.72) contrast(1.06) hue-rotate(-8deg); }
+.grade, .moon { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.4s ease; }
+.grade { background: linear-gradient(180deg, rgba(14, 24, 58, 0.55) 0%, rgba(22, 30, 60, 0.25) 55%, rgba(6, 8, 16, 0.55) 100%); mix-blend-mode: multiply; }
+.moon { background: radial-gradient(28% 34% at 82% 14%, rgba(190, 210, 255, 0.35), transparent 70%), radial-gradient(60% 40% at 50% 80%, rgba(120, 150, 220, 0.12), transparent 70%); mix-blend-mode: screen; }
+:root[data-theme="dark"] .grade, :root[data-theme="dark"] .moon { opacity: 1; }
+:root[data-theme="dark"] .mist { opacity: 0.16; }
+:root[data-theme="dark"] .mark { background: #cfe0ff; box-shadow: 0 0 14px #cfe0ff; }
+.say-card, .report { background: var(--card-bg); color: var(--card-ink); border-color: var(--card-line); }
+.report .kicker, .report h3, .report .score span, .report dt, .report .note, .report .desc { color: var(--card-muted); }
+.report ul { color: var(--card-ink); }
+.report .close { background: var(--card-line); color: var(--card-ink); }
+.band .area { fill: var(--band); fill-opacity: 0.3; }
+.band .median { stroke: var(--band-line); }
+.band .zero { stroke: var(--card-muted); stroke-opacity: 0.5; }
+
+/* ---------- language segmented control ---------- */
+.seg { display: flex; padding: 3px; border-radius: 999px; border: 1px solid var(--hair); background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.seg button { border: 0; background: transparent; padding: 5px 10px; border-radius: 999px; font-size: 12px; letter-spacing: 0.04em; color: var(--ink-soft); transition: background 0.2s, color 0.2s; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: #14201a; }
+
+/* ---------- portal ---------- */
+.choices { display: flex; flex-wrap: wrap; gap: 10px; }
+.secondary { padding: 14px 24px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(20, 26, 22, 0.25); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); font-weight: 500; transition: background 0.2s, transform 0.2s var(--ease); }
+.secondary:hover { background: rgba(20, 26, 22, 0.45); }
+.secondary:active { transform: scale(0.97); }
+.demo-note { margin: 14px 0 0; font-size: 13px; color: var(--ink-faint); }
+.intro .lede, .intro .eyebrow, .demo-note { text-shadow: 0 1px 16px rgba(0, 0, 0, 0.35); }
+
+/* ---------- own roots ---------- */
+.roots { position: fixed; left: clamp(16px, 6vw, 96px); top: 50%; transform: translateY(-50%); z-index: 6; width: min(520px, calc(100vw - 32px)); padding: 28px; border-radius: 24px; background: var(--card-bg); color: var(--card-ink); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.roots h2 { margin: 0 0 6px; font: 400 36px/1.05 var(--serif); }
+.roots-lede { margin: 0 0 16px; color: var(--card-muted); font-size: 14px; }
+.roots textarea { width: 100%; resize: vertical; min-height: 104px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--card-line); background: transparent; color: inherit; font: inherit; font-size: 14px; line-height: 1.5; }
+.roots textarea:focus, .fields input:focus { outline: 2px solid var(--band-line); outline-offset: 1px; }
+.roots-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.roots .ghost-btn { background: transparent; border-color: var(--card-line); color: var(--card-ink); backdrop-filter: none; }
+.roots .ghost-btn.rec { background: var(--warn); color: #14201a; }
+.file { position: relative; display: inline-flex; align-items: center; padding: 8px 16px; border-radius: 999px; border: 1px dashed var(--card-muted); font-size: 13px; cursor: pointer; }
+.file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.roots-files { margin: 8px 0 0; min-height: 1em; font-size: 12px; color: var(--card-muted); }
+.roots-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 18px; }
+.roots .primary { background: var(--card-ink); color: var(--card-bg); }
+.roots .primary:disabled { opacity: 0.6; cursor: progress; }
+.text-btn { border: 0; background: none; color: var(--card-muted); padding: 8px 4px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--card-muted); }
+.fields input { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--card-line); background: transparent; color: var(--card-ink); font: inherit; font-size: 15px; font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) { .seg button { padding: 4px 7px; } .fields { grid-template-columns: 1fr; } .top-actions { flex-wrap: wrap; justify-content: flex-end; } }
