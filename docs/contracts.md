@@ -104,7 +104,7 @@ Sent as `["recession", "inflation"]` or with parameters `[{"type": "recession", 
 
 ## `expand` result (POST `/tree/expand`)
 
-Input: `{profile?, path, assumptions?, weather?}`. `path` = chosen node ids from the root: `[]`, `["2"]`, `["2", "2.2"]`. Back one level = `back_path`.
+Input: `{profile?, path, assumptions?, weather?, uncertainty?}`. `uncertainty` (default `false`) adds the optional Monte Carlo lens to every visible node; without it every result is deterministic (`n_paths: 0`). `path` = chosen node ids from the root: `[]`, `["2"]`, `["2", "2.2"]`. Back one level = `back_path`.
 
 Visible nodes = root + chosen path (`status: "chosen"`) + siblings of the current node (`"sibling"`, show greyed) + children of the current node (`"child"`). Everything else is pruned and never simulated.
 
@@ -145,20 +145,23 @@ Ghost nodes (v1.1, additive): `pruned_nodes` = the siblings of every **ancestor*
 
 - `changes`: plain-English description of what this decision changes vs its parent (generated from the interventions, no LLM).
 - `delta_vs_parent`: node metrics minus parent metrics.
-- Only the current node gets `result.sensitivity` and `result.deterministic.flows` (others: `null` / absent) to keep the call fast.
+- `delta_vs_parent`: a key is `null` when either side was not computed (`final_net_worth_p50`, `shortfall_probability` with the uncertainty lens off).
+- Only the current node gets `result.sensitivity`, `result.exploration` and `result.deterministic.flows` (others: `null` / absent) to keep the call fast. Its `exploration.break_even` compares it with its siblings.
 
 ## SimulationResult (per node; POST `/simulate` returns one)
 
-Real values for Alexia, node "2" (master's), seed 42, 1,000 paths:
+Engine `core-1.1` (issue #21, exploration first). The primary result is the deterministic "if these inputs hold, then..." path; Monte Carlo is an optional lens (`uncertainty: true`, off by default). Real values for Alexia, node "2" (master's), lens off (from `core/examples/expand_alexia_2.json`, lists shortened):
 
 ```json
 {
   "node_id": "2",
-  "engine_version": "core-1.0",
+  "engine_version": "core-1.1",
   "currency": "CHF",
   "as_of": "2025-01-01",
   "seed": 42,
-  "n_paths": 1000,
+  "n_paths": 0,
+  "uncertainty": false,
+  "mode": "deterministic",
   "horizon_months": 120,
   "deterministic": {
     "cash": [8000.0, 4589.15, 3678.23, 2767.46, "... 121 points"],
@@ -171,37 +174,38 @@ Real values for Alexia, node "2" (master's), seed 42, 1,000 paths:
   "bands": {"cash": {"p10": [], "p50": [], "p90": []}, "net_worth": {"p10": [], "p50": [], "p90": []}},
   "metrics": {
     "final_cash": 121727.55, "final_net_worth": 121727.55, "final_net_worth_real": 110198.37,
-    "final_net_worth_p10": 107676.65, "final_net_worth_p50": 116447.75, "final_net_worth_p90": 121775.69,
+    "final_net_worth_p10": null, "final_net_worth_p50": null, "final_net_worth_p90": null,
     "min_cash": -18835.02, "min_cash_month": 23, "first_negative_month": 6,
-    "shortfall_probability": 1.0, "min_cash_p10": -22120.98,
+    "shortfall_probability": null, "min_cash_p10": null,
     "total_income": 548403.65, "total_income_tax": 63294.46, "total_living_expenses": 366744.56,
     "total_one_off_costs": 5025.0, "total_debt_interest": 0.0, "total_investment_return": 0.0,
-    "final_debt": 0.0, "avg_unemployed_months": 1.48,
-    "goal_probability": {"Emergency savings": 0.989, "Career transition": 1.0},
+    "final_debt": 0.0, "avg_unemployed_months": null,
+    "goal_probability": {},
     "liquidity_months": -8.8
   },
   "goals": [{"name": "Emergency savings", "target": 12800.0, "target_month": 59, "priority": "high", "metric": "liquid",
              "deterministic_value": 28284.46, "met_deterministic": true, "first_reached_month_deterministic": 48,
-             "probability": 0.989, "p50_value": 26330.4}],
+             "probability": null, "p50_value": null}],
   "health": {
-    "score": 49.8, "level": "ok",
+    "score": 50.0, "level": "ok",
     "components": {
       "liquidity": {"score": 0.0, "value": -8.8, "unit": "months of expenses at the tightest month", "worst_month": 23,
                     "today_value": 3.81, "weight": 0.3,
                     "explanation": "At the tightest point (month 24) the plan is short by 8.8 months of living expenses (unfunded); 3 months counts as healthy."},
       "debt": {"score": 1.0, "value": 0.0, "unit": "max debt payments / income", "weight": 0.2, "explanation": "No debt payments."},
-      "resilience": {"score": 0.0, "value": 1.0, "unit": "share of simulated paths where cash goes negative", "weight": 0.2,
-                     "explanation": "In 100% of 1000 simulated futures cash runs out at least once."},
-      "goals": {"score": 0.993, "value": 0.993, "unit": "priority-weighted probability of meeting goals", "weight": 0.3,
-                "explanation": "Emergency savings: 99% chance; Career transition: 100% chance"}
+      "resilience": {"score": 0.0, "value": 1.0, "unit": "deterministic cash-shortfall indicator (0 or 1)", "weight": 0.2,
+                     "explanation": "Under these assumptions, cash runs out in this scenario."},
+      "goals": {"score": 1.0, "value": 1.0, "unit": "priority-weighted share of deterministic goals met", "weight": 0.3,
+                "explanation": "Under these assumptions: Emergency savings: met; Career transition: met"}
     },
     "method": "Weighted average of component scores (0-1) x 100. Weights are a value judgement and shown openly."
   },
   "sensitivity": [
     {"assumption_id": "AS-alexia-master-salary", "label": "Net salary after the master's", "unit": "CHF/month",
      "base_value": 4800, "low_value": 4200, "high_value": 5600,
-     "final_net_worth_low": 63168.73, "final_net_worth_high": 182471.25, "delta_final_net_worth": 119302.52,
-     "shortfall_probability_low": 1.0, "shortfall_probability_high": 1.0, "base_final_net_worth": 115231.91}
+     "final_net_worth_low": 69434.57, "final_net_worth_high": 189269.46, "delta_final_net_worth": 119834.9,
+     "shortfall_probability_low": null, "shortfall_probability_high": null,
+     "cash_shortfall_low": true, "cash_shortfall_high": true, "basis": "deterministic", "base_final_net_worth": 121727.55}
   ],
   "checks": [
     {"name": "cash_flow_identity", "passed": true, "max_abs_error": 0.0, "detail": "Closing cash = opening cash + all cash flows, every month"},
@@ -210,7 +214,7 @@ Real values for Alexia, node "2" (master's), seed 42, 1,000 paths:
     {"name": "investment_account_identity", "passed": true, "max_abs_error": 0.0, "detail": "..."},
     {"name": "debt_never_negative", "passed": true, "detail": "..."},
     {"name": "investments_never_negative", "passed": true, "detail": "..."},
-    {"name": "bands_ordered", "passed": true, "detail": "p10 <= p50 <= p90 at every month"},
+    {"name": "bands_ordered", "passed": true, "applicable": false, "detail": "Not computed: the uncertainty lens is disabled."},
     {"name": "assumptions_sourced", "passed": true, "detail": "22 assumptions, each with a source and kind"}
   ],
   "events": [{"month": 0, "type": "cost", "amount": 2500.0, "label": "Tuition year 1"}],
@@ -218,18 +222,167 @@ Real values for Alexia, node "2" (master's), seed 42, 1,000 paths:
              "type": "student_loan", "payment_start_month": 24, "paid_off_month": 78, "final_balance": 0.0}],
   "weather": [{"type": "recession", "label": "Recession", "start_month": 12, "duration_months": 18, "end_month": 30, "...": "..."}],
   "assumptions_used": [{"id": "AS-inflation-mean", "value": 0.01}],
-  "trace_id": "sim-75778ab8c2c3",
-  "timing_ms": 55.0
+  "trace_id": "sim-5f7bc3e462df",
+  "exploration": {
+    "basis": "deterministic",
+    "condition": "If these inputs hold, then these consequences follow under the stated assumptions.",
+    "levers": [
+      {
+        "assumption_id": "AS-alexia-master-salary",
+        "label": "Net salary after the master's",
+        "unit": "CHF/month",
+        "base_value": 4800,
+        "low_value": 4200,
+        "high_value": 5600,
+        "final_net_worth_low": 69434.57,
+        "final_net_worth_high": 189269.46,
+        "swing_final_net_worth": 119834.9,
+        "cash_shortfall_low": true,
+        "cash_shortfall_high": true,
+        "how_to_change": {
+          "assumptions": {
+            "AS-alexia-master-salary": 5600
+          }
+        }
+      }
+    ],
+    "break_even": [
+      {
+        "compared_to": "1",
+        "label": "Start working",
+        "delta_final_net_worth": -3833.72,
+        "first_month_ahead": null,
+        "sustained_crossover_month": null,
+        "salary_threshold": {
+          "assumption_id": "AS-alexia-master-salary",
+          "unit": "CHF/month",
+          "status": "threshold_found",
+          "value": 4844.64,
+          "bounds": [
+            4200,
+            5600
+          ],
+          "tolerance": 0.01,
+          "margin_at_bounds": [
+            -56126.71,
+            63708.19
+          ]
+        }
+      },
+      {
+        "compared_to": "3",
+        "label": "Move abroad",
+        "delta_final_net_worth": 40728.89,
+        "first_month_ahead": 0,
+        "sustained_crossover_month": 68,
+        "salary_threshold": {
+          "assumption_id": "AS-alexia-master-salary",
+          "unit": "CHF/month",
+          "status": "threshold_found",
+          "value": 4331.32,
+          "bounds": [
+            4200,
+            5600
+          ],
+          "tolerance": 0.01,
+          "margin_at_bounds": [
+            -11564.1,
+            108270.8
+          ]
+        }
+      }
+    ],
+    "goal_seek": [
+      {
+        "goal": "Emergency savings",
+        "target": 12800.0,
+        "target_month": 59,
+        "metric": "liquid",
+        "lever": "additional_monthly_net_income",
+        "from_month": 0,
+        "to_month": 60,
+        "unit": "CHF/month in month-0 prices, then indexed like other income (inflation + real wage growth)",
+        "status": "already_satisfied",
+        "value": 0.0,
+        "bounds": [
+          0.0,
+          1000000.0
+        ],
+        "margin_at_bounds": [
+          15484.46,
+          46095346.36
+        ]
+      }
+    ],
+    "reverse_stress": {
+      "lever": "one_off_cost",
+      "month": 0,
+      "unit": "CHF at today's prices",
+      "breaks": "cash below -0.01 CHF or any dated goal missed",
+      "status": "already_broken",
+      "value": 0.0,
+      "bounds": [
+        0.0,
+        1000000.0
+      ],
+      "margin_at_bounds": [
+        18835.01,
+        1018836.17
+      ],
+      "result": {
+        "final_net_worth": 121727.55,
+        "final_cash": 121727.55,
+        "min_cash": -18835.02,
+        "first_negative_month": 6
+      },
+      "missed_goals": []
+    },
+    "timing": [
+      {
+        "delay_months": 12,
+        "status": "evaluated",
+        "same_end_month": 119,
+        "omitted_interventions": 0,
+        "window_shortened": true,
+        "final_net_worth": 102938.44,
+        "final_cash": 102938.44,
+        "min_cash": -22498.09,
+        "first_negative_month": 13,
+        "delta_final_net_worth": -18789.11
+      },
+      {
+        "delay_months": 24,
+        "status": "evaluated",
+        "same_end_month": 119,
+        "omitted_interventions": 0,
+        "window_shortened": true,
+        "final_net_worth": 83597.28,
+        "final_cash": 83597.28,
+        "min_cash": -26050.72,
+        "first_negative_month": 24,
+        "delta_final_net_worth": -38130.28
+      }
+    ]
+  },
+  "timing_ms": 180.2
 }
 ```
 
 Meaning of the main fields:
 
-- `deterministic`: central assumptions, no random shocks (no job loss, no unexpected expenses). It is a reference path, not a forecast; it is usually a bit more optimistic than `p50`.
-- `bands`: percentiles over `n_paths` Monte Carlo paths (random inflation per year, monthly market returns, job losses, unexpected expenses). "p10" = 10% of simulated paths end below this line. These are conditional on the assumptions, not real-world probabilities.
-- `shortfall_probability`: share of paths where cash goes below 0 at least once. Negative cash is an unfunded financing need, not an assumed loan (UBS starter-kit convention); investments are sold first if `AS-auto-liquidate` = 1.
+- `deterministic`: central assumptions, no random shocks (no job loss, no unexpected expenses). This is the primary result: an "if these inputs hold, then..." path, not a forecast. Named weather scenarios move it deterministically.
+- `uncertainty` / `mode` / `n_paths`: with `uncertainty: false` (default) no Monte Carlo runs: `n_paths: 0`; every `p10/p50/p90`, `shortfall_probability`, `min_cash_p10`, `avg_unemployed_months` and goal `probability`/`p50_value` are `null`; `goal_probability` is `{}`; `bands` keep their keys with empty arrays; the `bands_ordered` check has `applicable: false`; health `resilience`/`goals` use the deterministic path. Read `deterministic`, `metrics.final_*`, `goals[].met_deterministic` and `exploration`; never index bands without checking their length. `mode` stays `"deterministic"`: turning the lens on never changes the primary path.
+- `bands` (lens on only): percentiles over `n_paths` Monte Carlo paths (random inflation per year, monthly market returns, job losses, unexpected expenses). "p10" = 10% of simulated paths end below this line. These are conditional on the assumptions, not real-world probabilities.
+- `shortfall_probability` (lens on only): share of paths where cash goes below 0 at least once. Negative cash is an unfunded financing need, not an assumed loan (UBS starter-kit convention); investments are sold first if `AS-auto-liquidate` = 1.
 - `liquidity_months`: (cash + investments) / monthly living expenses at the tightest month (negative = short by that many months).
-- `sensitivity` (tornado): each assumption with a `range` moved to low and high, all else fixed; outcome = mean final net worth over 100 paths with the same random draws (common random numbers), all variants computed in one batched pass. Sorted by swing; assumptions with no effect on this node are omitted.
+- `sensitivity` (tornado): each assumption with a `range` moved to low and high, all else fixed; outcome = deterministic final net worth and whether cash goes negative (`cash_shortfall_low/high`), all variants in one batched pass. `shortfall_probability_low/high` stay `null` (kept for compatibility). Sorted by swing; assumptions with no effect on this node are omitted.
+- `exploration` (default on for `simulate` and the current node of `expand`; `exploration=False` skips it): deterministic "what would have to be true" analyses, each re-running the same accounting engine with every other input fixed:
+  - `levers`: the five assumptions that move this node most (from the tornado). Any assumption can be overridden per request with `assumptions: {id: value}`; `how_to_change` is a ready-made example.
+  - `break_even`: one row per sibling (for a custom `/simulate` node with a `parent_id`: its parent). `delta_final_net_worth` = this node minus the peer at the horizon; `first_month_ahead` / `sustained_crossover_month` = first month index where this node is ahead (and stays ahead to the horizon); `salary_threshold` = the value of this node's latest income assumption at which both end level (`null` when that assumption has no `range`).
+  - `goal_seek`: per dated goal, the extra monthly net income from month 0 to the goal month that meets it exactly.
+  - `reverse_stress`: the smallest extra one-off cost in month 0 that pushes cash below -0.01 CHF or misses a dated goal; `result` / `missed_goals` describe the plan at that cost.
+  - `timing`: this node's own decision delayed 12 and 24 months (ancestors keep their dates; the horizon end stays fixed). `window_shortened` = a monthly change is cut by the horizon; `omitted_interventions` = changes pushed past the horizon.
+  - Threshold statuses: `threshold_found` (`value` within `tolerance` 0.01), `already_satisfied` (holds at the lower bound: `value` = that bound, or `null` for `salary_threshold`), `not_reached_within_bounds`, `lever_has_no_effect`, `non_monotone` (the search assumes an increasing margin checked on a 9-point grid and returns no value rather than a wrong one), `already_broken` (reverse stress with no extra cost). `margin_at_bounds` = margin at both bounds in CHF (reverse stress: positive = broken). Income/cost searches stop at CHF 1,000,000, an explicit search bound, not a plausible value.
 - `checks`: accounting identities verified on every run; the UI can show them as a "verified" badge.
 - `trace_id`: hash of all inputs (profile, interventions, assumptions, weather, seed); same inputs = same result.
 

@@ -30,12 +30,12 @@ def goal_value(out: RunOutput, goal_metric: str, k: int) -> np.ndarray:
     return liquid - out.debt[k] if goal_metric == "net_worth" else liquid
 
 
-def evaluate_goals(profile: Profile, det: RunOutput, mc: RunOutput) -> list[dict]:
+def evaluate_goals(profile: Profile, det: RunOutput, mc: RunOutput | None) -> list[dict]:
     res = []
     for g in profile.goals:
         k = g.target_month + 1  # balance at END of target month
         dv = float(goal_value(det, g.metric, k)[0])
-        mv = goal_value(mc, g.metric, k)
+        mv = goal_value(mc, g.metric, k) if mc is not None else None
         liquid_det = det.cash[0, 1:] + det.investments[0, 1:] - (det.debt[1:] if g.metric == "net_worth" else 0)
         reached = np.nonzero(liquid_det >= g.target)[0]
         res.append({
@@ -43,8 +43,8 @@ def evaluate_goals(profile: Profile, det: RunOutput, mc: RunOutput) -> list[dict
             "metric": g.metric,
             "deterministic_value": r2(dv), "met_deterministic": bool(dv >= g.target),
             "first_reached_month_deterministic": int(reached[0]) if reached.size else None,
-            "probability": round(float(np.mean(mv >= g.target)), 3),
-            "p50_value": r2(np.percentile(mv, 50)),
+            "probability": round(float(np.mean(mv >= g.target)), 3) if mv is not None else None,
+            "p50_value": r2(np.percentile(mv, 50)) if mv is not None else None,
         })
     return res
 
@@ -54,7 +54,7 @@ def bands(arr: np.ndarray) -> dict[str, list[float]]:
     return {"p10": series(p[0]), "p50": series(p[1]), "p90": series(p[2])}
 
 
-def health(det: RunOutput, mc: RunOutput, goals: list[dict], A: dict[str, float]) -> dict:
+def health(det: RunOutput, mc: RunOutput | None, goals: list[dict], A: dict[str, float]) -> dict:
     f = det.flows
     living = f["living_expenses"][0]
     liquid = det.cash[0, 1:] + det.investments[0, 1:]
@@ -73,7 +73,7 @@ def health(det: RunOutput, mc: RunOutput, goals: list[dict], A: dict[str, float]
     limit = A["debt_service_limit"]
     debt_score = float(np.clip(1.0 - max_dsr / (2.0 * limit), 0.0, 1.0)) if np.isfinite(max_dsr) else 0.0
 
-    min_cash = mc.cash[:, 1:].min(axis=1)
+    min_cash = (mc if mc is not None else det).cash[:, 1:].min(axis=1)
     p_short = float(np.mean(min_cash < -TOL))
 
     comps = {
@@ -92,16 +92,23 @@ def health(det: RunOutput, mc: RunOutput, goals: list[dict], A: dict[str, float]
                             f"Debt payments reach {_pct(max_dsr)} of income at most; above {_pct(limit)} is stretched."),
         },
         "resilience": {
-            "score": round(1.0 - p_short, 3), "value": round(p_short, 3), "unit": "share of simulated paths where cash goes negative",
-            "explanation": f"In {_pct(p_short)} of {mc.cash.shape[0]} simulated futures cash runs out at least once.",
+            "score": round(1.0 - p_short, 3), "value": round(p_short, 3),
+            "unit": "share of simulated paths where cash goes negative" if mc is not None else "deterministic cash-shortfall indicator (0 or 1)",
+            "explanation": (f"Under these assumptions, cash runs out in {_pct(p_short)} of {mc.cash.shape[0]} simulated paths."
+                            if mc is not None else "Under these assumptions, " +
+                            ("cash runs out in this scenario." if p_short else "cash stays above the shortfall threshold in this scenario.")),
         },
     }
     if goals:
         wsum = sum(PRIORITY_WEIGHT.get(g["priority"], 1.0) for g in goals)
-        gp = sum(PRIORITY_WEIGHT.get(g["priority"], 1.0) * g["probability"] for g in goals) / wsum
+        gp = sum(PRIORITY_WEIGHT.get(g["priority"], 1.0) *
+                 (g["probability"] if mc is not None else g["met_deterministic"]) for g in goals) / wsum
         comps["goals"] = {
-            "score": round(gp, 3), "value": round(gp, 3), "unit": "priority-weighted probability of meeting goals",
-            "explanation": "; ".join(f"{g['name']}: {_pct(g['probability'])} chance" for g in goals),
+            "score": round(gp, 3), "value": round(gp, 3),
+            "unit": "priority-weighted share of simulated goals met" if mc is not None else "priority-weighted share of deterministic goals met",
+            "explanation": "Under these assumptions: " + "; ".join(
+                f"{g['name']}: {_pct(g['probability'])} of simulated paths" if mc is not None else
+                f"{g['name']}: {'met' if g['met_deterministic'] else 'not met'}" for g in goals),
         }
     weights = {k: w for k, w in HEALTH_WEIGHTS.items() if k in comps}
     total = sum(weights.values())
