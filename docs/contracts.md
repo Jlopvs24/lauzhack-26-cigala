@@ -551,6 +551,41 @@ Runs the engine's self-checks on demand (~1 s) and returns `{engine_version, pas
 | `ubs_starter_kit` | the three starter-kit scenarios reproduced exactly under its cash-only assumptions |
 | `search_verified` | the break-even salary found by exploration is re-simulated (level or ahead at it, behind CHF 1 below) |
 
+### Personal conditions: custom nodes and node patches (core-1.2, additive)
+
+Every engine entry point — `expand`, `explore`, `simulate`, `report_data`, `warm`, `node_info` — takes two optional keyword arguments. Without them nothing changes (same numbers, same cache keys).
+
+```json
+{
+  "custom_nodes": [
+    {"parent_id": "2", "node_id": "2.c1", "label": "Master's + 40% job", "description": "optional",
+     "interventions": [{"param": "monthly_net_income", "op": "add", "value": 1500, "from_month": 0, "to_month": 24}]}
+  ],
+  "node_patches": {
+    "2": [{"param": "one_off_income", "month": 0, "value": 7200, "label": "Scholarship"}]
+  }
+}
+```
+
+- `custom_nodes[]`: a new option added as a child of `parent_id`, which can be a tree node or another custom node (any order). `node_id` must be a new, unique string; use `<parent>.c<n>`, e.g. `"2.c1"`. The node inherits its ancestors' interventions like a normal node. It appears with `status` `child` / `sibling` / `chosen` / `pruned` like any node. It is compared like a normal sibling: `headline.slot_b`, `exploration.break_even`, and `alternatives` in `report_data`. It can be used in `path`, for example `["2", "2.c1"]`.
+- `node_patches`: `{node_id: [interventions...]}`. The interventions are appended to that node's own interventions (root `"0"` included). The node and its whole subtree recompute; other branches do not change.
+- Interventions use the normal schema (see Intervention), including `monthly_gross_income` (#48 item 2). They are validated in context: assumptions set by ancestors resolve, and the whole path must build. Invalid input raises `ValueError` (HTTP 422 in the API), and the message names the node, e.g. `custom node '1.c1' interventions: a gross salary needs the profile's age (BVG age credits)`. Errors are raised for:
+  - duplicate or existing `node_id`;
+  - unknown `parent_id` or patched node;
+  - empty `label`;
+  - an empty patch list;
+  - an unknown `param` or assumption;
+  - a month outside the horizon;
+  - a `cancel_one_off` that matches nothing;
+  - a gross salary without `age` or with `income_basis: "take_home"`.
+- Output markers, on every node in `expand` (and `node_info`, `report_data.steps[]`):
+  - `custom: bool`;
+  - `patched: bool`;
+  - `patch_interventions` (only when patched; the node's `interventions` and `changes` already include them);
+  - `inherits_patch: bool` (an ancestor was patched, so its numbers moved too).
+- `pruned_nodes[]` and `report_data.steps[].alternatives[]` get `custom: bool`. `report_data` also gets `personal: {custom_nodes: [ids], patched_nodes: [ids]}`, and `validation.reproduce` carries `custom_nodes` / `node_patches` when they were given.
+- Everything is applied to a copy of the tree. Cache keys cover the full flattened interventions, the node's own interventions and its peers, so a personal request never changes or reads the results of the default tree. API wiring (thread 2): the same two fields on the request bodies of `/tree/expand`, `/tree/explore`, `/simulate` and `/report`.
+
 ## API (thread 2) — routes
 
 | Method | Route | Purpose |
