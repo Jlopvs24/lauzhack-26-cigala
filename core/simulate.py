@@ -10,14 +10,14 @@ import numpy as np
 
 from . import analysis as an
 from .assumptions import AssumptionSet, build_assumptions
-from .engine import FLOW_KEYS, run
+from .engine import FLOW_KEYS, run, run_batch
 from .models import Profile, parse_interventions
 from .schedule import build_schedule
 from .weather import build_weather
 
 DEFAULT_SEED = 42
 DEFAULT_PATHS = 1000
-SENSITIVITY_PATHS = 200
+SENSITIVITY_PATHS = 100
 ENGINE_VERSION = "core-1.0"
 
 
@@ -129,26 +129,36 @@ def sensitivity_analysis(profile: Profile, interventions: list[dict], aset: Assu
     """Tornado: move each assumption that declares a ``range`` to its low and
     high value, all else fixed, and measure the change in the MEAN final net
     worth over ``n_paths`` Monte Carlo paths with common random numbers (same
-    seed), so the comparison is not noise. Sorted by swing, largest first."""
-    def mean_final(a: AssumptionSet) -> tuple[float, float]:
-        A, sched, w = _prepare(profile, interventions, a, weather)
-        out = _run(profile, sched, A, a, w, n_paths=n_paths, seed=seed, stochastic=True)
-        return float(out.net_worth[:, -1].mean()), float(np.mean(out.cash[:, 1:].min(axis=1) < -an.TOL))
-
-    base_nw, base_short = mean_final(aset)
-    rows = []
+    seed), so the comparison is not noise. All variants run in ONE batched pass.
+    Sorted by swing, largest first."""
+    variants: list[tuple[dict | None, str]] = [(None, "base")]
     for a in aset.to_list():
-        rng = a.get("range")
-        if not rng:
-            continue
-        lo_nw, lo_s = mean_final(aset.with_overrides({a["id"]: rng[0]}))
-        hi_nw, hi_s = mean_final(aset.with_overrides({a["id"]: rng[1]}))
+        if a.get("range"):
+            variants += [(a, "low"), (a, "high")]
+    scheds, As = [], []
+    w = None
+    for a, side in variants:
+        va = aset if a is None else aset.with_overrides({a["id"]: a["range"][0 if side == "low" else 1]})
+        A, sched, w = _prepare(profile, interventions, va, weather)
+        scheds.append(sched)
+        As.append(A)
+    # one vectorised pass: every variant reuses the same random draws (common random numbers)
+    out = run_batch(scheds, As, profile.cash, profile.investments, aset.tax_table(), w,
+                    n_paths=n_paths, seed=seed, stochastic=True)
+    final = out.net_worth[:, -1].reshape(len(variants), n_paths).mean(axis=1)
+    short = (out.cash[:, 1:].min(axis=1) < -an.TOL).reshape(len(variants), n_paths).mean(axis=1)
+    base_nw = float(final[0])
+    rows = []
+    for i in range(1, len(variants), 2):
+        a = variants[i][0]
+        lo_nw, hi_nw = float(final[i]), float(final[i + 1])
         rows.append({
             "assumption_id": a["id"], "label": a.get("label", a["param"]), "unit": a.get("unit", ""),
-            "base_value": a["value"], "low_value": rng[0], "high_value": rng[1],
+            "base_value": a["value"], "low_value": a["range"][0], "high_value": a["range"][1],
             "final_net_worth_low": an.r2(lo_nw), "final_net_worth_high": an.r2(hi_nw),
             "delta_final_net_worth": an.r2(abs(hi_nw - lo_nw)),
-            "shortfall_probability_low": round(lo_s, 3), "shortfall_probability_high": round(hi_s, 3),
+            "shortfall_probability_low": round(float(short[i]), 3),
+            "shortfall_probability_high": round(float(short[i + 1]), 3),
         })
     rows = [r for r in rows if r["delta_final_net_worth"] >= 1.0]  # drop assumptions this node does not use
     rows.sort(key=lambda r: r["delta_final_net_worth"], reverse=True)

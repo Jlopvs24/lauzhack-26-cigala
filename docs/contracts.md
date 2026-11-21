@@ -123,8 +123,8 @@ Visible nodes = root + chosen path (`status: "chosen"`) + siblings of the curren
                         "liability": {"type": "student_loan", "principal": 15000, "annual_rate": 0.02, "monthly_payment": 300, "payment_start_month": 24}}],
      "changes": ["Study loan: borrow CHF 15,000 at 2.0%, CHF 300/month, in month 1"],
      "assumptions_ref": [],
-     "delta_vs_parent": {"final_net_worth": -1284.77, "final_net_worth_p50": -1287.09, "min_cash": 15015.42,
-                         "shortfall_probability": 0.0, "final_cash": -1284.77, "health_score": -1.6},
+     "delta_vs_parent": {"final_net_worth": -1284.77, "final_net_worth_p50": -1284.99, "min_cash": 15015.42,
+                         "shortfall_probability": 0.0, "final_cash": -1284.77, "health_score": -1.7},
      "result": {"...": "SimulationResult"}}
   ],
   "weather": [],
@@ -161,20 +161,20 @@ Real values for Alexia, node "2" (master's), seed 42, 1,000 paths:
   "bands": {"cash": {"p10": [], "p50": [], "p90": []}, "net_worth": {"p10": [], "p50": [], "p90": []}},
   "metrics": {
     "final_cash": 121727.55, "final_net_worth": 121727.55, "final_net_worth_real": 110198.37,
-    "final_net_worth_p10": 106421.38, "final_net_worth_p50": 116690.25, "final_net_worth_p90": 121688.17,
+    "final_net_worth_p10": 107676.65, "final_net_worth_p50": 116447.75, "final_net_worth_p90": 121775.69,
     "min_cash": -18835.02, "min_cash_month": 23, "first_negative_month": 6,
-    "shortfall_probability": 1.0, "min_cash_p10": -21915.64,
+    "shortfall_probability": 1.0, "min_cash_p10": -22120.98,
     "total_income": 548403.65, "total_income_tax": 63294.46, "total_living_expenses": 366744.56,
     "total_one_off_costs": 5025.0, "total_debt_interest": 0.0, "total_investment_return": 0.0,
-    "final_debt": 0.0, "avg_unemployed_months": 1.72,
-    "goal_probability": {"Emergency savings": 0.977, "Career transition": 0.998},
+    "final_debt": 0.0, "avg_unemployed_months": 1.48,
+    "goal_probability": {"Emergency savings": 0.989, "Career transition": 1.0},
     "liquidity_months": -8.8
   },
   "goals": [{"name": "Emergency savings", "target": 12800.0, "target_month": 59, "priority": "high", "metric": "liquid",
              "deterministic_value": 28284.46, "met_deterministic": true, "first_reached_month_deterministic": 48,
-             "probability": 0.977, "p50_value": 26341.3}],
+             "probability": 0.989, "p50_value": 26330.4}],
   "health": {
-    "score": 49.5, "level": "ok",
+    "score": 49.8, "level": "ok",
     "components": {
       "liquidity": {"score": 0.0, "value": -8.8, "unit": "months of expenses at the tightest month", "worst_month": 23,
                     "today_value": 3.81, "weight": 0.3,
@@ -182,16 +182,16 @@ Real values for Alexia, node "2" (master's), seed 42, 1,000 paths:
       "debt": {"score": 1.0, "value": 0.0, "unit": "max debt payments / income", "weight": 0.2, "explanation": "No debt payments."},
       "resilience": {"score": 0.0, "value": 1.0, "unit": "share of simulated paths where cash goes negative", "weight": 0.2,
                      "explanation": "In 100% of 1000 simulated futures cash runs out at least once."},
-      "goals": {"score": 0.985, "value": 0.985, "unit": "priority-weighted probability of meeting goals", "weight": 0.3,
-                "explanation": "Emergency savings: 98% chance; Career transition: 100% chance"}
+      "goals": {"score": 0.993, "value": 0.993, "unit": "priority-weighted probability of meeting goals", "weight": 0.3,
+                "explanation": "Emergency savings: 99% chance; Career transition: 100% chance"}
     },
     "method": "Weighted average of component scores (0-1) x 100. Weights are a value judgement and shown openly."
   },
   "sensitivity": [
     {"assumption_id": "AS-alexia-master-salary", "label": "Net salary after the master's", "unit": "CHF/month",
      "base_value": 4800, "low_value": 4200, "high_value": 5600,
-     "final_net_worth_low": 63478.06, "final_net_worth_high": 182467.1, "delta_final_net_worth": 118989.04,
-     "shortfall_probability_low": 1.0, "shortfall_probability_high": 1.0, "base_final_net_worth": 115404.36}
+     "final_net_worth_low": 63168.73, "final_net_worth_high": 182471.25, "delta_final_net_worth": 119302.52,
+     "shortfall_probability_low": 1.0, "shortfall_probability_high": 1.0, "base_final_net_worth": 115231.91}
   ],
   "checks": [
     {"name": "cash_flow_identity", "passed": true, "max_abs_error": 0.0, "detail": "Closing cash = opening cash + all cash flows, every month"},
@@ -219,7 +219,7 @@ Meaning of the main fields:
 - `bands`: percentiles over `n_paths` Monte Carlo paths (random inflation per year, monthly market returns, job losses, unexpected expenses). "p10" = 10% of simulated paths end below this line. These are conditional on the assumptions, not real-world probabilities.
 - `shortfall_probability`: share of paths where cash goes below 0 at least once. Negative cash is an unfunded financing need, not an assumed loan (UBS starter-kit convention); investments are sold first if `AS-auto-liquidate` = 1.
 - `liquidity_months`: (cash + investments) / monthly living expenses at the tightest month (negative = short by that many months).
-- `sensitivity` (tornado): each assumption with a `range` moved to low and high, all else fixed; outcome = mean final net worth over 200 paths with the same seed. Sorted by swing; assumptions with no effect on this node are omitted.
+- `sensitivity` (tornado): each assumption with a `range` moved to low and high, all else fixed; outcome = mean final net worth over 100 paths with the same random draws (common random numbers), all variants computed in one batched pass. Sorted by swing; assumptions with no effect on this node are omitted.
 - `checks`: accounting identities verified on every run; the UI can show them as a "verified" badge.
 - `trace_id`: hash of all inputs (profile, interventions, assumptions, weather, seed); same inputs = same result.
 

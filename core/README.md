@@ -29,7 +29,7 @@ Identities verified on every run and returned in `checks`: cash flow, net-worth 
 
 ## Uncertainty (Monte Carlo, per visible node)
 
-1,000 paths, seed 42, vectorised over paths (~55-95 ms per node; ~0.5 s for the current node including the tornado). Random: annual inflation (normal, clipped), monthly portfolio returns (lognormal with the stated mean/volatility), job loss (monthly hazard from the annual probability, geometric spell length, income replaced by unemployment insurance), unexpected expenses (Poisson-like, exponential size). The deterministic path uses central values and no random shocks. Shocks are independent (no correlation between inflation, returns and job loss) — a stated simplification.
+1,000 paths, seed 42, vectorised over paths (~50-90 ms per node; the tornado adds ~0.1 s: every low/high variant runs in one batched pass, 100 paths each, sharing the same random draws). Random: annual inflation (normal, clipped), monthly portfolio returns (lognormal with the stated mean/volatility), job loss (monthly hazard from the annual probability, geometric spell length, income replaced by unemployment insurance), unexpected expenses (Poisson-like, exponential size). The deterministic path uses central values and no random shocks. Shocks are independent (no correlation between inflation, returns and job loss) — a stated simplification.
 
 ## Simplifications (documented on purpose)
 
