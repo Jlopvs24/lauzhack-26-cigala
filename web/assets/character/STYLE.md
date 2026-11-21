@@ -1,13 +1,13 @@
 # Visual style: tree of life + character
 
 Owner: Juan's Claude thread 4 (`web/assets/character/`). Guide for the web app (`web/`, Lluc).
-Status: **proposal**. Works with any of the 3 character proposals (v2: Sprig, Maple, Bea) in `proposals/` (open `proposals/index.html`).
+Status: **proposal**. Works with any of the 3 character proposals (v3 bubbles: Bo, Lumi, Dew) in `proposals/` (open `proposals/index.html`).
 
 ## 1. Principles
 
-- **Flat, rounded, friendly.** Simple shapes, soft curves, no gradients except very subtle ones on the sky. No realistic bark or textures.
+- **Flat, rounded, friendly.** Simple shapes, soft curves, no gradients except very subtle ones on the sky and on the character. No realistic bark or textures.
 - **One outline for everything:** `#2B2620`, 4px at 200px character height (scale proportionally), `stroke-linecap: round; stroke-linejoin: round`. The character and the tree must look drawn by the same hand.
-- **Health is shown, not told:** colour and posture of leaves change with financial health; the number is always also shown as text (accessibility, transparency).
+- **Health is shown, not told:** colour and posture of leaves (and the character's colour and shape) change with financial health; the number is always also shown as text (accessibility, transparency).
 - **The character never points at an option as "the best".** When it points, it points at the leaf/panel it is explaining, never a branch by itself.
 
 ## 2. Palette
@@ -52,7 +52,7 @@ Health mapping (same for tree and character): use the engine's health score, thr
 **Trunk (today).** One smooth, slightly curved tapered shape in `--wood`, no bark texture. On it, a rounded label (card) with the health indicator: three small pills (liquidity months · debt ratio · goal feasibility). Trunk width can grow a little with net worth (cap ×1.3).
 
 **Branches (decisions).**
-- Chosen path: `--wood`, stroke 10–14px with ink outline, ends in a round foliage cloud (a "cloud of circles", as in Maple's canopy: draw circles with 8px ink stroke first, then same circles without stroke on top) coloured by that node's health.
+- Chosen path: `--wood`, stroke 10–14px with ink outline, ends in a round foliage cloud (a "cloud of circles": draw circles with 8px ink stroke first, then same circles without stroke on top) coloured by that node's health.
 - Visible options (siblings/children): same shape, 70% thickness.
 - **Not chosen (grey):** `--ghost` wood and foliage, outline `--ink` at 35% opacity, foliage without fruits, `opacity: .65`. Still clickable (hover: back to 90% opacity + tooltip "compare"). Never red, never crossed out: a ghost branch is "a road you can still compare", not "wrong".
 - Pruned branches simply fade out (300 ms) — no falling animation, to keep it calm.
@@ -71,11 +71,13 @@ Health mapping (same for tree and character): use the engine's health score, thr
 
 ## 4. Character in the scene
 
-- Size: ~120–160 px tall on desktop, 90 px mobile. Stands on the ground line next to the trunk at rest.
-- When a leaf is explained: walks (translateX with a 2-step bob) to the leaf panel's side, switches to the **explaining** pose (arm toward the panel, mouth opens while audio plays), then returns.
-- Health state of the character = health of the **currently selected node**.
-- SVG group ids (same for all proposals): `#character #legs #arm-left #arm-right #body #head #leaves #face #eyes #mouth #extras`. Animation plan: blink (scaleY on `#eyes`), leaves sway (rotate `#leaves`), mouth toggle while speaking, idle bob on `#character`, walking (alternate `#legs`), head tilt (rotate `#head`).
-- Respect `prefers-reduced-motion`: no walking, only cross-fade between poses.
+The character is **not a tree**: it is a small friendly bubble that lives next to the tree (proposals v3: Bo, Lumi, Dew). It is the only element with a soft radial gradient and a white shine, so it reads as "the guide", separate from the flat tree.
+
+- Size: ~110–150 px tall on desktop, 80 px mobile. Floats next to the trunk at rest, with its soft shadow on the ground line.
+- When a leaf is explained: glides (translateX/Y, ease-in-out, ~600 ms) to the leaf panel's side, switches to the **explaining** pose (leans toward the panel, points with a floating hand, mouth opens while audio plays), then floats back.
+- Health state of the character = health of the **currently selected node**. Healthy: own colour + sparkles. Fair: yellow-olive, slightly squashed. Weak: beige-grey, deflated, worried face, sweat drop. Same health colours as the foliage.
+- SVG group ids (same for all proposals): `#character #shadow #float #body #face #eyes #mouth #hand-left #hand-right #extras`. Animation plan: float (translateY on `#float`, 2.4 s loop) while `#shadow` scales slightly, blink (scaleY on `#eyes`), mouth toggle while speaking, squash on landing (scale on `#body`), hands bob out of phase.
+- Respect `prefers-reduced-motion`: no gliding or floating, only cross-fade between poses.
 - Files: `proposals/<name>-<healthy|fair|weak>-<idle|explaining>.svg`.
 
 ## 5. Type
