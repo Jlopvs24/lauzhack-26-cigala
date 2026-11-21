@@ -185,17 +185,19 @@ export async function createScene({ world, labels, onTagClick }) {
       const step = tt.h * 0.6 + 6, W2 = VW(), narrow = W2 < 720;
       const cands = [[0, 0]];
       for (let k = 1; k <= (narrow ? 7 : 4); k++) cands.push([0, -k * step], [0, k * step]);
-      if (narrow) { // phones: a card may also slide sideways (staying on screen)
+      { // a card may also slide sideways (staying on screen)
         const sx = tt.w * 0.55 + 6;
-        for (const dx of [-sx, sx]) for (let k = 0; k <= 5; k++) for (const dy of k ? [-k * step, k * step] : [0]) cands.push([dx, dy]);
+        for (const dx of [-sx, sx]) for (let k = 0; k <= (narrow ? 5 : 3); k++) for (const dy of k ? [-k * step, k * step] : [0]) cands.push([dx, dy]);
       }
       if (p.t.slot) cands.unshift(p.t.slot);
       let best = null;
       const lo = p.t.w / 2 + 8, hi = W2 - p.t.w / 2 - 8; // a card is slid fully on screen, never dropped for touching an edge
+      // the whole card stays between the header and the bottom edge (not just its centre)
+      const yLo = minY + tt.h / 2, yHi = Math.max(yLo, VH() - 8 - tt.h / 2);
       for (let [dx, dy] of cands) {
-        const x = narrow ? p.x + dx : Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)), y = p.y + dy;
-        dx = x - p.x;
-        if (y < minY || y > maxY || x < lo || x > hi) continue; // phones: sideways candidates cover the edges
+        const x = narrow ? p.x + dx : Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)), y = Math.min(Math.max(p.y + dy, yLo), yHi);
+        dx = x - p.x; dy = y - p.y;
+        if (x < lo || x > hi) continue; // phones: sideways candidates cover the edges
         const r = rectAt(x, y, tt);
         const cost = taken.reduce((c, q) => c + overlap(r, q), 0) + fixed.reduce((c, q) => c + overlap(r, q), 0);
         if (cost === 0) { best = { dx, dy, r, cost }; break; }
@@ -210,7 +212,8 @@ export async function createScene({ world, labels, onTagClick }) {
       } else if (best.cost > 0) {
         // no free slot: try the name only (a small pill) before fading a grey alternative, or before
         // letting an option overlap another card on a phone
-        const small = (p.t.status === 'sibling' || p.t.status === 'child') && p.t.hc ? { ...p.t, h: p.t.hc } : null;
+        // (desktop options always stay full cards: there is room to move them instead)
+        const small = (p.t.status === 'sibling' || (narrow && p.t.status === 'child')) && p.t.hc ? { ...p.t, h: p.t.hc } : null;
         const fit = small && cands.map(([dx, dy]) => [narrow ? dx : Math.min(Math.max(p.x + dx, lo), Math.max(lo, hi)) - p.x, dy])
           .map(([dx, dy]) => [dx, dy, rectAt(p.x + dx, p.y + dy, small)])
           .find(([dx, dy, r]) => r.top >= minY && r.bottom <= maxY + 40 && r.left >= 4 && r.right <= W2 - 4
