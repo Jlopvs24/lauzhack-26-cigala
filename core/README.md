@@ -4,15 +4,28 @@ Deterministic, tested engine behind every number in the app. Python 3.12 + numpy
 
 ```bash
 pip install numpy pytest
-python -m pytest core/tests -q          # 26 tests: identities, edge cases, seeds, UBS starter kit, tree, weather
+python -m pytest core/tests -q          # identities, edge cases, seeds, UBS starter kit, tree, weather, exploration
 python -m core.examples.generate        # regenerate core/examples/*.json (real outputs, used in docs/contracts.md)
 ```
 
 ```python
 import core
 core.expand(profile, ["2", "2.2"], [{"id": "AS-alexia-master-tuition", "value": 8000}], ["recession"])
-core.simulate(profile, {"node_id": "2"}, None, ["job_loss"])
+core.simulate(profile, {"node_id": "2"}, None, ["job_loss"])               # deterministic + exploration
+core.simulate(profile, {"node_id": "2"}, None, None, uncertainty=True)     # adds the optional Monte Carlo lens
 ```
+
+## Exploration first (issue #21)
+
+Every result is first a deterministic "if these inputs hold, then..." path under visible assumptions. On top of it, `explore.py` answers "what would have to be true" questions by re-running the same engine with one input moved (`result.exploration`, current node only):
+
+- **levers**: the assumptions that move this node most (deterministic tornado); any of them can be overridden per request.
+- **break-even**: against each sibling, the month this branch gets and stays ahead, and the value of its income assumption at which both branches end level.
+- **goal-seek**: the extra monthly income needed to meet each dated goal.
+- **reverse stress**: the smallest one-off cost in month 0 that makes cash negative or misses a goal.
+- **timing**: the same decision 12 or 24 months later (path dependence).
+
+Method limits: thresholds come from a 9-point grid then bisection to 0.01, assuming the margin increases with the lever (otherwise `non_monotone` and no value); income/cost searches stop at CHF 1,000,000; goal-seek income starts in month 0 and is indexed like other income; reverse-stress costs fall in month 0. Weather scenarios stay named deterministic what-ifs.
 
 Shapes: `docs/contracts.md` (v1). Tree content: `core/data/trees/alexia.json` (example, editable data). Default assumptions with sources: `core/data/assumptions_ch.json`.
 
@@ -25,11 +38,11 @@ State per path: cash `C`, investments `I` (one balanced portfolio), debts `D` (f
 3. planned investment contribution moved from cash to investments if cash allows (a transfer: net worth unchanged);
 4. if cash < 0, investments are sold to cover it (`AS-auto-liquidate`); remaining negative cash = unfunded financing need (UBS starter-kit convention), flagged in `first_negative_month` / `shortfall_probability`.
 
-Identities verified on every run and returned in `checks`: cash flow, net-worth change, balance sheet (`NW = C + I − D`), investment account, no negative debt/investments, ordered bands, every assumption sourced.
+Identities verified on every run and returned in `checks`: cash flow, net-worth change, balance sheet (`NW = C + I − D`), investment account, no negative debt/investments, ordered bands (lens on only), every assumption sourced.
 
-## Uncertainty (Monte Carlo, per visible node)
+## Optional uncertainty lens (Monte Carlo, off by default)
 
-1,000 paths, seed 42, vectorised over paths (~50-90 ms per node; the tornado adds ~0.1 s: every low/high variant runs in one batched pass, 100 paths each, sharing the same random draws). Random: annual inflation (normal, clipped), monthly portfolio returns (lognormal with the stated mean/volatility), job loss (monthly hazard from the annual probability, geometric spell length, income replaced by unemployment insurance), unexpected expenses (Poisson-like, exponential size). The deterministic path uses central values and no random shocks. Shocks are independent (no correlation between inflation, returns and job loss) — a stated simplification.
+Only with `uncertainty=True`: 1,000 paths, seed 42, vectorised over paths (~50-90 ms per node). Results stay conditional on the assumptions: shares of simulated paths, not real-world probabilities. The tornado is deterministic (one batched pass). Random: annual inflation (normal, clipped), monthly portfolio returns (lognormal with the stated mean/volatility), job loss (monthly hazard from the annual probability, geometric spell length, income replaced by unemployment insurance), unexpected expenses (Poisson-like, exponential size). The deterministic path uses central values and no random shocks. Shocks are independent (no correlation between inflation, returns and job loss) — a stated simplification.
 
 ## Simplifications (documented on purpose)
 
@@ -51,5 +64,6 @@ Identities verified on every run and returned in `checks`: cash flow, net-worth 
 | `weather.py` | recession / inflation / market crash / job loss |
 | `analysis.py` | metrics, goals, health, accounting checks |
 | `simulate.py` | one node → SimulationResult, sensitivity tornado |
+| `explore.py` | levers, break-even, goal-seek, reverse stress, timing (deterministic) |
 | `tree.py` | lazy tree with pruning, `expand`, `simulate` |
 | `starter.py` | UBS starter-kit bridge (reproduces its results exactly) |

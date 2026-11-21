@@ -172,14 +172,18 @@ DELTA_KEYS = ("final_net_worth", "final_net_worth_p50", "min_cash", "shortfall_p
 def expand(profile: dict | None = None, path: list[str] | str | None = None,
            assumptions: list[dict] | dict | None = None, weather: list | None = None, *,
            tree: dict | None = None, n_paths: int = DEFAULT_PATHS, seed: int = DEFAULT_SEED,
-           sensitivity: bool = True, include_flows: bool = False) -> dict:
+           sensitivity: bool = True, include_flows: bool = False,
+           uncertainty: bool = False, exploration: bool = True) -> dict:
     """Visible part of the tree for the chosen ``path``, each node with its SimulationResult.
 
     path: chosen node ids from the root, e.g. [], ["2"], ["2", "2.2"] (a leading "0" is ignored).
     assumptions: overrides, ``[{"id": ..., "value": ...}]`` or ``{id_or_param: value}``.
     weather: ``["recession", ...]`` or ``[{"type": "recession", "start_month": 6}]``; applied to
     every visible node so comparisons stay like-for-like.
-    Sensitivity (tornado) and monthly flows are computed for the current node only.
+    Sensitivity (tornado), monthly flows and ``exploration`` (deterministic break-even
+    against the current node's siblings, goal-seek, reverse stress, timing) are computed
+    for the current node only. ``uncertainty=True`` adds the optional Monte Carlo lens to
+    every visible node; off by default.
     ``pruned_nodes`` lists the branches turned away from earlier (siblings of every
     ancestor), label only, never simulated.
     """
@@ -199,7 +203,8 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
         nid = str(node["node_id"])
         is_cur = nid == current
         results[nid] = _cached_simulate(prof, tree, nid, aset, wx, n_paths, seed,
-                                        sensitivity=sensitivity and is_cur, include_flows=include_flows or is_cur)
+                                        sensitivity=sensitivity and is_cur, include_flows=include_flows or is_cur,
+                                        uncertainty=uncertainty, exploration=exploration and is_cur)
 
     nodes = []
     for node, status, parent in vis:
@@ -208,7 +213,8 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
         delta = None
         if parent is not None and parent in results:
             pm, m = results[parent]["metrics"], res["metrics"]
-            delta = {k: round(m[k] - pm[k], 3 if k == "shortfall_probability" else 2) for k in DELTA_KEYS}
+            delta = {k: (round(m[k] - pm[k], 3 if k == "shortfall_probability" else 2)
+                         if m[k] is not None and pm[k] is not None else None) for k in DELTA_KEYS}
             delta["health_score"] = round(res["health"]["score"] - results[parent]["health"]["score"], 1)
         ivs = node.get("interventions", []) or []
         nodes.append({
@@ -245,15 +251,32 @@ def normalise_weather(weather: list | None) -> list[dict]:
     return [{"type": w} if isinstance(w, str) else dict(w) for w in weather or []]
 
 
+def comparators(tree: dict, node_id: str) -> list[dict]:
+    """The node's siblings, each with its flattened interventions (break-even peers)."""
+    idx = _index(tree)
+    parent = idx[node_id][1]
+    if parent is None:
+        return []
+    return [{"node_id": str(s["node_id"]), "label": s.get("label", str(s["node_id"])),
+             "interventions": flatten_interventions(tree, str(s["node_id"]))}
+            for s in idx[parent][0].get("children", []) or [] if str(s["node_id"]) != node_id]
+
+
 def _cached_simulate(prof: Profile, tree: dict, node_id: str, aset: AssumptionSet,
-                     weather, n_paths, seed, *, sensitivity: bool, include_flows: bool) -> dict:
+                     weather, n_paths, seed, *, sensitivity: bool, include_flows: bool,
+                     uncertainty: bool = False, exploration: bool = False) -> dict:
     ivs = flatten_interventions(tree, node_id)
-    key = trace_id(prof.raw, ivs, aset.to_list(), weather, n_paths, seed, sensitivity, include_flows, node_id)
+    peers = comparators(tree, node_id) if exploration else []
+    key = trace_id(prof.raw, ivs, aset.to_list(), weather, n_paths, seed, sensitivity, include_flows, node_id,
+                   uncertainty, exploration, peers)
     if key in _CACHE:
         _CACHE.move_to_end(key)
         return _CACHE[key]
     res = simulate_node(prof, ivs, assumptions=aset, weather=weather, node_id=node_id, n_paths=n_paths,
-                        seed=seed, sensitivity=sensitivity, include_flows=include_flows)
+                        seed=seed, sensitivity=sensitivity, include_flows=include_flows,
+                        uncertainty=uncertainty, exploration=exploration,
+                        own_interventions=_index(tree)[node_id][0].get("interventions", []) or [],
+                        comparators=peers)
     _CACHE[key] = res
     if len(_CACHE) > _CACHE_MAX:
         _CACHE.popitem(last=False)
@@ -263,8 +286,9 @@ def _cached_simulate(prof: Profile, tree: dict, node_id: str, aset: AssumptionSe
 def simulate(profile: dict | None = None, node: dict | str | None = None,
              assumptions: list[dict] | dict | None = None, weather: list | None = None, *,
              tree: dict | None = None, n_paths: int = DEFAULT_PATHS, seed: int = DEFAULT_SEED,
-             sensitivity: bool = True) -> dict:
-    """One SimulationResult. ``node`` is a node id of the tree, ``{"node_id": ...}`` (looked up
+             sensitivity: bool = True, uncertainty: bool = False, exploration: bool = True) -> dict:
+    """One SimulationResult (deterministic; ``uncertainty=True`` adds the Monte Carlo lens,
+    ``exploration=True`` adds the what-would-have-to-be-true analyses). ``node`` is a node id of the tree, ``{"node_id": ...}`` (looked up
     in the tree, interventions inherited from its ancestors) or ``{"node_id": ..., "parent_id": ...,
     "interventions": [...]}`` for a node not in the tree (applied on top of its parent's path)."""
     tree = tree or load_tree()
@@ -275,12 +299,21 @@ def simulate(profile: dict | None = None, node: dict | str | None = None,
     idx = _index(tree)
     if nid in idx and node.get("interventions") is None:
         ivs = flatten_interventions(tree, nid)
+        own = idx[nid][0].get("interventions", []) or []
+        peers = comparators(tree, nid) if exploration else []
     else:
         parent = node.get("parent_id")
-        ivs = flatten_interventions(tree, str(parent)) if parent is not None and str(parent) in idx else []
-        ivs = ivs + list(node.get("interventions") or [])
+        known = parent is not None and str(parent) in idx
+        base = flatten_interventions(tree, str(parent)) if known else []
+        own = list(node.get("interventions") or [])
+        ivs = base + own
+        # a custom option is compared with staying on its parent's path
+        peers = ([{"node_id": str(parent), "label": idx[str(parent)][0].get("label", str(parent)),
+                   "interventions": base}] if known and exploration else [])
     return simulate_node(profile, ivs, assumptions=aset, weather=normalise_weather(weather),
-                         node_id=nid, n_paths=n_paths, seed=seed, sensitivity=sensitivity)
+                         node_id=nid, n_paths=n_paths, seed=seed, sensitivity=sensitivity,
+                         uncertainty=uncertainty, exploration=exploration, own_interventions=own,
+                         comparators=peers)
 
 
 def node_info(node_id: str, tree: dict | None = None) -> dict:
