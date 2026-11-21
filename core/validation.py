@@ -94,7 +94,7 @@ def _isolated():
     leak = {x["id"]: x["value"] for x in plain["assumptions_used"]}["AS-investment-return"]
     ok = base["metrics"] == moved["metrics"] and leak != {x["id"]: x["value"] for x in eq["assumptions_used"]}["AS-investment-return"]
     return (ok, "Changing the cost of moving abroad leaves 'Start working' untouched, and the riskier portfolio "
-                "chosen in 1.2.3 does not leak into its sibling 1.2.1.",
+                "chosen in 'More equities' does not leak into its sibling 'Stay the course'.",
             {"unrelated_override": {"node": "1", "assumption": "AS-alexia-move-cost", "value": 9000,
                                     "metrics_identical": base["metrics"] == moved["metrics"]},
              "decision_scope": {"node": "1.2.3", "sibling": "1.2.1", "sibling_return": leak}})
@@ -129,6 +129,104 @@ def _search_verified():
              "gap_at_threshold_chf": round(gap_at, 2), "gap_one_chf_below": round(gap_below, 2)})
 
 
+# ---------------------------------------------------------------- personal branches (chat / Make it mine)
+# The same guarantees on what the user adds: a custom branch (a new option under a node) and patches on an
+# existing branch, with the shapes the chat produces (add, set, mul, a new loan, several changes at once).
+PERSONAL_BRANCH = {"parent_id": "2", "node_id": "2.c1", "label": "Scholarship + cheaper room", "custom": True,
+                   "interventions": [
+                       {"param": "monthly_net_income", "op": "add", "value": 600, "from_month": 0, "to_month": 24,
+                        "label": "Scholarship"},
+                       {"param": "monthly_rent", "op": "mul", "value": 0.9, "from_month": 0, "to_month": 120,
+                        "label": "Rent -10%"}]}
+PERSONAL_PATCHES = {
+    "1.2": [{"param": "monthly_investment_contribution", "op": "set", "value": 300, "from_month": 0, "to_month": 120,
+             "label": "Invest CHF 300 a month"},
+            {"param": "monthly_other_expenses", "op": "add", "value": -200, "from_month": 0, "to_month": 120,
+             "label": "Save CHF 200 more a month"}],
+    "2": [{"param": "monthly_net_income", "op": "mul", "value": 0.8, "from_month": 24, "to_month": 120,
+           "label": "Work at 80%"},
+          {"param": "new_liability", "month": 0, "liability": {"type": "student_loan", "label": "Family loan",
+                                                               "principal": 5000, "annual_rate": 0.0,
+                                                               "monthly_payment": 150, "payment_start_month": 24}}],
+}
+
+
+def _p(node, custom=None, patches=None, **kw):
+    return simulate(None, node, None, sensitivity=False, exploration=False, custom_nodes=custom, node_patches=patches, **kw)
+
+
+def _under(nid, roots):
+    return any(nid == r or nid.startswith(r + ".") for r in roots)
+
+
+def _personal_identities():
+    ids = list(_index(load_tree()))
+    runs = [("2.c1", _p("2.c1", [PERSONAL_BRANCH]))]
+    runs += [(nid, _p(nid, None, PERSONAL_PATCHES)) for nid in ids if _under(nid, PERSONAL_PATCHES)]
+    failed, worst = [], 0.0
+    for nid, r in runs:
+        for c in r["checks"]:
+            worst = max(worst, float(c.get("max_abs_error") or 0.0))
+            if not c["passed"]:
+                failed.append(f"{nid}:{c['name']}")
+    return (not failed, f"A custom branch and two patched branches (with every node below them, {len(runs)} runs) "
+                        f"keep all accounting identities; largest error CHF {worst:.2f}.",
+            {"custom_branch": PERSONAL_BRANCH["node_id"], "patched": sorted(PERSONAL_PATCHES), "runs": len(runs),
+             "failed": failed, "max_abs_error_chf": round(worst, 6)})
+
+
+def _personal_isolated():
+    ids = list(_index(load_tree()))
+    leaks, changed = [], []
+    for nid in ids:
+        base = _p(nid)["metrics"]
+        if _p(nid, [PERSONAL_BRANCH])["metrics"] != base:
+            leaks.append(f"custom->{nid}")
+        moved = _p(nid, None, PERSONAL_PATCHES)["metrics"] != base
+        if moved and not _under(nid, PERSONAL_PATCHES):
+            leaks.append(f"patch->{nid}")
+        if moved:
+            changed.append(nid)
+    expected = [i for i in ids if _under(i, PERSONAL_PATCHES)]
+    ok = not leaks and sorted(changed) == sorted(expected)
+    return (ok, f"Adding the custom branch changes no other node, and the patches change exactly the patched branches "
+                f"and the nodes below them ({len(expected)} of {len(ids)}), nothing else.",
+            {"leaks": leaks, "changed": sorted(changed), "expected": sorted(expected), "nodes": len(ids)})
+
+
+def _personal_monotone():
+    levels, factors = [0, 200, 400, 800], [0.9, 1.0, 1.1, 1.2]
+
+    def branch(extra, rent=1.0):
+        ivs = [{"param": "monthly_net_income", "op": "add", "value": extra, "from_month": 0, "to_month": 120,
+                "label": "Extra income"},
+               {"param": "monthly_rent", "op": "mul", "value": rent, "from_month": 0, "to_month": 120, "label": "Rent"}]
+        return [{**PERSONAL_BRANCH, "interventions": ivs}]
+    inc = [_p("2.c1", branch(v))["deterministic"]["cash"] for v in levels]
+    rent = [_p("2.c1", branch(0, f))["deterministic"]["cash"] for f in factors]
+    up = all(all(y >= x - 1e-6 for x, y in zip(a, b)) for a, b in zip(inc, inc[1:]))
+    down = all(all(y <= x + 1e-6 for x, y in zip(a, b)) for a, b in zip(rent, rent[1:]))
+    strict = all(b[-1] > a[-1] for a, b in zip(inc, inc[1:]))
+    return (up and down and strict, "On a personal branch, more income never lowers cash and a higher rent never "
+                                    "raises it, in any month (four levels each).",
+            {"node": "2.c1", "extra_income_levels": levels, "final_cash_by_income": [round(c[-1], 2) for c in inc],
+             "rent_factors": factors, "final_cash_by_rent": [round(c[-1], 2) for c in rent],
+             "cash_never_lower_with_more_income": up, "cash_never_higher_with_more_rent": down})
+
+
+def _personal_reproducible():
+    strip = lambda r: {k: v for k, v in r.items() if k != "timing_ms"}  # noqa: E731
+    a = _p("2.c1", [PERSONAL_BRANCH], PERSONAL_PATCHES, uncertainty=True, n_paths=300, seed=7)
+    b = _p("2.c1", [PERSONAL_BRANCH], PERSONAL_PATCHES, uncertainty=True, n_paths=300, seed=7)
+    c = _p("1.2.1", None, PERSONAL_PATCHES, uncertainty=True, n_paths=300, seed=7)
+    d = _p("1.2.1", None, PERSONAL_PATCHES, uncertainty=True, n_paths=300, seed=7)
+    same = strip(a) == strip(b) and strip(c) == strip(d)
+    return (same, "The same personal branch and patches with the same seed reproduce the identical result "
+                  "(same trace id), on the custom branch and on a node below a patch.",
+            {"custom": {"node": "2.c1", "trace_id": a["trace_id"]}, "patched": {"node": "1.2.1", "trace_id": c["trace_id"]},
+             "identical_rerun": same})
+
+
 CHECKS = [
     ("accounting_identities", "Accounting identities hold on every node", _identities),
     ("reproducibility", "Same inputs and seed reproduce the same result", _reproducible),
@@ -136,6 +234,10 @@ CHECKS = [
     ("isolation", "Branches are isolated from each other", _isolated),
     ("ubs_starter_kit", "Reproduces the UBS starter kit", _starter),
     ("search_verified", "Exploration thresholds are re-verified", _search_verified),
+    ("personal_identities", "Your own branches keep the accounting identities", _personal_identities),
+    ("personal_isolation", "Your changes never leak into other branches", _personal_isolated),
+    ("personal_monotonicity", "On your branches, more income never lowers cash", _personal_monotone),
+    ("personal_reproducibility", "Your branches reproduce exactly", _personal_reproducible),
 ]
 
 
@@ -145,5 +247,5 @@ def validation() -> dict:
     passed = sum(c["passed"] for c in checks)
     return {"engine_version": ENGINE_VERSION, "passed": passed, "total": len(checks), "all_passed": passed == len(checks),
             "duration_ms": round((time.perf_counter() - t0) * 1000, 1), "checks": checks,
-            "how": "Runs on demand against the live tree and default assumptions; the same checks run in "
-                   "python -m pytest core/tests -q."}
+            "how": "Runs on demand against the live tree and default assumptions, plus a sample custom branch and "
+                   "patches like the ones the chat creates; the same checks run in python -m pytest core/tests -q."}
