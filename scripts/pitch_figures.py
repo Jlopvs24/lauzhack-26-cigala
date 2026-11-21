@@ -205,7 +205,8 @@ def test_counts(run: bool):
     if run:
         try:
             p = subprocess.run("npm test --silent", cwd=ROOT / "web", capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, shell=True)
-            res["web"] = " · ".join(l.strip("# ").strip() for l in (p.stdout or "").splitlines() if re.match(r"# (tests|pass|fail)\b", l)) or "no summary (run npm ci?)"
+            res["web"] = " · ".join(l.lstrip("#ℹ ").strip() for l in (p.stdout or "").splitlines()
+                                    if re.match(r"(?:#|ℹ) (?:tests|pass|fail) ", l)) or "no summary"
         except subprocess.TimeoutExpired:
             res["web"] = "timed out"
     else:

@@ -2,7 +2,7 @@
 
 Submit at https://app.lauzhack.com/Participant. **One person** submits, then invites the teammate; the form stays editable until the deadline. Hard stop **Sun 22 Nov 12:00**. Rules: [`docs/challenges.md`](../challenges.md).
 
-Character counts were computed with Python `len()` on the exact strings below, without the surrounding code fences. Re-count after any edit: `python -c "print(len(open('x.txt', encoding='utf-8').read().strip()))"`.
+Character counts were computed with Python `len()` on the exact strings below, without the surrounding code fences. The descriptions quote no engine figures that can move, only the benchmark (fixed run) and facts about the method. If you add one, take it from `python scripts/pitch_figures.py`.
 
 ## Title (max 40 characters)
 
@@ -12,23 +12,29 @@ Character counts were computed with Python `len()` on the exact strings below, w
 | 2 | `Lumi: a financial twin for students` | 35 | Leads with the guide character and says exactly what it is (UBS wording: financial twin). |
 | 3 | `Tree of Life: explore your money choices` | 40 | Most descriptive; uses all 40 characters. |
 
-TODO (Juan): pick one. The README hero uses option 1; change it there too if you choose another.
+TODO (team): pick the product name. The README hero uses option 1; change it there too if you choose another.
 
 ## Short description (max 100 characters)
 
 | # | Short description | Characters | Note |
 |---|---|---:|---|
-| 1 | `A financial twin for students: explore what each life choice does to your next 10 years. Verified.` | 98 | Recommended. |
+| 1 | `A financial twin for students: explore each life choice, add your own situation, watch it re-grow.` | 98 | Recommended: names the core value-add (personal conditions). |
 | 2 | `Explore, don't predict: a verified financial twin that shows where each student life choice breaks.` | 99 | Echoes the UBS feedback. |
 | 3 | `A cinematic tree of your financial future: each branch a decision, each number from a tested engine.` | 100 | Leads with the experience. |
 
-## Long description (max 1000 characters): 949 characters
+## Long description (max 1000 characters): 956 characters
 
 ```text
-Cigala is a financial twin for students, drawn as a tree of life. Roots are who you are: a questionnaire, voice, or a payslip photo, bank statement and lease read by a frugal multimodal chain (local OCR, a small model, arithmetic checks; a vision model only when a check fails). On 60 synthetic documents: 97.7% accuracy at 154x lower cost than a frontier model, and 73% of images never leave the device. Branches are decisions you explore: a deterministic monthly engine that reproduces the UBS starter kit exactly, with editable sourced assumptions, plan check, break-even, goal-seek, reverse stress tests, timing and four weather stress scenarios. Monte Carlo is only an optional lens. Six live validation checks pass and every number has a trace id. Lumi, the guide, explains in EN/ES/FR/DE by voice and never recommends; every number it says is checked against the engine. Free, so a student network could offer it before students sign a lease.
+Cigala is a financial twin for students, drawn as a tree of life. Branches are decisions you explore with a deterministic monthly engine: Swiss payroll, official ESTV 2026 income tax by city, pillar 3a, editable sourced assumptions, plan check, break-even, reverse stress tests and four stress scenarios. It reproduces the UBS starter kit exactly, and six live checks pass. Make it mine: say your own situation ("I'd get a CHF 600/month scholarship"); a small model turns it into one change using only your numbers, you confirm, and that branch re-grows. Roots come from a questionnaire, voice, or a payslip photo read by a frugal chain (local OCR, a small model, checks; a vision model only if a check fails): 97.7% accuracy at 154x lower cost than a frontier model. Lumi explains in four languages with a local voice and never recommends; every number is checked against the engine. Free, so a student network could offer it before students sign a lease.
 ```
 
-Every claim traces to the repo: the benchmark ([`multimodal/benchmark/RESULTS.md`](../../multimodal/benchmark/RESULTS.md)), the starter-kit reproduction and the six checks ([`core/validation.py`](../../core/validation.py)), exploration ([`core/README.md`](../../core/README.md)), and number grounding and the advice guard ([`api/README.md`](../../api/README.md)).
+Every claim traces to the repo:
+
+- personal conditions: `api/README.md` (`/tree/personalize`) and `docs/contracts.md`;
+- payroll, tax and pillar 3a: `core/README.md`;
+- the starter-kit reproduction and the six checks: `core/validation.py`;
+- the benchmark: `multimodal/benchmark/RESULTS.md`;
+- number grounding and the advice guard: `api/README.md`.
 
 ## Public link
 
@@ -44,11 +50,11 @@ Every claim traces to the repo: the benchmark ([`multimodal/benchmark/RESULTS.md
 
 ## Thumbnail brief (max 300 KB)
 
-- **Content:** the photoreal tree at dawn from the web app's master still, with Lumi (the glowing guide orb) beside the trunk. One limb is lit (the chosen branch) and the others are greyed, as in the app. Optionally, a small overlay card in the app's style reads *"Plan check: Needs financing · month 7"* to hint that this is about money, not gardening.
-- **Text on the image:** the title only (for example *"Cigala"* plus *"every choice grows a tree"*), large and legible at 300 px wide. No logos of UBS, AXA or IMC, and no fake UI numbers beyond the real month-7 hook.
-- **Source:** a screenshot of the start portal or of the tree (`web/public/tree/`, master still). No new image generation is needed. Lumi's art is in `web/assets/character/guide/`.
-- **Format:** 1280 × 720 (16:9) JPEG or WebP, quality around 75. Check the size is under 300 KB: `python -c "import os; print(os.path.getsize('thumb.jpg') // 1024, 'KB')"`. If it is too big, resize to 960 × 540 or lower the quality.
-- **Save as:** `docs/submission/thumbnail.jpg` (commit it; it is also useful as the README hero).
+- **Content:** the photoreal tree at dawn from the web app's master still, with Lumi (the glowing guide orb) beside the trunk. One limb is lit (the chosen branch) and the others are greyed, as in the app. Optionally, a small card in the app's style shows the *Make it mine* chip: *"+CHF 600/month scholarship"*, to hint at money and personalisation.
+- **Text on the image:** the title only, large and legible at 300 px wide. No logos of UBS, AXA or IMC, and no engine numbers that might change.
+- **Source:** a screenshot of the start portal or of the tree (`web/public/tree/`, master still). Lumi's art is in `web/assets/character/guide/`. No new image generation is needed.
+- **Format:** 1280 × 720 (16:9) JPEG or WebP, quality around 75. Check the size: `python -c "import os; print(os.path.getsize('thumb.jpg') // 1024, 'KB')"` must print 300 or less. If it is too big, resize to 960 × 540 or lower the quality.
+- **Save as:** `docs/submission/thumbnail.jpg` and commit it.
 
 ## After submitting
 
