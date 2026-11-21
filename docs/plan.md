@@ -77,6 +77,14 @@ The user can attach their OWN conditions to any branch, in words or voice, and t
 - **Flow**: chat/voice/text → `POST /tree/personalize` (LLM parses into the intervention schema using only the node's levers/assumptions; numbers come from the user, never invented; validation + ranges; asks one clarifying question if needed) → proposal chip the user confirms → `POST /tree/expand` with `custom_nodes` / `node_patches` → branch re-grows, custom items marked, siblings re-compared, report and Lumi include the conditions. Session-persisted.
 - **Ownership**: core support for `custom_nodes` / `node_patches` (thread 1, with Lluc's OK since he owns core/) · `/tree/personalize` + agent tool (thread 2) · proposal/confirm UI component in `web/src/personalize/` (thread 7) mounted by the scene (thread 6).
 
+## Comparing options (DECIDED 21:00, user feedback)
+
+Feedback: "Do I enter one option, then another, and compare in my head? Where is the impact of each option on its own?"
+- **Comparative cards**: the option cards at a node compare against each other (position on a shared scale for the headline metric, delta chips vs the other options, plan-check colour), not stand-alone numbers.
+- **Impact alone**: each option shows what its own decision changes vs its parent and vs today.
+- **"+ Add to comparison" (spec-sheet comparator)**: from any card or final report, add up to 4 paths to a compare bar; the comparison page shows one column per path, rows grouped by outcome / what would have to be true / stress / differing assumptions / your conditions, highest/lowest highlighted (never "best"), "show only differences", overlay chart. Data: `POST /tree/compare`.
+- Ownership: UI in `web/src/compare/` (thread 10), API (thread 2), mounts in the scene (thread 6) and report header (thread 7).
+
 ## Demo persona (DECIDED)
 
 **Alexia** (UBS kit): fictional 20-year-old student in Lausanne, CHF 8,000 savings, choosing between start working / master's / move abroad. Represents any student. The UBS starter kit already shows the master's path runs out of cash in month 7 — a good hook.
