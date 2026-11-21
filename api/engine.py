@@ -134,3 +134,9 @@ def warm(profile: dict | None = None) -> None:
         t0 = __import__("time").perf_counter()
         fn(profile)
         log.info("core.warm done in %.1f s", __import__("time").perf_counter() - t0)
+
+
+def validation_fn():
+    """core.validation() (PR #40) if available: live accounting/reproducibility/monotonicity/isolation checks."""
+    fn = getattr(_CORE, "validation", None) if _CORE else None
+    return fn if callable(fn) else None
