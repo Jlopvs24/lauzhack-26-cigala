@@ -28,6 +28,19 @@ UBS judging (draft): modelling correctness 25 · scenario/counterfactual explora
 
 An original little tree/sprout character, friendly and simple. It **never recommends or decides**: it explains possibilities and trade-offs so the user decides. Talks by text and audio; the user can type, send voice notes, or call it (conversational mode). Must be an original design (own silhouette, proportions, palette, name) — not a copy of any existing franchise character.
 
+## Frontend experience (DECIDED 14:15, iterate until perfect)
+
+- The screen IS a tree. Once the roots/trunk are defined, the options appear as real branches growing from the trunk.
+- Choosing an option **zooms the camera into that branch**; its sub-options grow from it. Going back **zooms out** to the parent. Siblings stay visible but greyed. Smooth, physical, interruptible motion.
+- The leaf opens the report (metrics, sibling comparison, bands, assumptions, checks).
+- Design bar: "perfect", not a generic dashboard. Use the design skills (impeccable, emil-design-eng/animate/choreograph, taste-skill).
+
+## Voice and conversation (DECIDED 14:15)
+
+- The character shows its explanation in a **speech bubble** and in the **report**, and **reads its bubble aloud** at the same time (TTS).
+- The user can talk back three ways: **type** in a chat, **record and send a voice note** (mic), or **call** the character (realtime conversational model, interruptible).
+- Numbers always come from the engine; the character never recommends.
+
 ## Demo persona (DECIDED)
 
 **Alexia** (UBS kit): fictional 20-year-old student in Lausanne, CHF 8,000 savings, choosing between start working / master's / move abroad. Represents any student. The UBS starter kit already shows the master's path runs out of cash in month 7 — a good hook.
@@ -41,7 +54,7 @@ An original little tree/sprout character, friendly and simple. It **never recomm
 ## OPEN
 
 - Exact questionnaire questions and decision tree content (next discussion).
-- Voice provider (browser speech APIs vs. a TTS/STT model on Together/OpenRouter).
+- Realtime call provider (thread 2 researching).
 - Character design and name.
 - Demo script and pitch (Sunday morning).
 
