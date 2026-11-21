@@ -180,3 +180,20 @@ export function compareLevels(data) {
       ...st.alternatives.map((a) => ({ node_id: a.node_id, label: a.label, description: a.description, chosen: false, ...a.summary }))],
   }));
 }
+
+// Where (and as what household) income is taxed, one line per stretch of months (core #48 item 3).
+// A Lausanne fallback (no table for the user's place) is flagged, never hidden.
+export function taxSegments(segments = [], lang = 'en', assumptions = []) {
+  const L = ri(lang);
+  const rateA = assumptions.find((a) => a.id === 'AS-tax-abroad-rate'), abroadRate = rateA?.value;
+  return (segments || []).map((g) => {
+    const months = Number.isFinite(g.from_month) && Number.isFinite(g.to_month) ? L.taxMonths(g.from_month + 1, g.to_month) : '';
+    if (g.taxed === false) return { key: `${g.from_month}-none`, place: L.taxNone, household: '', months, fallback: false, abroad: false };
+    const abroad = !!g.country && g.country !== 'CH';
+    return {
+      key: `${g.from_month}-${g.city || g.country}`, months, abroad, fallback: !!g.fallback, unverified: abroad && rateA?.verified === false,
+      place: abroad ? L.taxAbroad(Number.isFinite(abroadRate) ? `${Math.round(abroadRate * 1000) / 10}%` : '') : L.taxCH(g.city || 'Lausanne', g.canton),
+      household: L.household[g.household] || g.household || '',
+    };
+  });
+}
