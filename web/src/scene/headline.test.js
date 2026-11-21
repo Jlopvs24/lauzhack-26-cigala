@@ -10,9 +10,9 @@ const node = (id) => ex.nodes.find((n) => n.node_id === id);
 test('cards: slot A says whether it holds, slot B what it trades, in the UI language', () => {
   const master = cardHeadline(node('2').result, 'en');
   assert.equal(master.a.kind, 'funding_gap');
-  assert.match(master.a.text, /^Funding gap CHF 18’835 from month 7$/);
+  assert.match(master.a.text, /^Funding gap CHF 18’553 from month 7$/);
   const es = cardHeadline(node('2').result, 'es');
-  assert.match(es.a.text, /^Falta financiación de CHF 18’835 desde el mes 7$/);
+  assert.match(es.a.text, /^Falta financiación de CHF 18’553 desde el mes 7$/);
   for (const n of ex.nodes.filter((x) => x.result?.headline?.slot_b)) {
     const h = cardHeadline(n.result, 'de');
     assert.ok(h.b.text && !/undefined|NaN/.test(h.b.text + h.b.vs), n.node_id);

@@ -408,3 +408,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .verified-badge em, .verified-badge i { font-style: normal; }
 .verified-badge i { display: none; }
 @media (max-width: 720px) { .verified-badge { padding: 6px 10px; font-size: 12px; flex: none; order: -1; } .verified-badge em { display: none; } .verified-badge i { display: inline; } }
+
+/* personal conditions: chip under Lumi's bubble, custom branches marked, the branch re-grows */
+.say-col { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
+.narration.right .say-col { align-items: flex-end; }
+.pz-mount { pointer-events: auto; max-width: min(420px, calc(100vw - 32px)); }
+.tag.custom .card { border-color: var(--leaf); box-shadow: 0 0 0 1px var(--leaf), 0 12px 40px rgba(0, 0, 0, 0.18); }
+.tag.custom .card::before { content: attr(data-badge); display: inline-block; margin-bottom: 4px; padding: 2px 8px; border-radius: 999px; background: var(--leaf); color: #14201a; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+#stage.regrowing::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background: radial-gradient(60% 50% at 50% 55%, rgba(190, 235, 150, 0.32), transparent 70%); animation: regrow-glow 1.6s var(--ease) forwards; }
+@keyframes regrow-glow { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }

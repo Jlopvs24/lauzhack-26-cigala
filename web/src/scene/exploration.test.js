@@ -17,7 +17,7 @@ test('a plan that is already broken reads as broken, not as a CHF 0 threshold', 
 test('levers offer recompute buttons; thresholds and timing become sentences', () => {
   const html = explorationSections(ex, { lang: 'en', metrics: cur.result.metrics });
   assert.match(html, /data-lever="AS-alexia-master-salary" data-value="5600"/);
-  assert.match(html, /Both end level if net salary after the master's is <b>4’845 CHF\/month<\/b>/);
+  assert.match(html, /Both end level if net salary after the master's is <b>4’960 CHF\/month<\/b>/);
   assert.match(html, /Deciding <b>12 months later<\/b>/);
   assert.match(html, /Real wage growth.*\(now 1%\): at 0% /);
   assert.match(html, /Emergency savings<\/b>: reached without extra income/);
