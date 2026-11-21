@@ -971,6 +971,13 @@ def trim_history(history: list | None) -> tuple[list[dict], int]:
     return kept, len(clean) - len(kept)
 
 
+def _answered_by(model: str | None, primary: str | None) -> dict:
+    """Which model actually answered, and whether a fallback was used (logged for the frugality / privacy story)."""
+    fallback = bool(model and primary and model != primary and model != "template")
+    log.info("agent answered_by=%s primary=%s fallback_used=%s", model or "template", primary, fallback)
+    return {"primary_model": primary, "fallback_used": fallback}
+
+
 def llm_status() -> dict:
     return {"available": llm.available(), "models": llm.models()}
 
@@ -1078,6 +1085,7 @@ def ask(question: str, ctx: dict) -> dict:
         "history_used": len(history),
         "history_dropped": dropped,
         "personalize": box.proposal,  # a proposal for the UI's confirm chip, or None
+        **_answered_by(used_model, llm.models()[0]),
     }
 
 
@@ -1127,8 +1135,9 @@ def ask_stream(question: str, ctx: dict):
         return
     box = Toolbox(ctx)
     node_id = ctx.get("node_id") or (ctx.get("path") or ["0"])[-1]
-    # Fastest first token measured (~1.3 s vs ~2 s for qwen); override with AGENT_STREAM_MODEL.
-    stream_model = os.environ.get("AGENT_STREAM_MODEL", "anthropic/claude-haiku-5.5") or None
+    # Default: the same open-weight Qwen as every other path (llm.DEFAULT_MODEL); proprietary models only as
+    # fallbacks when the call fails (ask() with the normal chain). Override with AGENT_STREAM_MODEL.
+    stream_model = os.environ.get("AGENT_STREAM_MODEL") or llm.models()[0]
     cost, tokens, used_model, error = 0.0, {"prompt": 0, "completion": 0}, stream_model, None
     sent_out: list[str] = []
     dropped_sents: list[str] = []
@@ -1230,4 +1239,5 @@ def ask_stream(question: str, ctx: dict):
            "cited_nodes": sorted({c["result"].get("node_id") for c in box.calls if c["result"].get("node_id")}),
            "cost_usd": round(cost + box.cost, 6), "tokens": tokens, "model": used_model or "template", "error": error,
            "history_used": len(history), "history_dropped": dropped, "personalize": box.proposal,
-           "first_sentence_ms": first_ms, "latency_ms": int((time.perf_counter() - t0) * 1000)}
+           "first_sentence_ms": first_ms, "latency_ms": int((time.perf_counter() - t0) * 1000),
+           **_answered_by(used_model, stream_model)}

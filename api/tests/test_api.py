@@ -890,3 +890,38 @@ def test_personalize_llm_timeout_falls_back_then_asks(monkeypatch):
     j = c.post("/tree/personalize", json={"path": ["2"], "text": "Things would be a bit different for me"}).json()
     assert j["proposal"] is None and j["clarifying_question"] and j["parser"] == "llm-timeout"
     assert len(tried) == 2 and tried[0][1] == P.LLM_TIMEOUT_S and tried[1][0] == P.FALLBACK_MODEL
+
+
+# ------------------------------------------------------------------ models & privacy
+def test_default_models_are_open_weight_qwen_with_fallbacks(monkeypatch):
+    from api import llm
+    monkeypatch.delenv("AGENT_MODEL", raising=False)
+    monkeypatch.delenv("AGENT_FALLBACK_MODELS", raising=False)
+    chain = llm.models()
+    assert chain[0] == "qwen/qwen3.6-35b-a3b"  # Apache-2.0, weights on Hugging Face
+    assert "anthropic/claude-haiku-5.5" in chain[1:]  # proprietary only as a fallback
+
+
+def test_llm_base_url_targets_a_self_hosted_server(monkeypatch):
+    import httpx
+    from api import llm
+    seen = {}
+
+    class R:
+        status_code = 200
+
+        def json(self):
+            return {"model": "local-qwen", "choices": [{"message": {"content": "ok"}}], "usage": {}}
+
+    def post(url, json=None, headers=None, timeout=None):
+        seen.update(url=url, body=json, headers=headers)
+        return R()
+
+    monkeypatch.setenv("LLM_BASE_URL", "http://localhost:11434/v1/")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.setattr(llm, "spent_today", lambda *a, **k: 0.0)
+    monkeypatch.setattr(httpx, "post", post)
+    assert llm.available() is True  # no OpenRouter key needed
+    out = llm.chat([{"role": "user", "content": "hi"}], reasoning={"enabled": False})
+    assert seen["url"] == "http://localhost:11434/v1/chat/completions" and "Authorization" not in seen["headers"]
+    assert not {"models", "usage", "reasoning"} & set(seen["body"]) and out["cost_usd"] == 0.0
