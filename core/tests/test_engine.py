@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from core import expand, load_profile, load_tree, simulate, simulate_node, visible_nodes
+from core.tree import pruned_nodes
 from core.assumptions import build_assumptions, zero_world_assumptions
 from core.starter import simulate_starter
 
@@ -275,3 +276,52 @@ def test_tornado_fast():
         simulate(None, "2", sensitivity=True)
         best = min(best, time.perf_counter() - t)
     assert best < 0.4  # node (~0.05-0.09 s) + tornado (~0.1 s), with margin for a busy machine
+
+
+# --- pruned ghost nodes ------------------------------------------------------
+
+def _three_level_tree():
+    def node(nid, children=()):
+        return {"node_id": nid, "label": f"Option {nid}", "interventions": [], "children": list(children)}
+    level3 = lambda p: [node(f"{p}.{i}") for i in (1, 2, 3)]  # noqa: E731
+    level2 = lambda p: [node(f"{p}.{i}", level3(f"{p}.{i}")) for i in (1, 2, 3)]  # noqa: E731
+    return {"tree_id": "t3", "assumptions": [], "root": node("0", [node(str(i), level2(str(i))) for i in (1, 2, 3)])}
+
+
+@pytest.mark.parametrize("path,expected", [
+    ([], set()),
+    (["2"], set()),                                    # depth 1: the root has no siblings
+    (["2", "2.1"], {"1", "3"}),                        # depth 2: siblings of "2"
+    (["2", "2.1", "2.1.3"], {"1", "3", "2.2", "2.3"}),  # depth 3: siblings of "2" and of "2.1"
+])
+def test_pruned_nodes_set(path, expected):
+    tree = _three_level_tree()
+    ghosts = pruned_nodes(tree, path)
+    assert {g["node_id"] for g in ghosts} == expected
+    visible = {str(n["node_id"]) for n, _, _ in visible_nodes(tree, path)}
+    assert not visible & expected                      # a node is either visible or a ghost, never both
+    for g in ghosts:
+        assert g["status"] == "pruned" and "result" not in g
+        assert set(g) == {"node_id", "parent_id", "label", "status", "depth", "has_children"}
+        assert g["depth"] == g["node_id"].count(".") + 1
+        assert g["has_children"] == (g["depth"] < 3)
+
+
+def test_pruned_nodes_never_simulated(monkeypatch):
+    import core.tree as ct
+    simulated = []
+    real = ct.simulate_node
+    monkeypatch.setattr(ct, "simulate_node", lambda prof, ivs, **kw: simulated.append(kw["node_id"]) or real(prof, ivs, **kw))
+    ct._CACHE.clear()
+    r = ct.expand(load_profile(), ["2", "2.1", "2.1.3"], tree=_three_level_tree(), n_paths=50, sensitivity=False)
+    ghosts = {g["node_id"] for g in r["pruned_nodes"]}
+    assert ghosts == {"1", "3", "2.2", "2.3"}
+    assert not ghosts & set(simulated)
+    assert set(simulated) == {n["node_id"] for n in r["nodes"]} == {"0", "2", "2.1", "2.1.3", "2.1.1", "2.1.2"}
+    assert all(n["status"] != "pruned" for n in r["nodes"])  # ghosts live only in pruned_nodes
+
+
+def test_expand_on_real_tree_returns_ghosts():
+    r = expand(load_profile(), ["1", "1.2"])
+    assert [g["node_id"] for g in r["pruned_nodes"]] == ["2", "3"]
+    assert expand(load_profile(), ["1"])["pruned_nodes"] == []

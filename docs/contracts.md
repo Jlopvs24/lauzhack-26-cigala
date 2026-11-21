@@ -108,6 +108,15 @@ Input: `{profile?, path, assumptions?, weather?}`. `path` = chosen node ids from
 
 Visible nodes = root + chosen path (`status: "chosen"`) + siblings of the current node (`"sibling"`, show greyed) + children of the current node (`"child"`). Everything else is pruned and never simulated.
 
+Ghost nodes (v1.1, additive): `pruned_nodes` = the siblings of every **ancestor** of the current node, i.e. the branches turned away from earlier. Draw them in grey with their label only, not clickable. They have **no `result`** (never simulated, cost ~0) and live in their own list, never in `nodes`, so clients that expect every entry of `nodes` to carry a `result` keep working. Example for `path: ["2", "2.1", "2.1.3"]`: `nodes` = 0, 2, 2.1, 2.1.3 (chosen) + 2.1.1, 2.1.2 (sibling) + children of 2.1.3; `pruned_nodes` = 1, 3 (siblings of 2) + 2.2, 2.3 (siblings of 2.1). At depth 1 the list is empty (the root has no siblings). Shape, for `path: ["1", "1.2"]` on the Alexia tree:
+
+```json
+"pruned_nodes": [
+  {"node_id": "2", "parent_id": "0", "label": "Do a master's", "status": "pruned", "depth": 1, "has_children": true},
+  {"node_id": "3", "parent_id": "0", "label": "Move abroad", "status": "pruned", "depth": 1, "has_children": true}
+]
+```
+
 ```json
 {
   "tree_id": "alexia-v1",
@@ -127,6 +136,7 @@ Visible nodes = root + chosen path (`status: "chosen"`) + siblings of the curren
                          "shortfall_probability": 0.0, "final_cash": -1284.77, "health_score": -1.7},
      "result": {"...": "SimulationResult"}}
   ],
+  "pruned_nodes": [],
   "weather": [],
   "weather_options": {"recession": "...", "inflation": "...", "market_crash": "...", "job_loss": "..."},
   "assumptions": [{"...": "Assumption, full list with current values (for the edit panel)"}]
