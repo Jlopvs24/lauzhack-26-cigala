@@ -30,10 +30,13 @@ Keys are read from `.env.local` at the repo root (`OPENROUTER_API_KEY`, `TOGETHE
 | POST | `/agent/ask` | `{question, context}` | answer + traces (below) |
 | POST | `/voice/stt` | multipart `audio` (WAV/MP3), `language?` | `{text, language, cost_usd, model}` |
 | POST | `/voice/ask` | multipart `audio`, `context` (JSON string), `language?` | `/agent/ask` response + `transcript`, `stt` |
-| POST | `/voice/tts` | `{text, language?, voice?}` | `audio/mpeg`, or 503 if no server TTS (use browser `speechSynthesis`) |
+| POST | `/voice/tts` | `{text, language?, voice?}` | `audio/wav` (local Kokoro, cost 0; headers `X-Model`, `X-Cost-USD`, `X-Audio-Seconds`), or 503 → use browser `speechSynthesis` |
+| POST | `/voice/tts/stream` | same | NDJSON, one line per sentence `{index, text, audio_b64, audio_seconds, synth_ms}`, then `{done}` |
+| GET | `/voice/fillers?language=en` | – | short phrases for call mode |
+| GET | `/call` | – | realtime call prototype (`api/static/call.html`, client `api/static/call.js`) |
 | GET | `/usage` | – | cumulative LLM/voice calls, tokens and USD |
 
-Voice: the proposal is browser Web Speech API first, server STT as fallback. See `api/VOICE.md` (decision OPEN).
+Voice: TTS = local Kokoro-82M (`python -m api.fetch_models --fp32` once), browser `speechSynthesis` as fallback. STT = browser `SpeechRecognition`, OpenRouter as fallback. Call mode = browser STT → `/agent/ask` with `context.mode: "call"` (max 2 sentences) → `/voice/tts/stream`, with barge-in. Measurements and rejected options: `api/VOICE.md`.
 
 `profile` omitted ⇒ Alexia. `assumptions` = overrides `[{"id": "AS-salary-junior-ch", "value": 4500}]`. `weather` ⊂ `recession | inflation | market_crash | job_loss`.
 

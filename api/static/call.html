@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Call prototype</title>
+<style>
+  :root { --bg: #f6f7f2; --fg: #1d2a1f; --muted: #5d6b5f; --accent: #2f7d4f; --card: #fff; --line: #dfe5dc; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #121813; --fg: #e6efe6; --muted: #9aab9c; --accent: #6fd39a; --card: #1b231c; --line: #2b372d; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+  main { max-width: 680px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  p.note { color: var(--muted); margin: 0 0 16px; font-size: .9rem; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  button { font: inherit; padding: 10px 18px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; cursor: pointer; }
+  button.secondary { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+  input, select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
+  #state { font-weight: 600; }
+  #log { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .msg { padding: 10px 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); max-width: 90%; }
+  .msg.user { align-self: flex-end; }
+  .msg .meta { color: var(--muted); font-size: .78rem; margin-top: 4px; }
+  .speaking { outline: 2px solid var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Call the character (prototype)</h1>
+  <p class="note">Browser speech recognition → grounded agent → local TTS, sentence by sentence. Talk over it to interrupt. Chrome or Edge.</p>
+  <div class="row">
+    <button id="start">Start call</button>
+    <button id="stop" class="secondary" disabled>Hang up</button>
+    <label>Path <input id="path" value="2" size="8" title="comma-separated node ids, e.g. 2,2.2"></label>
+    <select id="lang"><option value="en-US">English</option><option value="es-ES">Español</option><option value="fr-FR">Français</option></select>
+  </div>
+  <div class="row">State: <span id="state">idle</span> · <span id="metrics"></span></div>
+  <div id="log"></div>
+</main>
+<script type="module">
+import { CharacterCall } from "./call.js";
+const $ = (id) => document.getElementById(id);
+let call, live = null, bubble = null, totals = { usd: 0 };
+const add = (cls, text) => { const d = document.createElement("div"); d.className = "msg " + cls; d.textContent = text; $("log").prepend(d); return d; };
+const path = () => $("path").value.split(",").map((s) => s.trim()).filter(Boolean);
+
+$("start").onclick = async () => {
+  call = new CharacterCall({
+    apiBase: "",
+    language: $("lang").value,
+    getContext: () => ({ path: path(), node_id: path().slice(-1)[0] || "0", language: $("lang").value.slice(0, 2) }),
+    greeting: $("lang").value.startsWith("es") ? "Hola, soy Lumi. Pregúntame lo que quieras sobre esta rama." :
+              $("lang").value.startsWith("fr") ? "Salut, je suis Lumi. Pose-moi une question sur cette branche." :
+              "Hi, I'm Lumi. Ask me anything about this branch.",
+    onEvent: (type, d) => {
+      if (type === "state") { $("state").textContent = d.state; if (bubble) bubble.classList.toggle("speaking", d.state === "speaking"); }
+      if (type === "user") { live = live || add("user", ""); live.textContent = d.text; if (d.final) live = null; }
+      if (type === "answer") {
+        bubble = add("bot", d.answer);
+        const m = document.createElement("div"); m.className = "meta";
+        m.textContent = `${d.mode} · ${d.model} · $${d.cost_usd} · grounded ${d.grounding?.grounded} · nodes ${d.cited_nodes?.join(", ")}`;
+        bubble.append(m);
+        totals.usd += d.cost_usd || 0;
+      }
+      if (type === "metrics") {
+        const parts = [];
+        if (d.agent_ms) parts.push(`agent ${d.agent_ms} ms`);
+        if (d.first_audio_ms) parts.push(`first audio ${d.first_audio_ms} ms`);
+        if (d.barge_in) parts.push("interrupted");
+        if (parts.length) $("metrics").textContent = parts.join(" · ") + ` · session $${totals.usd.toFixed(5)}`;
+      }
+      if (type === "error") add("bot", "⚠ " + d.message);
+      if (type === "unsupported") add("bot", "This browser has no speech recognition. Use Chrome or Edge, or send a voice note.");
+    },
+  });
+  if (await call.start()) { $("start").disabled = true; $("stop").disabled = false; }
+};
+$("stop").onclick = () => { call.stop(); $("start").disabled = false; $("stop").disabled = true; };
+</script>
+</body>
+</html>

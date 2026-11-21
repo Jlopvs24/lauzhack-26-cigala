@@ -1,6 +1,8 @@
 """Server-side voice. The provider decision is OPEN; findings and the proposal are in api/VOICE.md.
 
-Proposal: the browser does voice (Web Speech API), and the server is the fallback:
+TTS (decided 14:15: the character reads its bubble aloud): local Kokoro-82M first
+(api/tts_local.py), Together Cartesia if a working key exists, else 503 and the browser
+speechSynthesis takes over. STT: browser first, server fallback:
 - STT: OpenRouter chat model with audio input (default google/gemini-3.1-flash-lite), for
   browsers without SpeechRecognition (Firefox) and for recorded voice notes.
 - TTS: Together /audio/speech when a working TOGETHER_API_KEY exists. OpenRouter's audio-output
@@ -37,12 +39,24 @@ class VoiceError(RuntimeError):
     pass
 
 
+def tts_provider() -> str | None:
+    want = os.environ.get("TTS_PROVIDER", "auto")
+    if want in ("auto", "kokoro"):
+        from api import tts_local
+        if tts_local.available():
+            return "kokoro"
+    if want in ("auto", "together") and os.environ.get("TOGETHER_API_KEY"):
+        return "together"
+    return None
+
+
 def status() -> dict:
-    return {"recommended_client": "web-speech-api",
+    from api import tts_local
+    return {"recommended_client": "web-speech-api", "tts_provider": tts_provider(), "kokoro": tts_local.status(),
             "server_stt": STT_PROVIDER if (llm.available() if STT_PROVIDER == "openrouter"
                                            else bool(os.environ.get("TOGETHER_API_KEY"))) else None,
             "stt_model": STT_MODEL if STT_PROVIDER == "openrouter" else TOGETHER_STT_MODEL,
-            "server_tts": bool(os.environ.get("TOGETHER_API_KEY")), "tts_model": TTS_MODEL}
+            "server_tts": tts_provider() is not None}
 
 
 def _fmt(filename: str, content_type: str | None) -> str:
@@ -98,9 +112,24 @@ def _stt_together(audio: bytes, filename: str, language: str | None) -> dict:
 
 
 def tts(text: str, language: str | None = None, voice: str | None = None) -> tuple[bytes, dict]:
-    key = os.environ.get("TOGETHER_API_KEY")
-    if not key:
+    """Whole text -> one audio file. Returns (bytes, meta)."""
+    prov = tts_provider()
+    if prov == "kokoro":
+        from api import tts_local
+        t0 = time.perf_counter()
+        try:
+            samples, sr = tts_local.synth_cached(text[:2000], language, voice)
+        except Exception as e:  # noqa: BLE001
+            raise VoiceError(f"kokoro failed: {e}") from e
+        latency = int((time.perf_counter() - t0) * 1000)
+        USAGE.add({"ts": time.time(), "purpose": "tts", "model": tts_local.model_name(), "cost_usd": 0.0,
+                   "chars": len(text), "latency_ms": latency, "audio_seconds": round(len(samples) / sr, 2)})
+        return tts_local.to_wav(samples, sr), {"cost_usd": 0.0, "model": tts_local.model_name(),
+                                                "media_type": "audio/wav", "provider_latency_ms": latency,
+                                                "audio_seconds": round(len(samples) / sr, 2)}
+    if prov is None:
         raise VoiceError("server TTS unavailable: use the browser speechSynthesis (see api/VOICE.md)")
+    key = os.environ["TOGETHER_API_KEY"]
     t0 = time.perf_counter()
     lang = (language or "en")[:2]
     body = {"model": TTS_MODEL, "input": text[:2000], "voice": voice or "friendly sidekick",

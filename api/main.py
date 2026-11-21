@@ -5,13 +5,15 @@ Engine calls cost 0 and have model = "engine:<core|mock>".
 """
 from __future__ import annotations
 
+import base64
 import json
 import time
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from api import engine
@@ -24,6 +26,7 @@ from api import agent, voice  # noqa: E402  (need env loaded)
 ALEXIA = engine.default_profile()
 
 app = FastAPI(title="cigala API", version="0.1.0")
+app.mount("/static", StaticFiles(directory=str(__import__("pathlib").Path(__file__).parent / "static")), name="static")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -65,6 +68,12 @@ def _meta(t0: float, cost: float = 0.0, model: str | None = None) -> dict:
 @app.get("/health")
 def health():
     return {"ok": True, "engine": engine.ENGINE_NAME, "llm": agent.llm_status(), "voice": voice.status()}
+
+
+@app.get("/call", include_in_schema=False)
+def call_prototype():
+    """Realtime call prototype (api/static/call.html + call.js)."""
+    return RedirectResponse("/static/call.html")
 
 
 @app.get("/profiles/demo")
@@ -164,7 +173,63 @@ def voice_tts(req: TTSReq):
     headers = {"X-Cost-USD": str(meta["cost_usd"]), "X-Model": meta["model"],
                "X-Latency-Ms": str(int((time.perf_counter() - t0) * 1000)),
                "Access-Control-Expose-Headers": "X-Cost-USD, X-Model, X-Latency-Ms"}
+    headers["X-Audio-Seconds"] = str(meta.get("audio_seconds", ""))
+    headers["Access-Control-Expose-Headers"] += ", X-Audio-Seconds"
     return Response(content=audio, media_type=meta.get("media_type", "audio/mpeg"), headers=headers)
+
+
+def _ndjson(obj: dict) -> str:
+    return json.dumps(obj) + "\n"
+
+
+@app.post("/voice/tts/stream")
+def voice_tts_stream(req: TTSReq):
+    """Sentence-by-sentence TTS as NDJSON, so playback starts after the first sentence.
+
+    Lines: {"index", "text", "audio_b64" (WAV), "media_type", "audio_seconds", "synth_ms", "model", "cost_usd"}
+    then {"done": true, "sentences", "cost_usd", "latency_ms"}. Errors: {"error": "..."} (client falls back
+    to browser speechSynthesis for the rest). 503 up front if no server TTS is available.
+    """
+    if voice.tts_provider() is None:
+        raise HTTPException(503, "server TTS unavailable: use the browser speechSynthesis")
+    from api.tts_local import split_sentences
+
+    sentences = split_sentences(req.text[:4000], first_max=90)
+    t0 = time.perf_counter()
+
+    def gen():
+        total = 0.0
+        for i, sent in enumerate(sentences):
+            t1 = time.perf_counter()
+            try:
+                audio, meta = voice.tts(sent, req.language, req.voice)
+            except (voice.VoiceError, RuntimeError) as e:
+                yield _ndjson({"index": i, "error": str(e)})
+                return
+            total += meta["cost_usd"]
+            yield _ndjson({"index": i, "text": sent, "audio_b64": base64.b64encode(audio).decode(),
+                              "media_type": meta.get("media_type"), "audio_seconds": meta.get("audio_seconds"),
+                              "synth_ms": int((time.perf_counter() - t1) * 1000), "model": meta["model"],
+                              "cost_usd": meta["cost_usd"]})
+        yield _ndjson({"done": True, "sentences": len(sentences), "cost_usd": round(total, 6),
+                       "latency_ms": int((time.perf_counter() - t0) * 1000)})
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
+FILLERS = {
+    "en": ["Let me check.", "Good question.", "One second."],
+    "es": ["Déjame mirar.", "Buena pregunta.", "Un segundo."],
+    "fr": ["Je regarde.", "Bonne question.", "Une seconde."],
+}
+
+
+@app.get("/voice/fillers")
+def voice_fillers(language: str = "en"):
+    """Short phrases the call client plays right after the user stops talking (cached TTS, instant)."""
+    lang = language[:2].lower()
+    return {"language": lang, "fillers": FILLERS.get(lang, FILLERS["en"])}
 
 
 @app.get("/usage")
