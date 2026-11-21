@@ -14,6 +14,7 @@ if inp:
     content.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b}"}})
 body = {"model": model, "messages": [{"role": "user", "content": content}], "modalities": ["image", "text"], "usage": {"include": True}}
 if aspect: body["image_config"] = {"aspect_ratio": aspect}
+if os.environ.get("IMG_SIZE"): body.setdefault("image_config", {})["image_size"] = os.environ["IMG_SIZE"]
 req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=json.dumps(body).encode(),
     headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
 t = time.time()
@@ -27,5 +28,5 @@ else:
     url = imgs[0]["image_url"]["url"]
     open(out, 'wb').write(base64.b64decode(url.split(',',1)[1]))
 print(f"{out} cost={cost} t={time.time()-t:.1f}s")
-with open(os.path.join(os.path.dirname(pf), 'costs.log'), 'a') as f:
+with open(os.environ.get('COSTLOG', os.path.join(os.path.dirname(pf), 'costs.log')), 'a') as f:
     f.write(f"{time.strftime('%H:%M:%S')} {model} {os.path.basename(out)} {cost}\n")

@@ -5,6 +5,7 @@
 // Greying uses a per-still label map (limb*10 + sub-branch) computed offline (see README.md).
 import { createGuide } from "../../assets/character/guide/guide.js";
 import { UI, STORY, NODES, LANGS, SPEECH_LANG } from "./i18n.js";
+import { renderReport as buildReport } from "./report.js";
 
 const qs = new URLSearchParams(location.search);
 const API = qs.get("api") || "http://127.0.0.1:8000";
@@ -14,25 +15,26 @@ const gsap = window.gsap;
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // ---------- world geometry ----------
-const meta = await (await fetch("img/stills.json")).json();
-const rectOf = (name) => { const [x, y, w, h] = meta[name].rect; return { x, y, w, h }; };
+// img/stills.json: every still's rectangle in the world, plus a slot per decision node down to
+// level 4. A node without its own still (null slot) zooms into the deepest ancestor still.
+const IMG = "img/";
+const meta = await (await fetch(IMG + "stills.json")).json();
+const rectOf = (name) => { const [x, y, w, h] = meta.stills[name].rect; return { x, y, w, h }; };
 const CROWN = { 1: [420, 215], 2: [675, 92], 3: [965, 228] };
-const DEPTH3 = [[0.27, 0.42], [0.5, 0.28], [0.73, 0.44]];
+const DEEP = [[0.27, 0.42], [0.5, 0.28], [0.73, 0.44]]; // child framing inside a still-less parent
 
 const parts = (id) => String(id).split(".").map(Number);
-function stillFor(id) {
-  if (!id || id === "0") return "master";
-  const p = parts(id);
-  if (p.some((n) => !(n >= 1 && n <= 3))) return null;
-  if (p.length === 1) return `c${p[0]}`;
-  return `c${p[0]}_${p[1]}`; // depth 3+ reuses its depth-2 still
+const parentId = (id) => (parts(id).length === 1 ? "0" : parts(id).slice(0, -1).join("."));
+const ownStill = (id) => (!id || id === "0" ? "master" : meta.nodes[id] || null);
+function stillFor(id) { // the still to show for a node: its own, else the deepest ancestor's
+  for (let x = id; ; x = parentId(x)) { const s = ownStill(x); if (s && meta.stills[s]) return s; if (x === "0") return "master"; }
 }
 function viewRect(id) {
   if (!id || id === "0") return { x: 0, y: 0, w: W, h: H };
-  const p = parts(id);
-  if (p.length <= 2 && stillFor(id)) return rectOf(stillFor(id));
-  const base = viewRect(p.slice(0, 2).join("."));
-  const [fx, fy] = DEPTH3[(p[2] - 1) % 3] || [0.5, 0.5];
+  const own = ownStill(id);
+  if (own && meta.stills[own]) return rectOf(own);
+  const base = viewRect(parentId(id));
+  const [fx, fy] = DEEP[(parts(id).at(-1) - 1) % 3] || [0.5, 0.5];
   const w = base.w * 0.58, h = base.h * 0.58;
   return { x: base.x + base.w * fx - w / 2, y: base.y + base.h * fy - h / 2, w, h };
 }
@@ -40,9 +42,9 @@ function anchor(id) {
   if (id === "0") return [688, 560];
   const p = parts(id);
   if (p.length === 1) return CROWN[p[0]] || [688, 200];
-  if (p.length === 2) return meta.hot[p[0]]?.[p[1] - 1] || CROWN[p[0]];
-  const r = viewRect(p.slice(0, 2).join("."));
-  const [fx, fy] = DEPTH3[(p[2] - 1) % 3] || [0.5, 0.5];
+  if (p.length === 2 && meta.hot[p[0]]?.[p[1] - 1]) return meta.hot[p[0]][p[1] - 1];
+  const r = viewRect(parentId(id));
+  const [fx, fy] = DEEP[(p.at(-1) - 1) % 3] || [0.5, 0.5];
   return [r.x + r.w * fx, r.y + r.h * fy];
 }
 // label-map codes for a node: a limb covers its three sub-branches
@@ -67,7 +69,7 @@ function getStill(name) {
   el.append(base, grey);
   world.append(el);
   const s = { name, el, base, grey, rect: rectOf(name), on: false, greyKey: "" };
-  s.ready = Promise.all([loadImg(`img/${name}.webp`), loadImg(`img/${name}.lab.png`)]).then(([img, lab]) => {
+  s.ready = Promise.all([loadImg(IMG + meta.stills[name].src), loadImg(IMG + meta.stills[name].lab)]).then(([img, lab]) => {
     for (const c of [base, grey]) { c.width = img.naturalWidth; c.height = img.naturalHeight; }
     base.getContext("2d").drawImage(img, 0, 0);
     s.rgb = base.getContext("2d").getImageData(0, 0, base.width, base.height);
@@ -166,8 +168,20 @@ function showStill(name, on, { delay = 0, duration = 1.0 } = {}) {
   const s = getStill(name);
   if (s.on === on) return s;
   s.on = on;
-  s.ready.then(() => gsap.to(s.el, { opacity: on ? 1 : 0, duration: reduced ? 0.01 : duration, delay, ease: "power1.inOut", overwrite: true }));
+  s.ready.then(() => gsap.to(s.el, {
+    opacity: on ? 1 : 0, duration: reduced ? 0.01 : duration, delay, ease: "power1.inOut", overwrite: true,
+    onComplete: () => { if (!s.on && name !== "master") release(s); }, // 2K canvases are heavy: free them
+  }));
   return s;
+}
+function release(s) {
+  for (const c of [s.base, s.grey, s.desat]) if (c) { c.width = 0; c.height = 0; }
+  s.el.remove();
+  delete stills[s.name];
+}
+const fetched = new Set();
+function prefetch(names) { // warm the HTTP cache only; decoding happens when the still is shown
+  for (const n of names) if (n && meta.stills[n] && !fetched.has(n)) { fetched.add(n); new Image().src = IMG + meta.stills[n].src; }
 }
 
 
@@ -195,7 +209,7 @@ $("#langs").addEventListener("click", (e) => {
   lang = b.dataset.lang;
   try { localStorage.setItem("cigala.lang", lang); } catch {}
   applyLang();
-  if (data) { refreshView(); narrate(storyFor(data)); }
+  if (data) { refreshView(); narrateNode(data); }
 });
 
 // ---------- light / dark: the scene is graded, not only the UI ----------
@@ -210,7 +224,6 @@ $("#theme").addEventListener("click", () => setTheme(document.documentElement.da
 // ---------- labels ----------
 const tags = new Map();
 const labelsEl = $("#labels");
-const fmtCHF = (n) => (n < 0 ? "−" : "") + "CHF " + Math.abs(Math.round(n)).toLocaleString("en-US").replace(/,/g, "’");
 function tagMeta(n) {
   const r = n.result;
   if (!r || n.status === "pruned") return "";
@@ -260,7 +273,7 @@ let path = [];
 let data = null;
 let profile = null; // null = the API's demo persona (Alexia)
 async function expand(p) {
-  const body = { path: p };
+  const body = { path: p, uncertainty: lens }; // Monte Carlo only when the uncertainty lens is on (#21)
   if (profile) body.profile = profile;
   const r = await fetch(`${API}/tree/expand`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`expand ${r.status}`);
@@ -333,12 +346,21 @@ async function speak(text) {
   }
 }
 const sayCard = $("#sayCard"), sayText = $("#sayText");
-function narrate(text) {
+// Lumi never re-reads a bubble it already spoke: key = language + profile + node.
+const narrated = new Set();
+function narrateNode(d) {
+  const text = storyFor(d);
+  const key = `${lang}|${profile ? JSON.stringify(profile).length : "demo"}|${d.current}`;
+  if (!narrated.has(key)) { narrated.add(key); narrate(text); return; }
+  const cur = d.nodes.find((n) => n.node_id === d.current), c = tr(cur);
+  narrate(text, { speakText: c.known ? STORY[lang].back(c.label.replace(/^./, (x) => x.toLowerCase())) : "" }); // bubble silently, one short spoken line
+}
+function narrate(text, { speakText = text } = {}) {
   sayText.textContent = text;
   if (sayCard.hidden) { sayCard.hidden = false; gsap.fromTo(sayCard, { opacity: 0, y: 8, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: "power3.out" }); }
   else gsap.fromTo(sayText, { opacity: 0 }, { opacity: 1, duration: 0.4 });
   lumi.setPose?.("explaining");
-  speak(text);
+  speak(speakText);
 }
 $("#mute").addEventListener("click", (e) => {
   muted = !muted;
@@ -365,42 +387,21 @@ function storyFor(d) {
 }
 
 // ---------- report ----------
-function bandSVG(b) {
-  const p10 = b.p10, p50 = b.p50, p90 = b.p90, n = p50.length;
-  const all = [...p10, ...p90, 0]; const lo = Math.min(...all), hi = Math.max(...all);
-  const X = (i) => (i / (n - 1)) * 360, Y = (v) => 110 - ((v - lo) / (hi - lo || 1)) * 100;
-  const line = (arr) => arr.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
-  const area = `${line(p90)} ${p10.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).reverse().join(" ")}`;
-  return `<svg class="band" viewBox="0 0 360 120" preserveAspectRatio="none" role="img" aria-label="${t("bandNote")}">
-    <line x1="0" x2="360" y1="${Y(0)}" y2="${Y(0)}" class="zero" stroke-dasharray="3 4"/>
-    <polygon points="${area}" class="area"/>
-    <polyline points="${line(p50)}" class="median" fill="none" stroke-width="1.8" vector-effect="non-scaling-stroke"/></svg>`;
-}
+let lens = false, lensPending = false; // Monte Carlo "uncertainty lens", off by default
 function renderReport(d) {
-  const cur = d.nodes.find((n) => n.node_id === d.current), r = cur.result, m = r.metrics, h = r.health;
-  const c = tr(cur);
-  const sens = (r.sensitivity || [])[0];
-  const passed = (r.checks || []).filter((x) => x.passed).length;
-  const goals = Object.entries(m.goal_probability || {}).map(([k, v]) => `<dt>${k}</dt><dd>${Math.round(v * 100)}%</dd>`).join("");
-  $("#reportBody").innerHTML = `
-    <div class="kicker">${cur.node_id === "0" ? t("today") : t("branch") + " " + cur.node_id}</div>
-    <h2>${c.label}</h2>
-    <p class="desc">${c.desc}</p>
-    <div class="score"><b>${Math.round(h.score)}</b><span>${t("healthLbl")} · ${h.level}</span></div>
-    <dl>
-      <dt>${t("m_nw")}</dt><dd>${fmtCHF(m.final_net_worth_p50)}</dd>
-      <dt>${t("m_range")}</dt><dd>${fmtCHF(m.final_net_worth_p10)} – ${fmtCHF(m.final_net_worth_p90)}</dd>
-      <dt>${t("m_min")}</dt><dd class="${m.min_cash < 0 ? "warn" : ""}">${fmtCHF(m.min_cash)}</dd>
-      <dt>${t("m_short")}</dt><dd class="${m.first_negative_month != null ? "warn" : ""}">${m.first_negative_month != null ? t("m_month") + " " + (m.first_negative_month + 1) : t("m_never")}</dd>
-      <dt>${t("m_paths")}</dt><dd>${Math.round(m.shortfall_probability * 100)}%</dd>
-      ${goals}
-    </dl>
-    <h3>${t("bandTitle")(r.n_paths.toLocaleString("en-US"))}</h3>
-    ${r.bands?.net_worth ? bandSVG(r.bands.net_worth) : ""}
-    <p class="note">${t("bandNote")}</p>
-    ${sens ? `<h3>${t("sensTitle")}</h3><p class="note">${t("sens")(sens.label, sens.low_value, sens.high_value, fmtCHF(sens.delta_final_net_worth))}</p>` : ""}
-    ${lang === "en" && cur.changes?.length ? `<h3>${t("changesTitle")}</h3><ul>${cur.changes.map((x) => `<li>${x}</li>`).join("")}</ul>` : ""}
-    <h3>${t("checksTitle")}</h3><p class="note">${t("checks")(passed, (r.checks || []).length)} · ${r.engine_version} · seed ${r.seed}</p>`;
+  const y = $("#report").scrollTop;
+  $("#reportBody").innerHTML = buildReport({ data: d, lang, ui: UI[lang], tr, lens, lensPending });
+  $("#report").scrollTop = y;
+  $("#lensToggle")?.addEventListener("change", async (e) => {
+    lens = e.target.checked;
+    const cur = d.nodes.find((n) => n.node_id === d.current);
+    if (lens && cur?.result?.metrics?.final_net_worth_p50 == null) { // ask the engine for the lens, stay in place
+      lensPending = true; renderReport(d);
+      try { data = await expand(path); } catch {}
+      lensPending = false;
+    }
+    renderReport(data);
+  });
 }
 function openReport() { const el = $("#report"); el.hidden = false; gsap.fromTo(el, { opacity: 0, x: 24 }, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }); }
 function closeReport() { const el = $("#report"); gsap.to(el, { opacity: 0, x: 24, duration: 0.25, onComplete: () => (el.hidden = true) }); }
@@ -434,10 +435,11 @@ async function go(newPath) {
 
   const want = new Set(["master"]);
   for (const id of d.path) { const s = stillFor(id); if (s) want.add(s); }
-  for (const name of Object.keys(meta)) if (name !== "hot") {
+  for (const name of new Set([...want, ...Object.keys(stills)])) {
     if (want.has(name)) { const s = showStill(name, true, { delay: goingDeeper ? 0.7 : 0, duration: 1.1 }); await s.ready; }
     else if (stills[name]?.on) showStill(name, false, { duration: 0.8 });
   }
+  prefetch(d.nodes.filter((n) => n.status === "child").map((n) => ownStill(n.node_id)));
   const nodes = visibleNodes(d);
   const grey = new Set(nodes.filter((n) => n.status === "sibling" || n.status === "pruned").flatMap((n) => codes(n.node_id)));
   for (const s of Object.values(stills)) if (s.on) paintGrey(s, grey);
@@ -451,7 +453,7 @@ async function go(newPath) {
   const cur = d.nodes.find((n) => n.node_id === current);
   lumi.setMood(cur.result.health.score);
   const fly = camTo(viewRect(current), { duration: goingDeeper ? 2.0 : 1.6 });
-  setTimeout(() => narrate(storyFor(d)), goingDeeper ? 900 : 600);
+  setTimeout(() => narrateNode(d), goingDeeper ? 900 : 600);
   await fly;
   busy = false;
 }
@@ -520,7 +522,7 @@ requestAnimationFrame(frame);
 await getStill("roots").ready;
 gsap.from(".intro > *", { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: "power3.out" });
 let first = expand([]).catch(() => null); // warm the engine while the portal is up
-for (const n of Object.keys(meta)) if (n !== "hot") getStill(n); // preload every still (2.7 MB)
+prefetch(["master", "c1", "c2", "c3"]); // lazy: only the next level is fetched ahead
 
 async function begin() {
   if (started) return;

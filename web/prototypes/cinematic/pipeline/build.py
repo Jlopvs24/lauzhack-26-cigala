@@ -1,52 +1,70 @@
+"""Encode the 2K stills (AVIF) and build their label maps + manifest.
+
+usage: python build.py <workdir with master.png, c1.png, ...> <out img dir>
+World = the master's frame, 1376 x 768 units. Each still's rectangle in the world follows from the
+chain of normalised crop boxes (chain.json). Label map value = limb*10 + sub-branch, 0 = never greyed.
+"""
 import json, sys
+from pathlib import Path
 import numpy as np
 from PIL import Image
-OUT = sys.argv[1]
-H = json.load(open('hot.json')); B2 = json.load(open('boxes2.json'))
-L1 = {'c1': (200,100), 'c2': (408,20), 'c3': (740,110)}
-sx, sy = 560/1376, 315/768
-stills = {'master': ('master.png', [0,0,1376,768]), 'roots': ('m_roots.png', [408,450,560,315])}
-for k,(x,y) in L1.items():
-    stills[k] = (f'm_{k}.png', [x,y,560,315])
-    for i in (1,2,3):
-        b = B2[f'{k}_{i}']
-        stills[f'{k}_{i}'] = (f'm_{k}_{i}.png', [x+b[0]*sx, y+b[1]*sy, 280, 157.5])
-# limb skeletons (world coords) and child hotspots (world)
-skel = {1: [(640,470),(520,380),(430,300),(330,250),(450,230)],
-        2: [(690,460),(690,330),(680,200),(670,110)],
-        3: [(740,460),(850,380),(950,280),(1000,230)]}
+
+HERE = Path(__file__).parent
+WORK, OUT = Path(sys.argv[1]), Path(sys.argv[2])
+OUT.mkdir(parents=True, exist_ok=True)
+CHAIN = json.loads((HERE / "chain.json").read_text())
+HOT = json.loads((HERE / "hot.json").read_text())  # child hotspots in each limb still, 1376x768 px
+W, H = 1376, 768
+
+def rect(name):
+    if name == "master":
+        return [0.0, 0.0, W, H]
+    px, py, pw, ph = rect(CHAIN[name]["parent"])
+    x, y, w, h = CHAIN[name]["box"]
+    return [px + x * pw, py + y * ph, w * pw, h * ph]
+
+skel = {1: [(640, 470), (520, 380), (430, 300), (330, 250), (450, 230)],
+        2: [(690, 460), (690, 330), (680, 200), (670, 110)],
+        3: [(740, 460), (850, 380), (950, 280), (1000, 230)]}
 hot = {}
-for li,k in enumerate(['c1','c2','c3'],1):
-    x,y = L1[k]
-    hot[li] = [(x+px*sx, y+py*sy) for px,py in H[k]]
+for li, k in enumerate(["c1", "c2", "c3"], 1):
+    x, y, w, h = rect(k)
+    hot[li] = [(x + px / 1376 * w, y + py / 768 * h) for px, py in HOT[k]]
+
 def segdist(P, a, b):
-    a=np.array(a,float); b=np.array(b,float); d=b-a
-    t=np.clip(((P-a)@d)/(d@d),0,1)
-    return np.linalg.norm(P-(a+t[...,None]*d),axis=-1)
-meta = {}
-for name,(fn,(wx,wy,ww,wh)) in stills.items():
-    im = Image.open(fn).convert('RGB'); W,Hh = im.size
-    a = np.asarray(im).astype(np.float32)/255
-    r,g,b = a[...,0],a[...,1],a[...,2]
-    mx,mn = a.max(-1),a.min(-1); sat=(mx-mn)/(mx+1e-6)
-    tree = (mx < 0.55) | ((g > b+0.06) & (g >= r*0.95) & (sat > 0.18))
-    ys,xs = np.mgrid[0:Hh,0:W]
-    P = np.stack([wx+xs*ww/W, wy+ys*wh/Hh],-1)
-    dl = np.stack([np.min(np.stack([segdist(P,s[j],s[j+1]) for j in range(len(s)-1)]),0) for s in skel.values()])
-    limb = dl.argmin(0)+1
+    a = np.array(a, float); b = np.array(b, float); d = b - a
+    t = np.clip(((P - a) @ d) / (d @ d), 0, 1)
+    return np.linalg.norm(P - (a + t[..., None] * d), axis=-1)
+
+# node id -> still name; deeper levels get slots (null) and fall back to the deepest ancestor still
+node = {"0": "master"}
+for k in (1, 2, 3):
+    node[str(k)] = f"c{k}"
+    for i in (1, 2, 3):
+        node[f"{k}.{i}"] = f"c{k}_{i}"
+        for j in (1, 2, 3):
+            node[f"{k}.{i}.{j}"] = None
+            for l in (1, 2, 3):
+                node[f"{k}.{i}.{j}.{l}"] = None
+
+manifest = {"world": [W, H], "stills": {}, "nodes": node, "hot": {str(k): [[round(a, 1), round(b, 1)] for a, b in v] for k, v in hot.items()}}
+for name in ["master", "roots"] + [k for k in CHAIN if k != "roots"]:
+    im = Image.open(WORK / f"{name}.png").convert("RGB")
+    wx, wy, ww, wh = rect(name)
+    im.save(OUT / f"{name}.avif", quality=62, speed=4)
+    # label map at half resolution (the client scales it to the still)
+    lw, lh = im.width // 2, im.height // 2
+    ys, xs = np.mgrid[0:lh, 0:lw]
+    P = np.stack([wx + (xs + 0.5) * ww / lw, wy + (ys + 0.5) * wh / lh], -1)
+    dl = np.stack([np.min(np.stack([segdist(P, s[j], s[j + 1]) for j in range(len(s) - 1)]), 0) for s in skel.values()])
+    limb = dl.argmin(0) + 1
     sub = np.zeros_like(limb)
-    for li in (1,2,3):
-        dh = np.stack([np.linalg.norm(P-np.array(h),axis=-1) for h in hot[li]]); sub = np.where(limb==li, dh.argmin(0)+1, sub)
-    lab = (limb*10+sub)*((P[...,1] < 470) & (dl.min(0) < 300))
-    Image.fromarray(lab.astype(np.uint8)).save(f'{OUT}/img/{name}.lab.png', optimize=True)
-    im.save(f'{OUT}/img/{name}.webp', quality=84, method=6)
-    meta[name] = {'rect':[round(v,2) for v in (wx,wy,ww,wh)]}
-    # debug overlay
-    if name in ('master','c2'):
-        pal = {11:(255,0,0),12:(255,120,0),13:(255,200,0),21:(0,0,255),22:(0,150,255),23:(0,255,255),31:(150,0,255),32:(255,0,255),33:(255,0,120)}
-        col = np.asarray(im).copy()
-        for v,c in pal.items(): col[lab==v] = (col[lab==v]*0.4+np.array(c)*0.6).astype(np.uint8)
-        Image.fromarray(col).save(f'dbg_{name}.jpg', quality=70)
-meta['hot'] = {str(k):[[round(x,1),round(y,1)] for x,y in v] for k,v in hot.items()}
-json.dump(meta, open(f'{OUT}/img/stills.json','w'), indent=1)
-print(json.dumps(meta)[:600])
+    for li in (1, 2, 3):
+        dh = np.stack([np.linalg.norm(P - np.array(h), axis=-1) for h in hot[li]])
+        sub = np.where(limb == li, dh.argmin(0) + 1, sub)
+    lab = (limb * 10 + sub) * ((P[..., 1] < 470) & (dl.min(0) < 300))
+    Image.fromarray(lab.astype(np.uint8)).save(OUT / f"{name}.lab.png", optimize=True)
+    manifest["stills"][name] = {"rect": [round(v, 3) for v in (wx, wy, ww, wh)], "parent": CHAIN.get(name, {}).get("parent"),
+                                "src": f"{name}.avif", "lab": f"{name}.lab.png", "px": [im.width, im.height]}
+    print(name, [round(v, 1) for v in (wx, wy, ww, wh)], flush=True)
+(OUT / "stills.json").write_text(json.dumps(manifest, indent=1))

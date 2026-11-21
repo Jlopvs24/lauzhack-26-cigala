@@ -10,7 +10,7 @@ cd web && python -m http.server 5175 --bind 127.0.0.1
 
 ## How it works
 
-- **13 matched stills** (`img/*.webp`, 2.7 MB): one master photo of the tree, then close-ups of
+- **14 matched 2K stills** (`img/*.avif`, 2752x1536, 6 MB, lazy-loaded; `img/stills.json` maps every node down to level 4 to its still, `null` = slot not rendered yet, falls back to the deepest ancestor): one master photo of the tree, then close-ups of
   the roots, the 3 limbs and 3 sub-branches per limb. Each close-up was generated (OpenRouter,
   `google/gemini-3.1-flash-image`) from an **exact crop of its parent**, then colour-matched, so it
   sits on a known rectangle of the master's pixel space (`img/stills.json`).
@@ -45,4 +45,12 @@ cd web && python -m http.server 5175 --bind 127.0.0.1
 ## Regenerate
 
 `pipeline/gen.py` (one image call), `pipeline/build.py` (colour-match, label maps, webp),
-prompts and `pipeline/costs.log` (13 calls, USD 0.88 total).
+`pipeline/hd.py` (2K chain from `chain.json`), prompts and `pipeline/costs.log` (USD 2.30 total so far).
+
+## Narration and report
+
+- Lumi speaks a node's story once per language; revisits show the bubble and only say "Back at …".
+- The report leads with the deterministic scenario, the comparison with sibling options and
+  "what would have to be true" (the engine's `exploration` block from #21 when present, else the
+  sensitivity table). Monte Carlo is the **uncertainty lens** toggle, off by default; turning it on
+  re-requests the node with `uncertainty: true`. Empty bands and null probabilities are handled.
