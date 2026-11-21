@@ -153,6 +153,7 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
         "horizon_months": prof.horizon_months,
         "income_basis": prof.income_basis,
         "payroll": _payroll_summary(prof, sched, f, A),
+        "tax_residence": sched.tax_segments,
         "deterministic": deterministic,
         "bands": {key: an.bands(getattr(mc, key)) if uncertainty else {p: [] for p in ("p10", "p50", "p90")}
                   for key in ("cash", "net_worth")},

@@ -18,7 +18,7 @@ exploration more correct and richer; never predict, never fit the model to the s
 |---|---|
 | UBS ledger identities (opening + net = closing, months chain, transactions sum to the net) | pass on 1,200 profiles × 24 months, max error CHF 0.00 |
 | Replay of every UBS profile through our engine, cash-only world, same average budget | smoke check only: the budget is each profile's own 24-month average, so the final cash matches by construction (median error 0.00); the month-by-month gap (0.22 months of budget) is only the timing of their irregular items |
-| Same replay in our Swiss default world | median −3.0 months of budget after 24 months (p10 −4.5, p90 −1.2) |
+| Same replay in our Swiss default world | median −3.0 months of budget after 24 months (p10 −4.5, p90 −1.2) with the old single Lausanne table; −2.18 (p10 −4.30, p90 −0.06) since #48 item 3, each profile taxed at its own city and household with the ESTV 2026 tables. Both read their income as before tax; as `take_home` (their basis) it is +0.36 |
 | Drift decomposition | income tax explains all of it: without income tax +0.36; also without inflation +0.26; also without wage growth +0.03 |
 | Public targets | verified only: loss 0.14 over 4 targets (none beyond 0.3 tolerance units); verified + to_verify: 0.64 over 7, the balanced return (to verify) being 1 tolerance below its target |
 | UBS scenario assumptions (the only two in the kit) | tuition: UBS Alexia CHF 8,000/yr (median over profiles 4,800) vs ours 2,500 (range 1,560-8,000: the UBS figure is our high end); study duration 2 years in both |
@@ -67,7 +67,7 @@ the simulated CPI. The deterministic path is primary; Monte Carlo is an optional
 | # | component | method in code | parameters (default · verified?) |
 |---|---|---|---|
 | 1 | Wages / income | planned **net** income per month × wage index (CPI path + real wage growth); unemployment replaces it at a rate | `AS-real-wage-growth` 1%/yr ✓; tree income figures: the UBS kit ones ✓, 11 others unverified ✗ (raises, part-time pay, scholarship, internship, side income, later and Zurich salaries) |
-| 2 | Income tax | one table of effective rates (8 points, single person, Lausanne, no church tax), linear interpolation on 12 × planned monthly income, × scale; paid in the same month | `AS-income-tax` table × 1.0 ✗ (third-party calculator, not ESTV) |
+| 2 | Income tax | one table of effective rates (8 points, single person, Lausanne, no church tax), linear interpolation on 12 × planned monthly income, × scale; paid in the same month. **Since #48 item 3:** ESTV 2026 tables by city and household, residence per month | `AS-income-tax` × 1.0 ✓ (ESTV 2026 tables since #48 item 3; before: third-party calculator) |
 | 3 | Social contributions | **not modelled**: incomes are assumed net of AHV/IV/EO, ALV, BVG | — |
 | 4 | Expenses / inflation | rent + other living costs, each × CPI path; one-off costs × CPI at their month | `AS-inflation-mean` 1%/yr ✓, `AS-inflation-sd` 0.8% ✓ (choice sized on FSO data) |
 | 5 | Investments | one balanced portfolio; deterministic monthly factor (1+μ)^(1/12); MC lognormal with σ/√12; contributions only if cash allows; automatic sale to cover negative cash | `AS-investment-return` 4%/yr ✓ (Pictet, after a fee haircut), `AS-investment-vol` 10% ✗ |
@@ -134,7 +134,7 @@ T = transparency 10) against effort (S < 1 h, M 1-3 h, L > 3 h). Ranked for toni
 |---|---|---|---|---|
 | 0 | ✅ Income basis made explicit (`income_basis`: net_before_tax / take_home), #48 item 1 | C+ T++ | S | done |
 | 1 | ✅ Payroll layer: gross → net with AHV/IV/EO, ALV, NBU, BVG (#48 item 2) | C+++ T+ | M | done; see the design note for what changed |
-| 2 | Tax by canton/household + abroad tax, ESTV-sourced points, optional arrears timing | C+++ | M-L | removes "Zurich/abroad taxed as Vaud" |
+| 2 | ✅ Tax by city/canton/household + abroad tax, ESTV 2026 tables (#48 item 3); arrears timing not done | C+++ | M-L | done; see the design note |
 | 3 | Pillar 3a lever (+ tax deduction, locked asset) | C++ E++ | M | a new, very Swiss what-if per decision |
 | 4 | Combined decisions + 2-lever surfaces + constraint-targeted search | E+++ | M | "what if master's AND share a flat", "what salary AND rent keep the plan feasible" |
 | 5 | Currency for move abroad (EUR + EURCHF path + FX weather) | C++ E+ | M | the abroad branch becomes defensible |
@@ -178,6 +178,24 @@ rate assumption per country, labelled unverified). Taxable income = net − flat
 deduction − insurance deduction − 3a. Optional `tax_timing: "arrears"`: year-t tax paid in
 year t+1 in monthly instalments (a liability between), so graduating in a high-income year shows
 the cash dip. Tests: the table reproduces the ESTV points; monotone in income; Zurich node uses ZH.
+
+*Done (#48 item 3), differences from the design above:* the tables come straight from the
+official ESTV calculator's API (`python -m core.bench.fetch_estv`, data in
+`core/data/tax_ch_2026.json`: 12 UBS cities × single / married one earner / married with two
+children, 15 salaries each, tax year 2026, no church tax). Each point is (payslip net salary,
+total tax) as ESTV computes it with its standard deductions, so the table is keyed on our
+`net_before_tax` income and the separate "taxable income = net − deductions" step is not needed.
+Residence: profile `city` → `canton`'s main city → Lausanne (`fallback: true`, reported in
+`tax_residence`); a node moves it with the `tax_residence` intervention (the tree: "Move abroad"
+is taxed abroad, "Job in Zurich" from month 36 in Zurich). Abroad = one flat rate
+`AS-tax-abroad-rate` 15% (unverified, range 8–25%, to replace with OECD Taxing Wages).
+`income_tax_scale` stays as the uncertainty knob (1 = ESTV). Not done: tax paid in arrears,
+dual-earner couples (single-earner tables), wealth tax, church tax, cities beyond the 12 (they
+use their canton's main city), more than two children. Bench: replaying the UBS profiles as if
+before tax now uses each one's own city and household: −2.18 months instead of −3.0. ESTV's
+own payroll default for NBU is 0.4% (vs our 1%); noted for item 7, the tables are unaffected
+because they are keyed on the net salary. The `tax-lausanne-*` targets in `targets.json` are
+now matched by construction (item 7).
 
 **3. Pillar 3a lever.** Intervention `pillar_3a` (monthly amount, capped at the annual maximum),
 moved from cash to a locked `pension` balance with its own return; reduces taxable income in the

@@ -183,6 +183,24 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
 
     tax_x = np.array([p[0] for p in tax_table], dtype=float)
     tax_y = np.array([p[1] for p in tax_table], dtype=float)
+    # tax residence changes (#48 item 3): one table per (schedule, zone); None = one table for all
+    zone_rows = None
+    if any(s.tax_zone is not None for s in scheds):
+        XS, YS, rows, seen = [], [], [], {}
+        for s in scheds:  # tables are shared across cases: index each distinct table once
+            tabs = s.tax_tables if s.tax_zone is not None else [tax_table]
+            z = s.tax_zone if s.tax_zone is not None else np.zeros(H, dtype=int)
+            idx = []
+            for tb in tabs:
+                key = tuple(map(tuple, tb))
+                if key not in seen:
+                    seen[key] = len(XS)
+                    XS.append(np.array([p[0] for p in tb], dtype=float))
+                    YS.append(np.array([p[1] for p in tb], dtype=float))
+                idx.append(seen[key])
+            rows.append(np.asarray(idx)[z])
+        zone_rows = np.repeat(np.stack(rows), n, axis=0)  # (N, H) global table index
+        zones_at = [np.unique(zone_rows[:, t]) for t in range(H)]
     tax_scale = P["income_tax_scale"]
     r_cash = _monthly(P["cash_interest_rate"]) - 1.0
     auto_liq = P["auto_liquidate_investments"] >= 0.5
@@ -208,7 +226,20 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
 
         income = planned_income * emp * wage_t[:, t]
         # tax rate looked up on annualised income at today's prices (no bracket creep)
-        tax = np.interp(12.0 * planned_income * emp, tax_x, tax_y) * tax_scale * income
+        annual = 12.0 * planned_income * emp
+        if zone_rows is None:
+            rate = np.interp(annual, tax_x, tax_y)
+        else:
+            zt = zone_rows[:, t]
+            if len(zones_at[t]) == 1:
+                z = zones_at[t][0]
+                rate = np.interp(annual, XS[z], YS[z])
+            else:
+                rate = np.empty(N)
+                for z in zones_at[t]:
+                    m = zt == z
+                    rate[m] = np.interp(annual[m], XS[z], YS[z])
+        tax = rate * tax_scale * income
         living = expense_plan[:, t] * price_t[:, t]
         cost = cost_plan[:, t] * price_t[:, t] + unexpected[:, t]
         extra = extra_plan[:, t] * price_t[:, t]

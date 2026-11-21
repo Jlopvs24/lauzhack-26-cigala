@@ -84,8 +84,10 @@ class AssumptionSet:
         return out
 
     def tax_table(self) -> list[list[float]]:
-        a = self._find("income_tax_scale")
-        return a.get("table", [[0, 0.0]]) if a else [[0, 0.0]]
+        """The default residence's table (Lausanne, single; ESTV, #48 item 3). Profiles use
+        ``Profile.tax_table`` (their own residence)."""
+        from . import tax
+        return tax.table(tax.resolve())
 
     def with_overrides(self, overrides: dict[str, Any] | list[dict]) -> "AssumptionSet":
         merged = {a["id"]: a["value"] for a in self.items if a.get("user_edited")}

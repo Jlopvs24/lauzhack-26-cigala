@@ -10,7 +10,7 @@ the primary page yet. After checking, update the assumption (`verified: true`, `
 
 | assumption | value now | source | what to check |
 |---|---|---|---|
-| `AS-income-tax` (table) | effective rate 1% at 15k … 27% at 250k | ESTV tax calculator https://swisstaxcalculator.estv.admin.ch | single, no church, Lausanne (VD), effective federal + cantonal + communal rate at taxable income 15k, 30k, 50k, 70k, 100k, 150k, 250k; repeat for Zurich (ZH) and married couple for the tax-by-canton improvement |
+| `AS-income-tax` (tables) | ✅ done in #48 item 3: ESTV 2026 tables, 12 cities × 3 households | ESTV tax calculator https://swisstaxcalculator.estv.admin.ch (its public API, `python -m core.bench.fetch_estv`) | re-run the fetch each tax year; `AS-tax-abroad-rate` (15%, abroad) still to check against OECD Taxing Wages https://www.oecd.org/en/publications/taxing-wages_20725124.html |
 | `AS-investment-vol` | 10%/yr | Pictet BVG/LPP index series https://www.group.pictet/asset-management/indices (or a balanced fund factsheet) | annualised volatility of a 25-40% equity Swiss pension-fund style index over 10-20 years |
 | `AS-unemployment-duration` | 6 months | SECO labour market statistics https://www.amstat.ch | average duration of registered unemployment (months), latest year |
 | `AS-unexpected-prob`, `AS-unexpected-mean` | 0.3/yr, CHF 1,500 | FSO Household Budget Survey (HABE/EBM) https://www.bfs.admin.ch/bfs/en/home/statistics/economic-social-situation-population/income-consumption-wealth/household-budget.html | irregular spending categories (repairs, health out-of-pocket) per household per year; otherwise keep as labelled modelling choices |

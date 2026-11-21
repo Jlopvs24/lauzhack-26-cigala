@@ -35,11 +35,9 @@
     {"id": "AS-unexpected-mean", "param": "unexpected_expense_mean", "label": "Average size of an unexpected expense", "value": 1500, "unit": "CHF",
      "range": [500, 3000], "kind": "assumption", "editable": true, "verified": false, "retrieved": "2026-11-21",
      "source": "Modelling choice with no source: about one month of a student's expenses"},
-    {"id": "AS-income-tax", "param": "income_tax_scale", "label": "Income tax level (1 = illustrative Lausanne table)", "value": 1.0, "unit": "multiplier",
-     "range": [0.8, 1.2], "kind": "assumption", "editable": true, "verified": false, "retrieved": "2026-11-21",
-     "table_unit": "[annual net salary CHF (after social contributions, at today's prices), effective rate]",
-     "table": [[0, 0.0], [15000, 0.01], [30000, 0.05], [50000, 0.11], [70000, 0.14], [100000, 0.18], [150000, 0.22], [250000, 0.27]],
-     "source": "Illustrative effective federal+cantonal+communal rate, single person, Lausanne (VD), no church tax. Cross-checked only against a third-party calculator (cantonal CHF 3,216 + communal CHF 1,629 at CHF 50,000 gross, https://ch.talent.com/en/tax-calculator/Waadt) and Lausanne's 2026 multipliers (canton 155%, commune 78.5%, https://www.lausanne.ch/officiel/administration/finances-et-mobilite/finances/impots/coefficient-taux-arrete-imposition.html). Not verified with the official ESTV calculator (https://swisstaxcalculator.estv.admin.ch)"},
+    {"id": "AS-income-tax", "param": "income_tax_scale", "label": "Income tax level (1 = official ESTV 2026 tax at your residence)", "value": 1.0, "unit": "multiplier",
+     "range": [0.8, 1.2], "kind": "assumption", "editable": true, "verified": true, "retrieved": "2026-11-21",
+     "source": "Tables: official ESTV tax calculator, tax year 2026, federal + cantonal + communal income tax with the standard deductions, no church tax, by city (12 cities of the UBS profiles) and household (single, married one earner, married with two children); core/data/tax_ch_2026.json, rebuilt by python -m core.bench.fetch_estv (https://swisstaxcalculator.estv.admin.ch). The value 1 = exactly those tables; the range 0.8-1.2 is a modelling choice for what the standard case leaves out (own deductions, pillar 3a, commune multipliers, church tax)"},
     {"id": "AS-auto-liquidate", "param": "auto_liquidate_investments", "label": "Sell investments automatically when cash goes negative (1 = yes)", "value": 1, "unit": "flag",
      "kind": "assumption", "editable": true, "verified": false, "retrieved": "2026-11-21",
      "source": "Modelling rule (no external source): a shortfall is first covered by selling investments; any remaining negative cash is an unfunded financing need, not an assumed loan (UBS starter-kit convention)"},
@@ -90,6 +88,9 @@
      "source": "Rule: the employer pays at least half of the contributions (Art. 66 BVG); 0.5 = the legal minimum split, many pension funds pay more (modelling choice)"},
     {"id": "AS-bvg-interest", "param": "payroll_bvg_interest", "label": "BVG minimum interest on mandatory savings", "value": 0.0125, "unit": "1/year",
      "kind": "observation", "editable": true, "verified": true, "retrieved": "2026-11-21",
-     "source": "Federal Council kept the BVG minimum interest rate at 1.25% for 2026 (https://www.bsv.admin.ch/de/altersvorsorge-beruflichen-vorsorge)"}
+     "source": "Federal Council kept the BVG minimum interest rate at 1.25% for 2026 (https://www.bsv.admin.ch/de/altersvorsorge-beruflichen-vorsorge)"},
+    {"id": "AS-tax-abroad-rate", "param": "tax_abroad_rate", "label": "Effective income tax abroad (share of net salary)", "value": 0.15, "unit": "share",
+     "range": [0.08, 0.25], "kind": "assumption", "editable": true, "verified": false, "retrieved": "2026-11-21",
+     "source": "Modelling choice, not verified: one flat effective income-tax rate for a junior salary abroad (e.g. a euro-area country), applied to the net salary after that country's social contributions. Used when a node sets tax_residence to a country other than CH (#48 item 3); to replace with the OECD Taxing Wages tables for the chosen country (https://www.oecd.org/en/publications/taxing-wages_20725124.html)"}
   ]
 }

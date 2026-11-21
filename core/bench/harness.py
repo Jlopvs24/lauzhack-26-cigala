@@ -138,7 +138,9 @@ def replay(kit: dict | None = None, overrides: dict | None = None, world: str = 
         prof = Profile.from_dict({"profile_id": pid, "as_of": rows[0]["month"] + "-01", "horizon_months": H,
                                   "cash": max(rows[0]["opening"], 0.0), "monthly_net_income": max(b["income"], 0.0),
                                   "monthly_rent": max(b["rent"], 0.0), "monthly_other_expenses": max(b["other"], 0.0),
-                                  "income_basis": income_basis})
+                                  "income_basis": income_basis,
+                                  # their own tax residence (#48 item 3); only matters for net_before_tax
+                                  **{k: kit["profiles"].get(pid, {}).get(k) for k in ("city", "canton", "household_type")}})
         sched = build_schedule(prof, parse_interventions([], A, H), A)
         out = run(sched, prof.cash, 0.0, A, prof.tax_table(aset), build_weather([], H), stochastic=False)
         ours = out.cash[0, 1:]

@@ -144,7 +144,7 @@ def describe_intervention(iv: dict, values: dict[str, float]) -> str:
             return values[v["assumption"]] * float(v.get("scale", 1))
         return float(v)
 
-    names = {"monthly_net_income": "net income", "monthly_rent": "rent",
+    names = {"monthly_net_income": "net income", "monthly_gross_income": "gross salary", "monthly_rent": "rent",
              "monthly_other_expenses": "other living costs",
              "monthly_investment_contribution": "monthly investing"}
     p = iv["param"]
@@ -168,6 +168,11 @@ def describe_intervention(iv: dict, values: dict[str, float]) -> str:
         return f"{iv.get('label') or iv.get('id')}: assumption {iv.get('id')} = {val(iv.get('value', 0)):g} on this branch"
     if p == "cancel_one_off":
         return f"Cancels the one-off '{iv.get('label')}' planned earlier on this path"
+    if p == "tax_residence":
+        where = iv.get("city") or iv.get("canton") or iv.get("country") or "same place"
+        hh = f" as {iv['household']}" if iv.get("household") else ""
+        win = f"from month {iv.get('from_month', 0) + 1}" + (f" to month {iv['to_month']}" if iv.get("to_month") is not None else "")
+        return f"{iv.get('label') or 'Tax residence'}: income taxed in {where}{hh} {win}"
     if p == "loan_change":
         what = []
         if iv.get("monthly_payment") is not None:

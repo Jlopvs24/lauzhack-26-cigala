@@ -84,7 +84,7 @@ def shift_interventions(interventions, delay, horizon):
         if iv["param"] == "assumption":  # a change of assumption has no date
             shifted.append(iv)
             continue
-        key = "from_month" if iv["param"].startswith("monthly_") else "month"
+        key = "from_month" if iv["param"].startswith("monthly_") or iv["param"] == "tax_residence" else "month"
         iv[key] = iv.get(key, 0) + delay
         if iv[key] >= horizon:
             continue
