@@ -103,7 +103,7 @@ export const EX_I18N = {
 
 const signed = (d) => (Number.isFinite(d) ? (d >= 0 ? '+' : '−') + chf(Math.abs(d)).replace('CHF ', 'CHF ') : '–');
 
-export function explorationSections(ex, { lang = 'en', metrics = {}, applied = false } = {}) {
+export function explorationSections(ex, { lang = 'en', metrics = {}, applied = false, buttons = true } = {}) {
   if (!ex || typeof ex !== 'object') return '';
   const L = EX_I18N[lang] || EX_I18N.en;
   const st = (s) => L.status[s] || String(s || '').replace(/_/g, ' ');
@@ -133,7 +133,7 @@ export function explorationSections(ex, { lang = 'en', metrics = {}, applied = f
         bare(l.high_value), chf(l.final_net_worth_high) + short(l.cash_shortfall_high));
       const vals = [...new Set([l.low_value, l.high_value, ...Object.values(l.how_to_change?.assumptions || {})])].filter(Number.isFinite);
       const btns = vals.map((v) => `<button type="button" class="lever-btn" data-lever="${esc(l.assumption_id)}" data-value="${v}">${L.tryV(esc(fmtVal(v, /CHF/.test(u) ? '' : u)))}</button>`).join('');
-      return `<li>${text}<span class="lever-btns">${btns}</span></li>`;
+      return `<li>${text}${buttons ? `<span class="lever-btns">${btns}</span>` : ''}</li>`;
     }).join('');
     out.push(`<div class="ex-block"><h4>${L.leversTitle}</h4><ul class="levers">${items}</ul>${applied ? `<p class="note">${L.applied}</p>` : ''}</div>`);
   }

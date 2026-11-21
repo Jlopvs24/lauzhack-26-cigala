@@ -1,4 +1,5 @@
 import { explorationSections, KNOWN_EXPLORATION } from "./exploration.js";
+import { planCheckHTML } from "./headline.js";
 // The leaf report: exploration, not prediction. It leads with the deterministic scenario, then
 // how this option differs from its siblings, then the levers ("what would have to be true").
 // Monte Carlo is an optional "uncertainty lens", off by default. Unknown numeric result fields are
@@ -140,12 +141,12 @@ export function renderReport({ data, lang, ui, tr, lens, lensPending = false, ap
     <div class="kicker">${cur.node_id === "0" ? ui.today : ui.branch + " " + esc(cur.node_id)}</div>
     <h2>${esc(c.label)}</h2>
     <p class="desc">${esc(c.desc)}</p>
+    ${planCheckHTML(r, lang, esc)}
     <h3>${L.scenario}</h3>
     <div class="hero-num"><b>${fmtCHF(detNW)}</b><span>${L.nw10}</span></div>
     <dl class="facts">
       <dt>${L.lowCash}</dt><dd class="${m.min_cash < 0 ? "warn" : ""}">${fmtCHF(m.min_cash)}</dd>
       <dt>${L.short}</dt><dd class="${shortM ? "warn" : ""}">${shortM ? L.month + " " + shortM : L.never}</dd>
-      <dt>${L.health}</dt><dd>${h.score != null ? Math.round(h.score) + " / 100" : "–"}</dd>
     </dl>
     ${levers ? (exHTML ? `<h3>${L.exTitle}</h3>${levers}` : `<h3>${L.leversTitle}</h3><ul class="levers">${levers}</ul><p class="note">${L.leversNote}</p>`) : ""}
     <h3>${L.chartTitle}</h3>
