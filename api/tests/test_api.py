@@ -137,6 +137,39 @@ def test_grounding():
     assert check_grounding("With a salary of 3800 CHF...", tools, "what if 3800?")["grounded"]
 
 
-def test_voice_without_keys_is_503():
-    assert c.post("/voice/tts", json={"text": "hi"}).status_code == 503
+def test_stt_without_key_is_503():
     assert c.post("/voice/stt", files={"audio": ("a.wav", b"RIFF", "audio/wav")}).status_code == 503
+
+
+def test_tts_local_or_503():
+    """Kokoro (local, free) when its model files exist, else 503 so the browser speaks."""
+    from api import voice
+    r = c.post("/voice/tts", json={"text": "Month 7, minus CHF 18'550."})
+    if voice.tts_provider() is None:
+        assert r.status_code == 503
+        assert c.post("/voice/tts/stream", json={"text": "Hi."}).status_code == 503
+        return
+    assert r.status_code == 200 and r.content[:4] == b"RIFF"
+    assert r.headers["x-cost-usd"] == "0.0"
+    import json
+    lines = [json.loads(x) for x in c.post("/voice/tts/stream", json={"text": "Hi. I am Lumi."}).text.splitlines()]
+    assert [x.get("text") for x in lines[:-1]] == ["Hi.", "I am Lumi."] and lines[-1]["done"]
+
+
+def test_speakable_keeps_numbers():
+    from api.tts_local import speakable, split_sentences
+    assert speakable("CHF -18'550 and 99.4%") == "minus CHF 18550 and 99.4 percent"
+    assert speakable("CHF -18'550", "es") == "menos CHF 18550"
+    assert speakable("months 1-3") == "months 1-3"
+    assert split_sentences("Hi. It is 99.4% likely! Ok?") == ["Hi.", "It is 99.4% likely!", "Ok?"]
+
+
+def test_call_prototype_served():
+    r = c.get("/call", follow_redirects=True)
+    assert r.status_code == 200 and "CharacterCall" in r.text
+    assert c.get("/static/call.js").status_code == 200
+
+
+def test_agent_call_mode_template():
+    j = c.post("/agent/ask", json={"question": "why?", "context": {"path": ["2"], "mode": "call"}}).json()
+    assert j["answer"] and j["cost_usd"] == 0
