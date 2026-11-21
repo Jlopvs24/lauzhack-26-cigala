@@ -642,3 +642,62 @@ def test_borrowed_cash_does_not_count_as_reaching_a_goal_in_the_headline():
     nodes = {n["node_id"]: n for n in expand(None, ["2", "2.2"], sensitivity=False, exploration=False)["nodes"]}
     b = nodes["2.2"]["result"]["headline"]["slot_b"]
     assert not (b["metric"] == "earliest_goal_month" and b["value"] is not None and b["value"] < 24)
+
+
+# --- speed (#33): same numbers, fewer engine passes ----------------------------
+
+def test_per_case_weather_batch_equals_separate_runs():
+    from core.engine import run, run_batch
+    from core.models import Profile, parse_interventions
+    from core.schedule import build_schedule
+    from core.weather import build_weather
+    prof = Profile.from_dict(load_profile())
+    aset = build_assumptions(load_tree()["assumptions"])
+    A = aset.values()
+    from core.tree import flatten_interventions
+    sched = build_schedule(prof, parse_interventions(flatten_interventions(load_tree(), "1.2"), A, prof.horizon_months))
+    ws = [build_weather([{"type": k}], prof.horizon_months) for k in ("recession", "inflation", "market_crash", "job_loss")]
+    batch = run_batch([sched] * 4, [A] * 4, prof.cash, prof.investments, aset.tax_table(), ws, stochastic=False)
+    for j, w in enumerate(ws):
+        one = run(sched, prof.cash, prof.investments, A, aset.tax_table(), w, stochastic=False)
+        assert batch.cash[j] == pytest.approx(one.cash[0], abs=1e-6)
+        assert batch.net_worth[j] == pytest.approx(one.net_worth[0], abs=1e-6)
+
+
+def test_explore_matches_the_full_expand_and_fast_expand_skips_it():
+    from core import explore
+    full = {n["node_id"]: n for n in expand(None, ["2", "2.2"])["nodes"]}["2.2"]["result"]
+    fast = {n["node_id"]: n for n in expand(None, ["2", "2.2"], exploration=False, sensitivity=False)["nodes"]}["2.2"]["result"]
+    lazy = explore(None, ["2", "2.2"])
+    assert "exploration" not in fast and fast["sensitivity"] is None
+    assert lazy["exploration"] == full["exploration"] and lazy["sensitivity"] == full["sensitivity"]
+    assert fast["metrics"] == full["metrics"] and fast["plan_check"]["level"] == full["plan_check"]["level"]
+
+
+def test_warm_fills_the_cache_for_every_node():
+    import core.tree as ct
+    from core import warm
+    ct._CACHE.clear()
+    assert warm() == 40
+    t = time.perf_counter()
+    expand(None, ["3", "3.2", "3.2.3"], exploration=False, sensitivity=False)
+    assert time.perf_counter() - t < 0.05  # served from the cache
+
+
+def _best(f, n=3):
+    import core.tree as ct
+    best = float("inf")
+    for _ in range(n):
+        ct._CACHE.clear()
+        t = time.perf_counter()
+        f()
+        best = min(best, time.perf_counter() - t)
+    return best
+
+
+def test_perf_fast_expand_and_lazy_explore():
+    from core import explore
+    # budgets with ~2x margin over this machine (fast expand ~0.07 s, explore ~0.18 s, full ~0.26 s)
+    assert _best(lambda: expand(None, ["1"], exploration=False, sensitivity=False)) < 0.15
+    assert _best(lambda: explore(None, ["1"])) < 0.4
+    assert _best(lambda: expand(None, ["1"])) < 0.6

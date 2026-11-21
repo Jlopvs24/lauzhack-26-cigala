@@ -74,11 +74,14 @@ def run(sched: Schedule, opening_cash: float, opening_investments: float, A: dic
 
 
 def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: float,
-              opening_investments: float, tax_table: list[list[float]], weather: WeatherArrays, *,
+              opening_investments: float, tax_table: list[list[float]],
+              weather: WeatherArrays | list[WeatherArrays], *,
               n_paths: int = 1, seed: int | None = None, stochastic: bool = False,
               keep_flows: bool = False) -> RunOutput:
     """K scenarios in one pass. Block k = paths [k*n, (k+1)*n). All blocks share
-    the same random draws. Returns arrays with N = K*n rows."""
+    the same random draws. ``weather`` is shared by every case or given per case (a list
+    of K), so e.g. the same plan under four named weathers runs in one pass.
+    Returns arrays with N = K*n rows."""
     K = len(scheds)
     if K != len(As) or K == 0:
         raise ValueError("need one assumption dict per schedule")
@@ -95,6 +98,16 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
         return np.repeat(np.stack([getattr(s, attr) for s in scheds]), n, axis=0)
 
     P = {k: per_path(k) for k in PARAMS}
+    wl = weather if isinstance(weather, list) else [weather]
+    if len(wl) not in (1, K):
+        raise ValueError("need one weather, or one weather per schedule")
+
+    def wx(attr: str) -> np.ndarray:          # (N, H) weather field for every path
+        a = np.stack([getattr(w, attr) for w in wl])
+        return np.repeat(a, n, axis=0) if len(wl) == K else np.broadcast_to(a, (N, H))
+
+    W_infl, W_wage, W_shift = wx("inflation_override"), wx("real_wage_override"), wx("return_shift")
+    W_shock, W_jl, W_unemp = wx("return_shock"), wx("job_loss_multiplier"), wx("forced_unemployment")
     income_plan = stack("income")
     expense_plan = np.repeat(np.stack([s.expenses for s in scheds]), n, axis=0)
     cost_plan = stack("one_off_cost")
@@ -128,11 +141,9 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
     pi_year = np.clip(pi_year, -0.02, 0.12) if stochastic else pi_year
     pi_month = pi_year[:, years]                             # (N, H) annual rate in force
     wage_pi = pi_month.copy()                                # wages follow normal inflation
-    has_override = ~np.isnan(weather.inflation_override)
-    pi_month[:, has_override] = weather.inflation_override[has_override]
+    pi_month = np.where(np.isnan(W_infl), pi_month, W_infl)
     cpi_factor = _monthly(pi_month)
-    real_g = np.where(np.isnan(weather.real_wage_override)[None, :], P["real_wage_growth"][:, None],
-                      np.nan_to_num(weather.real_wage_override)[None, :])
+    real_g = np.where(np.isnan(W_wage), P["real_wage_growth"][:, None], np.nan_to_num(W_wage))
     wage_factor = _monthly(wage_pi + real_g)
     cpi = np.ones((N, H + 1))
     cpi[:, 1:] = np.cumprod(cpi_factor, axis=1)
@@ -142,13 +153,13 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
     wage_t = wage_idx[:, :H]
 
     # --- investment returns ---------------------------------------------------
-    mu = np.maximum(P["investment_return_mean"][:, None] + weather.return_shift[None, :], -0.99)  # (N, H)
+    mu = np.maximum(P["investment_return_mean"][:, None] + W_shift, -0.99)  # (N, H)
     s = P["investment_return_vol"][:, None] / np.sqrt(12.0)
     if stochastic:
         gross = np.exp(np.log1p(mu) / 12.0 - 0.5 * s * s + s * z_ret)
     else:
         gross = _monthly(mu)
-    gross = gross * weather.return_shock[None, :]
+    gross = gross * W_shock
 
     # --- unexpected expenses (exponential size by inverse transform) ---------
     hit = u_hit < (P["unexpected_expense_annual_prob"][:, None] / 12.0)
@@ -156,7 +167,7 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
 
     # --- job loss: monthly hazard, geometric spell length by inverse transform -
     p_annual = np.clip(P["job_loss_annual_prob"], 0.0, 1.0)
-    p_loss = (1.0 - (1.0 - p_annual) ** (1.0 / 12.0))[:, None] * weather.job_loss_multiplier[None, :]  # (N, H)
+    p_loss = (1.0 - (1.0 - p_annual) ** (1.0 / 12.0))[:, None] * W_jl  # (N, H)
     q = 1.0 / np.maximum(P["unemployment_mean_duration_months"], 1.0)
     with np.errstate(divide="ignore"):
         durations = np.where(q[:, None] >= 1.0, 1,
@@ -184,7 +195,7 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
         employed = planned_income > 0
         new_loss = employed & (remaining == 0) & (u_loss[:, t] < p_loss[:, t])
         remaining = np.where(new_loss, durations[:, t], remaining)
-        unemployed = employed & ((remaining > 0) | weather.forced_unemployment[t])
+        unemployed = employed & ((remaining > 0) | W_unemp[:, t])
         remaining = np.where(employed, np.maximum(remaining - 1, 0), remaining)
         unemployed_count += unemployed
         emp = np.where(unemployed, replacement, 1.0)

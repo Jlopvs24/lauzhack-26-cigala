@@ -523,6 +523,13 @@ Engine side of `POST /report` (thread 2 aggregates and words it; every sentence 
 
 `summary` = `{final_net_worth_real, final_net_worth, min_cash, first_negative_month, final_debt, liquidity_months, goals_met, goals_total, plan_check, plan_check_label}`. A 3-level path takes about 0.6 s.
 
+### Fast tree + lazy exploration (#33)
+
+- `core.expand(..., exploration=False, sensitivity=False)` returns the visible tree with every node's result, `headline`, `constraints`, `plan_check` and `weather_resilience`, but no `exploration` and `sensitivity: null` (~0.07 s cold, a few ms cached). Defaults are unchanged (`exploration=True`, `sensitivity=True`).
+- `core.explore(profile, path, assumptions=None, weather=None)` -> `{node_id, path, trace_id, exploration, sensitivity, plan_check}` for the node at the end of `path`: the heavy part, for lazy loading (~0.2 s cold). Same numbers as the full `expand`.
+- `core.warm(profile=None, explore_nodes=False)` precomputes every node into the engine's LRU cache (40 nodes in ~1 s); call it in a background thread at start-up. The cache is thread-safe.
+- `run_batch` accepts one weather or one per case, so the four named weathers of `weather_resilience` run in one pass; threshold searches evaluate 16 probes per engine pass.
+
 ## API (thread 2) — routes
 
 | Method | Route | Purpose |

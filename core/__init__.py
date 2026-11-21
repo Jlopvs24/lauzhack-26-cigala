@@ -5,15 +5,17 @@ Entry points for api/ (signatures match api/engine.py):
 - simulate(profile, node, assumptions=None, weather=None) -> one SimulationResult
 - node_info(node_id), assumptions_list(overrides), weather_catalog()
 - report_data(profile, path, assumptions=None, weather=None) -> every number of the path report
+- explore(profile, path, assumptions=None, weather=None) -> exploration + tornado of the current node (lazy)
+- warm(profile=None) -> precompute the whole tree into the cache (start-up)
 Lower level: simulate_node(profile, interventions, ...), load_profile(), load_tree().
 """
 from .assumptions import build_assumptions, default_assumptions
 from .simulate import ENGINE_VERSION, sensitivity_analysis, simulate_node
-from .tree import (assumptions_list, expand, load_profile, load_tree, node_info, simulate,
+from .tree import (assumptions_list, expand, explore, warm, load_profile, load_tree, node_info, simulate,
                    visible_nodes)
 from .report import report_data
 from .weather import weather_catalog
 
 __all__ = ["ENGINE_VERSION", "assumptions_list", "build_assumptions", "default_assumptions", "expand",
-           "load_profile", "load_tree", "node_info", "report_data", "sensitivity_analysis", "simulate", "simulate_node",
+           "load_profile", "load_tree", "node_info", "report_data", "explore", "warm", "sensitivity_analysis", "simulate", "simulate_node",
            "visible_nodes", "weather_catalog"]

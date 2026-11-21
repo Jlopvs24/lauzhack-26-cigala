@@ -12,6 +12,7 @@ from .models import parse_interventions
 from .schedule import build_schedule
 from .weather import build_weather
 
+PROBES = 16  # points evaluated together per search round (one engine pass)
 SEARCH_LIMIT = 1_000_000.0  # Explicit search bound in today's CHF, not a plausible salary or award.
 
 
@@ -38,13 +39,15 @@ def threshold(evaluate, low, high, *, strict=False):
         return {"status": "non_monotone", "value": None, "bounds": [low, high], **edges}
     right = int(np.flatnonzero(passed)[0])
     left, right = float(grid[right - 1]), float(grid[right])
-    while right - left > 0.005:
-        mid = (left + right) / 2
-        margin = float(evaluate([mid])[0])
-        if (margin > 0) if strict else (margin >= 0):
-            right = mid
+    while right - left > 0.005:  # k-ary search: PROBES points per round, all in one batched engine pass
+        pts = np.linspace(left, right, PROBES + 2)[1:-1]
+        m = np.asarray(evaluate(pts), dtype=float)
+        ok = np.flatnonzero(m > 0 if strict else m >= 0)
+        if ok.size:
+            i = int(ok[0])
+            right, left = float(pts[i]), (float(pts[i - 1]) if i else left)
         else:
-            left = mid
+            left = float(pts[-1])
     value = math.ceil(right * 100) / 100
     if not ((evaluate([value])[0] > 0) if strict else (evaluate([value])[0] >= 0)):
         return {"status": "not_reached_within_bounds", "value": None, "bounds": [low, high], **edges}
