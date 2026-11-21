@@ -197,3 +197,29 @@ export function taxSegments(segments = [], lang = 'en', assumptions = []) {
     };
   });
 }
+
+// Pillar 3a (core #48 item 4): the same money paid into 3a, invested or kept in cash, for one step.
+// null when the engine did not return it (older engine or exploration not loaded): the card is not drawn.
+// Never ranks the options: the bars show net worth split into liquid and locked, and the caveat says why.
+export function pillar3a(step, lang = 'en') {
+  const L = ri(lang), p = step?.result?.exploration?.pillar_3a;
+  if (!p || typeof p !== 'object') return null;
+  if (p.status === 'no_earned_income') return { status: 'no_earned_income', text: L.p3NoIncome, rows: [] };
+  const opts = Array.isArray(p.options) ? p.options : [];
+  if (!opts.length) return null;
+  const order = ['keep_in_cash', 'pay_into_3a', 'invest'];
+  const rows = [...opts].sort((a, b) => order.indexOf(a.option) - order.indexOf(b.option)).map((o) => ({
+    key: o.option, label: L.p3Opt[o.option] || o.option, nw: o.final_net_worth, liquid: o.final_liquid,
+    locked: o.final_pillar_3a || 0, minCash: o.min_cash, gap: Number.isFinite(o.min_cash) && o.min_cash < 0, taxSaved: o.tax_saved_by_3a || 0,
+  }));
+  const into = rows.find((r) => r.key === 'pay_into_3a');
+  const seek = p.max_monthly_3a_keeping_goals || {};
+  const seekFn = L.p3Seek[seek.status];
+  const monthly = Number.isFinite(p.monthly_amount) ? chf(p.monthly_amount) : '–';
+  return {
+    status: p.status || 'evaluated', rows,
+    lead: L.p3Lead(monthly, Number.isFinite(p.annual_cap) ? chf(p.annual_cap) : '–'),
+    caveat: into && into.locked > 0 ? L.p3Caveat(chf(into.taxSaved), chf(into.liquid), chf(into.locked)) : '',
+    seek: seekFn ? seekFn(Number.isFinite(seek.value) ? chf(seek.value) : monthly) : '',
+  };
+}

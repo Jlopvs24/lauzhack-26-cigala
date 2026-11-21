@@ -5,12 +5,12 @@
 // model's wording of the summary whenever /report answers: nothing waits for the LLM.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { buildFromLevels, loadExploration, loadLevels, loadLiveValidation, loadSummary, mergeExploration } from './pathReport.js';
-import { chf, compareLevels, constraintRows, fmtVal, heroTiles, taxSegments, oneLiner, plainTemplate, qualKeys, signedChf, stressRows, timeSeries, tornadoRows, whatIfCards } from './reportModel.js';
+import { chf, compareLevels, constraintRows, fmtVal, heroTiles, pillar3a, taxSegments, oneLiner, plainTemplate, qualKeys, signedChf, stressRows, timeSeries, tornadoRows, whatIfCards } from './reportModel.js';
 import { ri } from './reportI18n.js';
 import { usePersonalItems } from '../personalize/YourConditions.jsx';
 import { describe as describeOwn } from '../personalize/model.js';
 import { H_I18N } from '../scene/headline.js';
-import { CompareLevels, MarginRows, StressRows, TimeChart, Tornado } from './charts.jsx';
+import { CompareLevels, MarginRows, Pillar3aBars, StressRows, TimeChart, Tornado } from './charts.jsx';
 import './report.css';
 
 const TONE_ICON = { good: '✓', warn: '!', bad: '✕', neutral: '' };
@@ -89,7 +89,7 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
     return {
       line: oneLiner(data, lang, tr), tiles: heroTiles(data, lang), template: plainTemplate(data, lang, tr),
       series: timeSeries(data, metric), levels: compareLevels(data), ti,
-      cards: steps.length ? whatIfCards(steps[ti], lang, tr) : [], tornado: steps.length ? tornadoRows(steps[ti]) : [],
+      cards: steps.length ? whatIfCards(steps[ti], lang, tr) : [], tornado: steps.length ? tornadoRows(steps[ti]) : [], p3a: steps.length ? pillar3a(steps[ti], lang) : null,
       stress: stressRows(data, lang), limits: constraintRows(data.leaf.constraints, lang), qual: qualKeys(data),
     };
   }, [data, lang, metric, trueStep]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -242,6 +242,15 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
               {!!c.more?.length && <ul>{c.more.map((x, j) => <li key={j}>{x}</li>)}</ul>}
             </article>)}
           </div>}
+        {v.p3a && <article className="vr-p3card" aria-labelledby="vr-p3-h">
+          <h3 id="vr-p3-h" className="vr-h3">{L.p3Title}</h3>
+          {v.p3a.status === 'no_earned_income' ? <p className="vr-sub">{v.p3a.text}</p> : <>
+            <p className="vr-sub">{v.p3a.lead}</p>
+            <Pillar3aBars rows={v.p3a.rows} L={L} />
+            {v.p3a.caveat && <p className="vr-p3note"><span className="vr-p3lock" aria-hidden="true" />{v.p3a.caveat}</p>}
+            {v.p3a.seek && <p className="vr-muted vr-p3seek">{v.p3a.seek}</p>}
+          </>}
+        </article>}
         {v.tornado.length > 0 && <div className="vr-subsec">
           <h3 className="vr-h3">{L.sTornado}</h3>
           <p className="vr-sub">{L.sTornadoSub}</p>

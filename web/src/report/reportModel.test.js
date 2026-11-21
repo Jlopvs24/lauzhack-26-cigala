@@ -106,3 +106,26 @@ test('tax residence: one line per stretch, abroad with its assumed rate, Lausann
   assert.match(taxSegments([{ from_month: 0, to_month: 120, taxed: false, reason: 'take_home' }], 'fr')[0].place, /Non imposé/);
   assert.deepEqual(taxSegments(undefined), []);
 });
+
+test('pillar 3a card: three options split into liquid and locked, caveat and goal-seek; absent field draws nothing', async () => {
+  const { pillar3a } = await import('./reportModel.js');
+  const p = { status: 'evaluated', monthly_amount: 604.83, annual_cap: 7258, options: [
+    { option: 'pay_into_3a', final_net_worth: 151819.73, final_liquid: 75520.86, final_pillar_3a: 76298.87, min_cash: 8319.98, tax_saved_by_3a: 22745.09 },
+    { option: 'keep_in_cash', final_net_worth: 125604.88, final_liquid: 125604.88, final_pillar_3a: 0, min_cash: 8736.47, tax_saved_by_3a: 0 },
+    { option: 'invest', final_net_worth: 141899.8, final_liquid: 141899.8, final_pillar_3a: 0, min_cash: 8131.64, tax_saved_by_3a: 0 }],
+    highest_final_net_worth: 'pay_into_3a', max_monthly_3a_keeping_goals: { status: 'full_amount_keeps_goals', value: 604.83 } };
+  const c = pillar3a({ result: { exploration: { pillar_3a: p } } }, 'en');
+  assert.deepEqual(c.rows.map((r) => r.key), ['keep_in_cash', 'pay_into_3a', 'invest']);
+  assert.deepEqual(c.rows.map((r) => r.label), ['Kept in cash', 'Paid into pillar 3a', 'Invested']);
+  assert.equal(c.rows[1].locked, 76298.87);
+  assert.match(c.lead, /^If CHF 605 a month \(this branch’s cap, CHF 7’258 a year\).*then under these assumptions/);
+  assert.equal(c.caveat, 'Paying into 3a saves CHF 22’745 of income tax, but only CHF 75’521 stays liquid: the CHF 76’299 in 3a is locked until retirement (early withdrawal only for a home, self-employment or leaving Switzerland).');
+  assert.equal(c.seek, 'Paying the full CHF 605 a month still meets every dated goal.');
+  assert.ok(!/best|recommend/i.test(c.lead + c.caveat + c.seek));
+  assert.match(pillar3a({ result: { exploration: { pillar_3a: p } } }, 'de').caveat, /bis zur Pensionierung gebunden/);
+  assert.equal(pillar3a({ result: { exploration: { pillar_3a: { ...p, max_monthly_3a_keeping_goals: { status: 'goals_already_missed', value: null } } } } }, 'es').seek,
+    'Los objetivos con fecha ya se incumplen sin 3a, así que ninguna aportación los mantiene.');
+  assert.equal(pillar3a({ result: { exploration: { pillar_3a: { status: 'no_earned_income' } } } }, 'fr').rows.length, 0);
+  assert.equal(pillar3a({ result: { exploration: {} } }), null);
+  assert.equal(pillar3a(undefined), null);
+});

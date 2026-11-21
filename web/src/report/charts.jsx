@@ -241,3 +241,31 @@ export function MarginRows({ rows, L }) {
     </li>)}
   </ul>;
 }
+
+// ---------------------------------------------------------------- pillar 3a: net worth = liquid + locked
+export function Pillar3aBars({ rows, L }) {
+  const box = useRef(null), tip = useTip(box);
+  if (!rows.length) return null;
+  const lo = Math.min(0, ...rows.map((r) => r.liquid).filter(Number.isFinite));
+  const hi = Math.max(...rows.map((r) => Math.max(r.nw, r.liquid + r.locked)).filter(Number.isFinite)) * 1.02 || 1;
+  const seg = (from, to, cls) => <span className={`vr-p3seg ${cls}`} style={{ left: `${pos(Math.min(from, to), lo, hi)}%`, width: `${Math.max(0.4, Math.abs(pos(to, lo, hi) - pos(from, lo, hi)))}%` }} />;
+  return <div className="vr-p3" ref={box}>
+    <div className="vr-legend vr-legend-top"><span><i className="k liquid" />{L.p3Liquid}</span><span><i className="k locked" />{L.p3Locked}</span></div>
+    {rows.map((r) => <div className={`vr-p3row ${r.key}`} key={r.key}
+      {...bindTip(tip, <><div className="vr-tip-h">{r.label}</div>
+        <div className="vr-tip-row"><b>{chf(r.nw)}</b><span>{L.p3Axis}</span></div>
+        <div className="vr-tip-row"><span className="k liquid" /><b>{chf(r.liquid)}</b><span>{L.p3Liquid}</span></div>
+        <div className="vr-tip-row"><span className="k locked" /><b>{chf(r.locked)}</b><span>{L.p3Locked}</span></div>
+        {r.taxSaved > 0 && <div className="vr-tip-row"><b>{chf(r.taxSaved)}</b><span>{L.p3Tax}</span></div>}
+        <div className="vr-tip-row"><b className={r.gap ? 'neg' : ''}>{chf(r.minCash)}</b><span>{L.lowest}</span></div></>)}>
+      <span className="vr-p3name">{r.label}{r.gap && <span className="vr-chip bad sm">{L.p3Gap}</span>}</span>
+      <span className="vr-track">
+        {lo < 0 && <span className="vr-zero" style={{ left: `${pos(0, lo, hi)}%` }} />}
+        {seg(0, r.liquid, r.liquid < 0 ? 'neg' : 'liquid')}
+        {r.locked > 0 && seg(Math.max(0, r.liquid), Math.max(0, r.liquid) + r.locked, 'locked')}
+      </span>
+      <span className="vr-p3val"><b>{chf(r.nw)}</b>{r.locked > 0 && <small>{chf(r.locked)} {L.p3Locked}</small>}</span>
+    </div>)}
+    {tip.el}
+  </div>;
+}
