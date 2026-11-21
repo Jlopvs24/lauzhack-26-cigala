@@ -9,6 +9,10 @@ const q = new URLSearchParams(location.search);
 const lang = q.get('lang') || 'en', state = q.get('state') || 'entry';
 if (q.get('theme')) document.documentElement.dataset.theme = q.get('theme');
 if (q.get('app') === '1') import('../app.css');
+if (q.get('slow') === '1') { // dev only: a /tree/personalize that never answers, to see the timeout path
+  const real = window.fetch.bind(window);
+  window.fetch = (url, init) => (String(url).endsWith('/tree/personalize') ? new Promise((_, rej) => init?.signal?.addEventListener('abort', () => rej(init.signal.reason))) : real(url, init));
+}
 const node = { node_id: '2', parent_id: '0', label: "Do a master's", description: 'Two years of master\'s with a student job, then a better-paid job.' };
 const tr = (n) => translateNode(n, lang);
 if (q.get('seed') === '1' && !personalStore.list().length) {

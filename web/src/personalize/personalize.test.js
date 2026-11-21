@@ -116,3 +116,22 @@ test('every language has every English string', () => {
   const shape = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? `array${v.length}` : typeof v === 'object' ? shape(v) : typeof v]));
   for (const lang of ['es', 'fr', 'de']) assert.deepEqual(shape(PI[lang]), shape(PI.en), lang);
 });
+
+test('slow server: own timeout, friendly states, manual numbers', async () => {
+  const { requestPersonalization, isTimeout, manualIntervention, manualFromGuess } = await import('./api.js');
+  const node = { node_id: '2', parent_id: '0', label: 'Do a master’s' };
+  // a server that never answers is cut by the personalize timeout, not the global 30 s one
+  const hang = (route, { signal }) => new Promise((_, rej) => signal.addEventListener('abort', () => rej(signal.reason)));
+  const t0 = Date.now();
+  await assert.rejects(requestPersonalization({ node, text: 'x' }, { request: hang, timeoutMs: 50 }), (e) => isTimeout(e));
+  assert.ok(Date.now() - t0 < 2000);
+  // the caller can still cancel it
+  const ctl = new AbortController(); setTimeout(() => ctl.abort(), 10);
+  await assert.rejects(requestPersonalization({ node, text: 'x' }, { request: hang, signal: ctl.signal }), (e) => !isTimeout(e));
+  assert.deepEqual(manualIntervention({ kind: 'income', amount: 7200, per: 'year', from: 1, to: 24 }), { param: 'monthly_net_income', op: 'add', value: 600, from_month: 0, to_month: 24, label: 'Your extra income' });
+  assert.deepEqual(manualIntervention({ kind: 'rent', amount: 750, from: 3 }), { param: 'monthly_rent', op: 'set', value: 750, from_month: 2, label: 'Your rent' });
+  assert.deepEqual(manualIntervention({ kind: 'one_off', amount: 1500, from: 1 }), { param: 'one_off_cost', month: 0, value: 1500, label: 'Your one-off cost' });
+  assert.equal(manualIntervention({ kind: 'income', amount: '' }), null);
+  assert.deepEqual(manualFromGuess({ proposal: { interventions: [{ param: 'monthly_net_income', op: 'add', value: 600, from_month: 0, to_month: 24 }] } }), { kind: 'income', amount: 600, per: 'month', from: 1, to: 24 });
+  assert.equal(manualFromGuess(null).amount, '');
+});

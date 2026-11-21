@@ -117,3 +117,10 @@
   .pz-conds li { flex-direction: column; align-items: flex-start; }
 }
 
+
+/* reading state with cancel; manual numbers form */
+.pz-reading { justify-content: space-between; align-items: center; }
+.pz-manual select, .pz-mrow input, .pz-mrow select { width: 100%; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--pz-line-2); background: var(--pz-raise); font-size: 14px; }
+.pz-mrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pz-mrow label { display: grid; gap: 8px; }
+.pz-manual select:focus, .pz-mrow input:focus, .pz-mrow select:focus { outline: none; border-color: var(--pz-accent); box-shadow: 0 0 0 3px var(--pz-accent-wash); }
