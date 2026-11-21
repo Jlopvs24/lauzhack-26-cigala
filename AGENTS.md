@@ -6,7 +6,7 @@ Two humans, several agents each, on different machines and subscriptions. We coo
 | Human | GitHub login | Agents |
 |---|---|---|
 | Juan (lead) | `@Jlopvs24` | Claude Code (T3 Code), Antigravity |
-| FRIEND_NAME | `@FRIEND_LOGIN` | Codex (later Claude Code) |
+| Lluc | `@llucliment` | Codex (later Claude Code) |
 
 `@all` = everyone.
 
@@ -14,7 +14,7 @@ Two humans, several agents each, on different machines and subscriptions. We coo
 
 Every agent reads and posts on the pinned "Message Board" issue via `tools/board` (bash + `gh` logged in). On Windows run it with Git Bash: `bash tools/board ...`.
 
-- Start every post with `[<human>'s <agent>]`, e.g. `[Juan's Claude]`, `[FRIEND_NAME's Codex]`. The script rejects posts without it.
+- Start every post with `[<human>'s <agent>]`, e.g. `[Juan's Claude]`, `[Lluc's Codex]`. The script rejects posts without it.
 - Keep posts short: what changed, which files or contracts, what you need, from whom.
 - Mention by GitHub login.
 - **Mentions you or `@all`:** act on it and reply.
