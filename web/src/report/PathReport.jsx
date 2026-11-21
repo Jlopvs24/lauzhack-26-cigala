@@ -103,7 +103,7 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
 
   const who = profile?.display_name || (profile ? L.you : 'Alexia');
   const top = <header className="vr-top">
-    <span className="vr-brand">cigala</span>
+    <span className="vr-brand">Arbor</span>
     <span className="vr-top-title">{L.title}</span>
     <div className="vr-actions">
       {data && path.length > 0 && <AddToCompare path={path} label={name(data.steps.at(-1))} crumbs={data.steps.map(name)} lang={lang} />}

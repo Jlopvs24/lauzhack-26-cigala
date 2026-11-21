@@ -138,7 +138,7 @@ function App() {
     addEventListener('lumi:dock', on);
     return () => removeEventListener('lumi:dock', on);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { document.documentElement.lang = lang; store.set('cigala.lang', lang); }, [lang]);
+  useEffect(() => { document.documentElement.lang = lang; document.title = `Arbor — ${t(lang, 'tagline')}`; store.set('cigala.lang', lang); }, [lang]);
   useEffect(() => { document.documentElement.dataset.theme = theme; store.set('cigala.theme', theme); }, [theme]);
   useEffect(() => { voice.current?.setMuted(muted); }, [muted]);
 
@@ -327,7 +327,7 @@ function App() {
     </main>
 
     <header className="top">
-      <div className="brand"><span className="mark" aria-hidden="true" />cigala</div>
+      <div className="brand"><span className="mark" aria-hidden="true" />Arbor</div>
       <nav id="crumbs" aria-label="Path">{crumbs.map((n) => <span key={n.node_id}>{translateNode(n, lang).label}</span>)}</nav>
       <div className="top-actions">
         <div className="seg" role="group" aria-label="Language">{Object.entries(LANGS).map(([k, v]) =>
