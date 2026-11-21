@@ -1,3 +1,48 @@
+# QA report: third pass (thread 9)
+
+Date: Sat 21 Nov 2026, 21:00–21:30. Tested the **running** app: web http://127.0.0.1:5175 (main checkout, master **991f129**, then a89c34e after the auto-pull) and API http://127.0.0.1:8000 (restarted 22:08 from master).
+Browser: headless Edge (Playwright), muted, one at a time. Desktop 1440×900 light, EN. Phone 390×844 (touch, DPR 2), dark, **ES**.
+
+**LLM budget.** 1 call, and it was unavoidable: opening the full path report fires `/api/report/summary` (qwen3.6-35b-a3b, $0.0002). I made no chat or extract calls. Make it mine used only the rules fast path; `/usage` stayed at 1 qwen call through every personalize step.
+
+**Not tested.** #87 (Lluc's Pessimistic/Neutral/Optimistic weather rail) had not landed on master during this pass, so I tested the old weather panel.
+
+## Summary (third pass)
+
+| ID | Sev | Area | Finding | Owner | Status |
+|---|---|---|---|---|---|
+| P1-7 | P1 | Compare / drawer | When the compare bar is showing, it covers the report drawer header. The drawer's × Close lies under the bar's "Compare" button (elementFromPoint at the × returns `.cmp-bar-go`), so clicking × opens the comparison instead of closing the drawer. The bar also hides the drawer's "BRANCH n / title" | thread 10 + 6/7 | Open |
+| P1-8 | P1 | Phone | Branch cards overlap each other. Root: "Irse al extranjero" covers the bottom of "Hacer un máster" (about 125×46 px). Level 2: "Préstamo de estudios" covers "Solo el trabajo de estudiante", whose title can't be read. `data-layout-obstacle` keeps cards off panels, but not off each other | thread 6 | Open |
+| P1-9 | P1 | Phone | The "Atrás" (Back) button (`.nav-back`, y≈653) sits under the narration bubble: elementFromPoint returns the bubble's `<p>`, so you can't go back up a level on a phone | thread 6 | Open |
+| P2-10 | P2 | Demo ops | The 2-minute auto-pull of master triggered a full Vite reload during the test, which dropped the page back to the portal and lost all state. Turn auto-pull off before the demo | thread 0 | Note |
+| P2-11 | P2 | Navigation | Once in the tree there is no in-app way back to the portal (`setStarted(false)` never appears), so "voice stops when going back to the portal" can't happen. The lifecycle handlers (pagehide/popstate/hashchange) exist in `voice.js` | thread 6 | Note |
+| P2-12 | P2 | Report | Every time the full path report opens it costs one LLM call (`/api/report/summary`) | thread 2/7 | Note (budget) |
+| P2-13 | P2 | i18n | In ES, the card goal name is still English: "Career transition: faltan CHF 453". Lumi's aria-label "Lumi, your guide" is also English | Lluc/thread 6 | Open |
+| P2-14 | P2 | Compare | In the spec sheet, "highest" gets the same blue shade whether higher is better (net worth) or worse (funding gap). The chart's green "Repay fast" line hides the orange "Do a master's" line (values nearly equal) | thread 10 | Open |
+
+### Re-checks of earlier findings
+- **P1-1 Roots — FIXED.** Profile Marco / Zurich / 24 / cash 3,000 / net 2,600 / rent 1,300 / other 900 (typed in the form, no extraction). The narration says "This is Marco today. Marco keeps the current life: net income of CHF 2,600 a month and CHF 2,200 of monthly costs (rent CHF 1,300), starting with CHF 3,000 in cash. Plan check: holds, below the buffer target…". Level 1 differs from Alexia's: Start working 1.1 months buffer; master's gap 9,274 from m2; abroad gap 4,102 from m1, NW 9,065.
+- **P1-4 Voice on hidden tab — FIXED.** After a simulated `visibilitychange` to hidden, no new audio started and no mouth-level events fired over 12 s.
+- **P1-6 Compare not mounted — FIXED** (see item 2).
+- **P1-3 Phone header — FIXED.** At 390 px in ES, every header control is on screen, wrapped onto two rows.
+- **P1-5 Weather covers cards — FIXED on desktop.** No overlap between the weather panel and any card (obstacle check).
+- **P2-2 Remove from scene — partly.** There is still no remove control in the scene itself. But the **Report drawer** (header "Report" button) lists "Your conditions" with ×, and it works with no API call. Only the full path report costs an LLM call.
+
+## Results by item
+
+1. **Layout / Lumi — pass (desktop).** Lumi is docked bottom-right above the chat line from the start (76×91 at 1336,715). "Open conversation" merges Lumi, history and input into a right-hand panel (1008–1440), and the cards move left with no overlap. Lip sync: 462 non-zero `lumi:level` events while Kokoro played; no levels during the gaps between sentences; the last level is 0 at 57.74 s, right after audio ended at 57.69 s.
+2. **Compare — pass, with P1-7.** Each card has a "+" pin (it turns to ✓ when pressed). The bar shows "2 of 4 selected · Clear · Compare". The comparison page has a chart, the spec sheet and "Show only differences" (34 → 28 rows). From a leaf report (Do a master's → Study loan → Repay fast): "+ Add to comparison" → "In comparison · Compare (3) →". The comparison opens **over** the report with 3 columns, and × goes back to the report. Note: the button copy is "In comparison · Compare (3)", not "Added · Compare (n)". Pins are hard to click for automation because the cards keep moving (they sway); a human can click them.
+3. **Profile-aware tree — pass** (see P1-1 above).
+4. **Make it mine — pass.** "I'd get a CHF 600/month scholarship": proposal in **0.2 s**, 0 LLM calls, "+CHF 600/month income, months 1–24".
+   - Apply to this branch: Student job only 18,553 m7 → **3,914 m13**. Study loan: no gap, buffer 3.8 (m25), lowest cash 11,113. "YOUR CONDITIONS" badges show. Same as the second pass.
+   - Remove (Report drawer ×): every card goes back to the original values.
+   - Add as a new option: a 4th child "Scholarship" (YOUR BRANCH), gap 3,914 from m13, NW 115,944, "+CHF 13,348 vs before". Same as the second pass. Removing it takes the tree back to 3 children.
+5. **Voice — hidden tab pass; going back to the portal is not possible** (P2-11).
+6. **Weather (old panel) — pass.** On the Repay fast leaf, Job loss moves both siblings from a 3,538 gap from m21 to **5,751 from m18**.
+7. **npm test** on 991f129: **73/73 pass**, 0 fail (the stale ES/FR/DE row failure Lluc saw on 0239e2c is gone).
+
+---
+
 # QA report: second pass (thread 9)
 
 Date: Sat 21 Nov 2026, 19:55–20:35. Tested the **running** app: web http://127.0.0.1:5175, API http://127.0.0.1:8000.
