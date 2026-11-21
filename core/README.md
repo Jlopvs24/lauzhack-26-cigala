@@ -46,7 +46,7 @@ Only with `uncertainty=True`: 1,000 paths, seed 42, vectorised over paths (~50-9
 
 ## Simplifications (documented on purpose)
 
-- **Income tax**: one effective-rate table (single person, Lausanne, from the ESTV calculator) applied to annualised income at today's prices (no bracket creep). Incomes are net of social contributions; wealth tax, deductions, church tax and pillar 2/3a are ignored.
+- **Income tax**: one effective-rate table (single person, Lausanne) applied to annualised income at today's prices (no bracket creep). Incomes are net of social contributions; wealth tax, deductions, church tax and pillar 2/3a are ignored. `profile.income_basis` says whether incomes are before income tax (`net_before_tax`, default, tax charged) or take-home (`take_home`, no tax charged; used for imported UBS profiles).
 - Inflation applies to all planned expenses, one-offs and contributions; wages grow at inflation + real wage growth. Loan payments are fixed nominal amounts. Monthly loan rate = annual / 12.
 - One currency (CHF); "move abroad" amounts are already converted at a constant exchange rate.
 - Non-financial assets (car, property) are not modelled: buying a car is a cost.

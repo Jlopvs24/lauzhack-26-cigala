@@ -32,7 +32,7 @@ def _prepare(profile: Profile, interventions: list[dict], aset: AssumptionSet, w
 
 
 def _run(profile, sched, A, aset, w, **kw):
-    return run(sched, profile.cash, profile.investments, A, aset.tax_table(), w, **kw)
+    return run(sched, profile.cash, profile.investments, A, profile.tax_table(aset), w, **kw)
 
 
 def simulate_node(profile: dict | Profile, interventions: list[dict] | None = None, *,
@@ -123,6 +123,7 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
         "uncertainty": uncertainty,
         "mode": "deterministic",
         "horizon_months": prof.horizon_months,
+        "income_basis": prof.income_basis,
         "deterministic": deterministic,
         "bands": {key: an.bands(getattr(mc, key)) if uncertainty else {p: [] for p in ("p10", "p50", "p90")}
                   for key in ("cash", "net_worth")},
@@ -175,7 +176,7 @@ def sensitivity_analysis(profile: Profile, interventions: list[dict], aset: Assu
         scheds.append(sched)
         As.append(A)
     # one vectorised deterministic pass over every variant
-    out = run_batch(scheds, As, profile.cash, profile.investments, aset.tax_table(), w,
+    out = run_batch(scheds, As, profile.cash, profile.investments, profile.tax_table(aset), w,
                     stochastic=False)
     final = out.net_worth[:, -1]
     short = out.cash[:, 1:].min(axis=1) < -an.TOL

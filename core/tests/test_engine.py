@@ -723,3 +723,26 @@ def test_live_validation_reports_failures_and_crashes(monkeypatch):
     r = v.validation()
     assert not r["all_passed"] and r["passed"] == 0
     assert r["checks"][1]["passed"] is False and "ZeroDivisionError" in r["checks"][1]["detail"]
+
+
+# --- income basis (#48 item 1) ---------------------------------------------------
+
+def test_income_basis_default_charges_income_tax_and_take_home_does_not():
+    prof = base_profile(monthly_net_income=5000, monthly_other_expenses=3000)
+    a = simulate_node(prof, [])
+    b = simulate_node({**prof, "income_basis": "take_home"}, [])
+    assert a["income_basis"] == "net_before_tax" and b["income_basis"] == "take_home"
+    assert a["metrics"]["total_income_tax"] > 0 and b["metrics"]["total_income_tax"] == 0
+    gap, tax = b["metrics"]["final_cash"] - a["metrics"]["final_cash"], a["metrics"]["total_income_tax"]
+    assert tax <= gap <= tax * 1.005  # the tax not paid, plus the cash interest it earns
+    assert all(c["passed"] for c in b["checks"])
+    # every derived analysis uses the same basis: no tax shows up in sensitivity, exploration or resilience either
+    full = simulate_node({**prof, "income_basis": "take_home"}, [], sensitivity=True, exploration=True)
+    assert full["exploration"]["reverse_stress"]["status"] in ("threshold_found", "already_broken", "not_reached_within_bounds")
+    with pytest.raises(ValueError):
+        simulate_node({**prof, "income_basis": "gross"}, [])
+
+
+def test_our_tree_profile_is_net_before_tax():
+    assert load_profile()["income_basis"] == "net_before_tax"
+    assert simulate(None, "1", sensitivity=False, exploration=False)["metrics"]["total_income_tax"] > 0

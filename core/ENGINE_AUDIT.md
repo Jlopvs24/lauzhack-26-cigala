@@ -37,7 +37,13 @@ Reading: the engine sums a budget the way the ledgers do (a smoke check, not a v
 and all the difference in our Swiss world comes from income tax: the UBS ledgers have **no
 income tax line** and we charge Swiss income tax monthly on "net income".
 
-**Open decision for tonight: what does UBS "net income" mean?** The kit does not define it
+**Decided (#48 item 1, PR for item 1): `profile.income_basis`.** Reading A (`net_before_tax`) is the
+default and is what our tree uses; reading B (`take_home`, no income tax charged again) is the
+basis of imported UBS synthetic profiles unless stated. With B, the Swiss-world replay of the
+UBS profiles moves from −3.0 to +0.36 months of budget (what remains is inflation and wage
+growth). The original question, for the record:
+
+**What does UBS "net income" mean?** The kit does not define it
 precisely. `docs/financial-concepts.md`: "Gross income is the amount before taxes and
 deductions. Net income reflects relevant deductions". `docs/scenario-modelling.md` writes the
 cash flow with a separate term "$T_t$ Taxes not already included in net income" and warns
@@ -126,6 +132,7 @@ T = transparency 10) against effort (S < 1 h, M 1-3 h, L > 3 h). Ranked for toni
 
 | rank | improvement | impact | effort | why first |
 |---|---|---|---|---|
+| 0 | ✅ Income basis made explicit (`income_basis`: net_before_tax / take_home), #48 item 1 | C+ T++ | S | done |
 | 1 | Payroll layer: gross → net with AHV/IV/EO, ALV, BVG | C+++ T+ | M | the most visible Swiss correctness gap; unlocks pillar 2 |
 | 2 | Tax by canton/household + abroad tax, ESTV-sourced points, optional arrears timing | C+++ | M-L | removes "Zurich/abroad taxed as Vaud" |
 | 3 | Pillar 3a lever (+ tax deduction, locked asset) | C++ E++ | M | a new, very Swiss what-if per decision |
