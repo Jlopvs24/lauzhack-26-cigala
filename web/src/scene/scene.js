@@ -248,7 +248,8 @@ export async function createScene({ world, labels, onTagClick }) {
         gsap.to(el, { opacity: 1, duration: 0.8, delay: 0.25, ease: 'power2.out' });
       }
       t.status = it.status; t.clickable = it.clickable;
-      t.el.className = `tag ${it.status}`;
+      t.el.className = `tag ${it.status}${it.custom ? ' custom' : ''}`;
+      t.el.querySelector('.card').dataset.badge = it.custom || '';
       t.el.disabled = !it.clickable;
       t.el.tabIndex = it.clickable ? 0 : -1;
       t.el.setAttribute('aria-label', it.name);
@@ -302,6 +303,19 @@ export async function createScene({ world, labels, onTagClick }) {
       setTags(tagItems);
     },
     setTags,
+    /** Personal conditions changed: the camera breathes out and back while the branch's cards grow again. */
+    async regrow() {
+      if (reduced()) return;
+      const stage = world.parentElement;
+      stage?.classList.remove('regrowing'); void stage?.offsetWidth; stage?.classList.add('regrowing');
+      setTimeout(() => stage?.classList.remove('regrowing'), 1800);
+      const cards = [...tags.values()].map((t) => t.el.querySelector('.card')).filter(Boolean);
+      gsap.fromTo(cards, { scale: 0.15, opacity: 0, y: 30, transition: 'none' },
+        { scale: 1, opacity: 1, y: 0, duration: 0.9, stagger: 0.14, delay: 0.35, ease: 'back.out(1.5)', clearProps: 'transform,opacity,transition' });
+      const r = geo.viewRect(currentId), k = 1.14;
+      await camTo({ x: r.x - (r.w * (k - 1)) / 2, y: r.y - (r.h * (k - 1)) / 2, w: r.w * k, h: r.h * k }, { duration: 0.6, ease: 'power2.out' });
+      await camTo(r, { duration: 1.1, ease: 'power3.inOut' });
+    },
     /** Elements cards must not hide behind: the narration (Lumi + bubble, moved to the freer side) and others (the dock). */
     setAvoid(getter) { getAvoid = getter; },
     get side() { return side; },

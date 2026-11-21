@@ -16,6 +16,7 @@ import { renderReport } from './scene/report.js';
 import { cardHeadline } from './scene/headline.js';
 import PathReport from './report/PathReport.jsx';
 import Verified from './Verified.jsx';
+import { MakeItMine, YourConditions, personalFields, personalStore, PROPOSAL_EVENT, CHANGE_EVENT } from './personalize/index.js';
 import { UI, LANGS } from './scene/i18n.js';
 import './app.css';
 
@@ -24,6 +25,17 @@ const store = { get: (k, d) => { try { return localStorage.getItem(k) || d; } ca
 
 // Two slots per card (docs/report-spec.md §1): A "does it hold?", B "what it trades" + vs before this choice.
 const escHTML = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+// The session's personal conditions in the engine's shape (docs/contracts.md: node_patches is
+// {node_id: [interventions]}); accepts the store's list form too.
+function engineFields() {
+  const f = { ...personalFields() };
+  if (Array.isArray(f.node_patches)) {
+    f.node_patches = f.node_patches.reduce((o, p) => { (o[p.node_id] ||= []).push(...(p.interventions || [])); return o; }, {});
+    if (!Object.keys(f.node_patches).length) delete f.node_patches;
+  }
+  return f;
+}
+
 function tagMeta(n, lang) {
   if (!n.result || !(n.status === 'child' || n.status === 'sibling')) return '';
   const h = cardHeadline(n.result, lang);
@@ -113,7 +125,9 @@ function App() {
   function tagItems(data, l) {
     return visibleNodes(data, seen.current)
       .filter((n) => n.node_id !== data.current && n.status !== 'chosen')
-      .map((n) => ({ id: n.node_id, status: n.status, name: translateNode(n, l).label, meta: tagMeta(n, l), clickable: n.status === 'child' || n.status === 'sibling' }));
+      .map((n) => ({ id: n.node_id, status: n.status, name: translateNode(n, l).label, meta: tagMeta(n, l), clickable: n.status === 'child' || n.status === 'sibling',
+        custom: (n.custom || n.origin === 'user' || personalStore.isCustom(n.node_id)) ? t(l, 'yours')
+          : (n.patched || n.inherits_patch || personalStore.forNode(n.node_id)?.length) ? t(l, 'yoursPatched') : '' }));
   }
   // One expand in flight: a new navigation aborts the stale one. Tree growth asks for no exploration
   // (fast path, #33); the report loads it lazily for the current node only.
@@ -121,7 +135,7 @@ function App() {
   const target = useRef([]); // the path being navigated to (Back and clicks act on it, not on stale data)
   async function fetchTree(p, opts = {}, signal) {
     const s = state.current;
-    const body = { path: p, assumptions: opts.assumptions ?? s.overrides, uncertainty: opts.lens ?? s.lens, exploration: !!opts.exploration };
+    const body = { path: p, assumptions: opts.assumptions ?? s.overrides, uncertainty: opts.lens ?? s.lens, exploration: !!opts.exploration, ...engineFields() };
     const prof = opts.profile !== undefined ? opts.profile : s.profile;
     if (prof) body.profile = prof;
     const data = validateTree(await apiRequest('/tree/expand', { body, signal }));
@@ -147,6 +161,7 @@ function App() {
       const l = state.current.lang;
       narrateNode(data, l); // labels and narration arrive with the data; the flight continues underneath
       await scene.current?.dress({ grey: greyCodes(vis), tagItems: tagItems(data, l), childIds: data.nodes.filter((n) => n.status === 'child').map((n) => n.node_id) });
+      if (opts.regrow && !ctl.signal.aborted) scene.current?.regrow();
     } catch (e) {
       if (ctl.signal.aborted || e.name === 'AbortError') return;
       setError(e instanceof TypeError ? t(state.current.lang, 'noEngine') : /timed? ?out|TimeoutError/i.test(`${e.name} ${e.message}`) ? t(state.current.lang, 'slow') : e.message);
@@ -184,6 +199,13 @@ function App() {
     try { setTree(await fetchTree(path, { lens: true, exploration: true })); } catch (e) { setError(e.message); } finally { setLensPending(false); }
   }
 
+  // personal conditions changed (confirmed, removed, cleared): re-expand with them, and the branch re-grows
+  useEffect(() => {
+    const on = () => { if (state.current.tree) go(target.current, { force: true, regrow: true }); };
+    addEventListener(CHANGE_EVENT, on);
+    return () => removeEventListener(CHANGE_EVENT, on);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // a report opening stops Lumi at once (speech and any TTS in flight)
   useEffect(() => { if (panel === 'report' || pathReport) voice.current?.stop(); }, [panel, pathReport]);
 
@@ -193,10 +215,10 @@ function App() {
     if (panel !== 'report' || !tree || busy) return;
     const cur = tree.nodes.find((n) => n.node_id === tree.current);
     if (cur?.result?.exploration) return; // already there (API without the fast path)
-    const key = JSON.stringify([path, overrides, lens]);
+    const key = JSON.stringify([path, overrides, lens, engineFields()]);
     if (explored?.key === key) return;
     const ctl = new AbortController();
-    const body = { path, assumptions: overrides, ...(profile ? { profile } : {}) };
+    const body = { path, assumptions: overrides, ...(profile ? { profile } : {}), ...engineFields() };
     apiRequest('/tree/explore', { body, signal: ctl.signal })
       .then((x) => setExplored({ key, data: { ...tree, nodes: tree.nodes.map((n) => (n.node_id === tree.current
         ? { ...n, result: { ...n.result, exploration: x.exploration, sensitivity: x.sensitivity ?? n.result?.sensitivity } } : n)) } }))
@@ -206,7 +228,7 @@ function App() {
       });
     return () => ctl.abort();
   }, [panel, tree, busy]); // eslint-disable-line react-hooks/exhaustive-deps
-  const exploredKey = JSON.stringify([path, overrides, lens]);
+  const exploredKey = JSON.stringify([path, overrides, lens, engineFields()]);
   const reportTree = explored?.key === exploredKey ? explored.data : tree;
 
   // a lever's "try" button: recompute the whole visible tree with that one assumption overridden
@@ -279,14 +301,20 @@ function App() {
         : <p>{t(lang, 'noEngine')}</p>}
     </section>}
 
-    <aside className="narration" aria-live="polite">
+    <aside className="narration">
       <div id="lumi" ref={lumiRef} />
-      {bubble && !convOpen && <div className="say-card"><p>{bubble}</p></div>}
+      <div className="say-col">
+        {bubble && !convOpen && <div className="say-card" aria-live="polite"><p>{bubble}</p></div>}
+      {started && cur && cur.node_id !== '0' && !pathReport && <div className="pz-mount">
+        <MakeItMine key={cur.node_id} lang={lang} node={cur} path={path} profile={profile} assumptions={overrides}
+          tr={(n) => translateNode(n, lang)} labelOf={(id) => tree.assumptions?.find((a) => a.id === id)?.label || id}
+          onOpenChange={(open) => { if (open) voice.current?.stop(); }} compact /></div>}
+      </div>
     </aside>
 
     {started && <ChatPanel lang={lang} disabled={!tree} callUrl={CALL_URL} onOpenChange={setConvOpen}
-      context={{ profile, path, node_id: tree?.current, assumptions: overrides, weather: tree?.weather || [] }}
-      onAnswer={(text) => say(text)} onCost={addCost} onUnlock={() => voice.current?.unlock()}
+      context={{ profile, path, node_id: tree?.current, assumptions: overrides, weather: tree?.weather || [], ...engineFields() }}
+      onAnswer={(text, d) => { say(text); if (d?.personalize) dispatchEvent(new CustomEvent(PROPOSAL_EVENT, { detail: { node_id: tree?.current, ...d.personalize } })); }} onCost={addCost} onUnlock={() => voice.current?.unlock()}
       replay={(text, l) => voice.current?.speak(text, l)} />}
 
     {panel === 'report' && cur && <aside className="report drawer" aria-label="Report">
@@ -295,6 +323,7 @@ function App() {
         if (e.target.id === 'lensToggle') { toggleLens(e.target.checked); return; }
         const b = e.target.closest?.('[data-lever]'); if (b && !busy) applyLever(b.dataset.lever, Number(b.dataset.value)); }}
         dangerouslySetInnerHTML={{ __html: reportHTML }} />
+      <YourConditions lang={lang} />
       <div className="drawer-inline"><Assumptions assumptions={tree.assumptions} busy={busy} onApply={(next) => go(path, { assumptions: next, force: true })} /></div>
       <p className="note">{t(lang, 'sessionCost')} USD {cost.toFixed(4)}</p>
     </aside>}
