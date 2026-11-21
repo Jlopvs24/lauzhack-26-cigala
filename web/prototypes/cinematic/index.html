@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Alexia's Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/character/guide/guide.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="stage" aria-label="Alexia's financial tree">
+  <div id="world"></div>
+  <div class="mist mist-a" aria-hidden="true"></div>
+  <div class="mist mist-b" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+  <div id="labels"></div>
+</main>
+
+<header class="top">
+  <div class="brand"><span class="mark" aria-hidden="true"></span>cigala</div>
+  <nav id="crumbs" aria-label="Path"></nav>
+  <div class="top-actions">
+    <button id="mute" class="ghost-btn" aria-pressed="false" title="Mute Lumi">Sound on</button>
+    <button id="reportBtn" class="ghost-btn" hidden>Report</button>
+  </div>
+</header>
+
+<button id="back" class="back" hidden aria-label="Back one level">
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <span>Back</span>
+</button>
+
+<section id="intro" class="intro">
+  <p class="eyebrow">A financial twin for students</p>
+  <h1>Every choice grows<br><em>a different tree.</em></h1>
+  <p class="lede">Alexia is 20, studies in Lausanne and has CHF 8,000 saved. Explore what each path does to her next ten years. Every number comes from a tested engine.</p>
+  <button id="begin" class="primary">Enter the tree</button>
+</section>
+
+<aside id="narration" class="narration" aria-live="polite">
+  <div id="lumi"></div>
+  <div class="say-card" id="sayCard" hidden>
+    <p id="sayText"></p>
+  </div>
+</aside>
+
+<form id="ask" class="ask" autocomplete="off" hidden>
+  <input id="askInput" type="text" placeholder="Ask Lumi about this branch" aria-label="Ask Lumi">
+  <button type="button" id="micBtn" class="icon-btn" aria-label="Speak your question">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+  </button>
+  <button type="submit" class="icon-btn send" aria-label="Send">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</form>
+
+<aside id="report" class="report" aria-label="Branch report" hidden>
+  <button class="close" id="reportClose" aria-label="Close report">×</button>
+  <div id="reportBody"></div>
+</aside>
+
+<div id="loading" class="loading" hidden>Growing the branch…</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# Track B: cinematic photoreal tree (prototype)
+
+Standalone page, not wired into `web/src` yet. Owner: Juan's Claude thread 6.
+
+```bash
+python -m uvicorn api.main:app --port 8002          # from the repo root
+cd web && python -m http.server 5231 --bind 127.0.0.1
+# open http://127.0.0.1:5231/prototypes/cinematic/   (?api=http://host:port to change the API)
+```
+
+## How it works
+
+- **13 matched stills** (`img/*.webp`, 2.7 MB): one master photo of the tree, then close-ups of
+  the roots, the 3 limbs and 3 sub-branches per limb. Each close-up was generated (OpenRouter,
+  `google/gemini-3.1-flash-image`) from an **exact crop of its parent**, then colour-matched, so it
+  sits on a known rectangle of the master's pixel space (`img/stills.json`).
+- **Camera**: flies between rectangles (zoom interpolated in log space, GSAP); the sharper still
+  fades in on arrival over the matched crop, so the zoom looks continuous. Slow breathing + bounded
+  pointer parallax (free look is limited to the current node). Back / Esc / scroll-up = one level.
+- **Grey branches**: `img/*.lab.png` label maps (limb*10 + sub-branch) per still. Siblings and
+  pruned branches (API `status: "pruned"`, or nodes already seen on the client) are desaturated
+  with a feathered mask. Pruned labels show the name only and are not clickable.
+- **Data**: live `POST /tree/expand`. Node `k` maps to limb k (1 left, 2 centre, 3 right),
+  `k.i` to its sub-branch i; depth 3 zooms further into the depth-2 still (no extra image).
+- **Lumi** (`web/assets/character/guide`) narrates every node from engine numbers (no LLM) and
+  reads it aloud automatically after the first click: `/voice/tts`, browser `speechSynthesis` as
+  fallback. Mute toggle, off by default. Report panel, chat to `/agent/ask`, mic = browser STT.
+
+## Regenerate
+
+`pipeline/gen.py` (one image call), `pipeline/build.py` (colour-match, label maps, webp),
+prompts and `pipeline/costs.log` (13 calls, USD 0.88 total).
