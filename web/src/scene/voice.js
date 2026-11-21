@@ -10,6 +10,7 @@ import { SPEECH_LANG } from './i18n.js';
 
 const API = (import.meta.env?.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 export const FIRST_MS = 1500;
+export const NEXT_MS = 300; // a gap longer than this between sentences is filled by the browser voice
 
 /** Sentences as Lumi speaks them ("2.9 months" stays whole: a sentence ends at .!?… plus a space). */
 export function splitSentences(text) {
@@ -172,20 +173,39 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {}, onLeve
       if (v) { browserSpeak(parts, v, my); return; }
       if (ready === false) { onNoVoice(lang); return; }
     }
+    // pipeline: sentences k+1 and k+2 are synthesised while k plays; when k ends, k+1 starts at once.
+    // Not ready within NEXT_MS: the browser voice (same language) reads that one sentence instead of a pause.
+    const ahead = (k) => { for (const j of [k + 1, k + 2]) if (parts[j]) synth(parts[j], lang).catch(() => {}); };
+    ahead(0);
     for (let k = 0; k < parts.length; k++) {
-      let url;
-      try { url = await synth(parts[k], lang); } catch {
-        if (my !== seq) return;
-        const v = browserVoice(lang); // mid-paragraph failure: the browser finishes the paragraph
-        if (v) browserSpeak(parts.slice(k), v, my); else onTalking(false);
-        return;
-      }
+      let url = null;
+      const p = synth(parts[k], lang);
+      if (k === 0) { try { url = await p; } catch { url = null; } }
+      else url = await Promise.race([p.catch(() => null), sleep(NEXT_MS).then(() => null)]);
       if (my !== seq) return;
-      if (parts[k + 1]) synth(parts[k + 1], lang).catch(() => {}); // next sentence while this one plays
+      ahead(k);
+      if (!url) {
+        const v = browserVoice(lang);
+        if (v) { await browserSay(parts[k], v, my); if (my !== seq) return; continue; }
+        try { url = await p; } catch { continue; } // no browser voice: wait for the server after all
+        if (my !== seq) return;
+      }
       try { await playUrl(url, my); } catch { /* a broken clip: skip to the next sentence */ }
       if (my !== seq) return;
     }
     onTalking(false);
+  }
+  function browserSay(sentence, v, my) {
+    return new Promise((done) => {
+      if (my !== seq) return done();
+      const u = new SpeechSynthesisUtterance(sentence);
+      u.voice = v; u.lang = v.lang; u.rate = 1.02;
+      u.onstart = () => { speaking = true; pulse = 0.7; startMeter(); onTalking(true); };
+      u.onboundary = (e) => { if (e.name !== 'sentence') { pulse = 0.55 + Math.random() * 0.4; startMeter(); } };
+      u.onend = u.onerror = () => { speaking = false; done(); };
+      setTimeout(done, 15000 + sentence.length * 120); // Chrome sometimes never fires onend
+      speechSynthesis.speak(u);
+    });
   }
 
   /** Warm the cache with what Lumi will probably say next (children's openings). Low priority,
