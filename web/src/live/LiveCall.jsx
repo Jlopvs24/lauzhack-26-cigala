@@ -128,6 +128,8 @@ export function useLumiLive({ context = {}, lang = 'en', history, onUnlock } = {
 
   const live = phase === 'live';
   const reason = info?.code || info?.reason;
+  // #112: unknown errors show the server's own message under the generic line
+  const detail = phase === 'error' && !T[reason] && info?.message ? info.message : '';
   const message = phase === 'error' ? (T[reason] || T.error) : phase === 'ended' ? (T[reason] || T.ended) : '';
   const caption = phase === 'connecting' ? T.connecting : !live ? '' : speaking ? T.speaking : micError ? T[micError] : muted ? T.muted : T.listening;
   const ring = Math.round((speaking ? 0.35 : Math.min(1, micLevel * 1.5)) * 100) / 100;
@@ -152,7 +154,8 @@ export function useLumiLive({ context = {}, lang = 'en', history, onUnlock } = {
         {lines.user && <p className="is-user"><b>{T.you}</b> {lines.user}</p>}
         {lines.model && <p className="is-lumi"><b>{T.lumi}</b> {lines.model}</p>}
       </div>}
-      {message && <p className={`lumi-live-msg ${phase === 'error' ? 'is-error' : ''}`} role={phase === 'error' ? 'alert' : 'status'}>{message}</p>}
+      {message && <p className={`lumi-live-msg ${phase === 'error' ? 'is-error' : ''}`} role={phase === 'error' ? 'alert' : 'status'}>{message}
+        {detail && <small className="lumi-live-detail">{detail}</small>}</p>}
       {live && <form className="lumi-live-type" onSubmit={sendTyped} autoComplete="off">
         <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={T.type} aria-label={T.type} maxLength={2000} />
         <button type="submit" disabled={!typed.trim()}>{T.send}</button>

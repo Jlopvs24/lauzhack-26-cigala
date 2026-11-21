@@ -91,3 +91,33 @@ test('session: server end reason is reported', async () => {
   FakeWS.last.push({ type: 'ended', reason: 'idle' });
   assert.equal(reason, 'idle');
 });
+
+test('#112: a server error before the end is shown, not a bare "stopped"', async () => {
+  const states = [];
+  const s = createLiveSession({ audio: false, base: 'http://api', fetchImpl: fetchOk({ available: true, ws_path: '/live/ws?token=e' }),
+    WebSocketImpl: FakeWS, on: { state: (st, info) => states.push([st, info]) } });
+  const err = console.error; console.error = () => {};
+  try {
+    await s.start();
+    FakeWS.last.push({ type: 'error', message: 'Live setup failed. models/x is not found for API version v1beta' });
+    FakeWS.last.push({ type: 'ended', reason: 'error' });
+  } finally { console.error = err; }
+  assert.equal(s.state, 'error');
+  const [, info] = states.find(([st]) => st === 'error');
+  assert.equal(info.code, 'server');
+  assert.match(info.message, /not found for API version/);
+});
+
+test('#112: an abnormal socket close says its code; a normal end stays quiet', async () => {
+  const err = console.error; console.error = () => {};
+  try {
+    const a = createLiveSession({ audio: false, base: 'http://api', fetchImpl: fetchOk({ available: true, ws_path: '/live/ws?token=c' }), WebSocketImpl: FakeWS });
+    await a.start();
+    FakeWS.last.onclose({ code: 1011, reason: 'internal error' });
+    assert.equal(a.state, 'error');
+    const b = createLiveSession({ audio: false, base: 'http://api', fetchImpl: fetchOk({ available: true, ws_path: '/live/ws?token=d' }), WebSocketImpl: FakeWS });
+    await b.start();
+    FakeWS.last.push({ type: 'ended', reason: 'idle' });
+    assert.equal(b.state, 'ended');
+  } finally { console.error = err; }
+});

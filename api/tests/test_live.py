@@ -189,3 +189,52 @@ def test_cost_of_usage():
          "promptTokensDetails": [{"modality": "AUDIO", "tokenCount": 1_000_000}],
          "responseTokensDetails": [{"modality": "AUDIO", "tokenCount": 1_000_000}]}
     assert live.cost_of(u) == pytest.approx(live._PRICE[("prompt", "AUDIO")] + live._PRICE[("response", "AUDIO")])
+
+
+class RefusingUpstream(FakeUpstream):
+    """Gemini refusing a model at setup, like an unknown or not-enabled preview id (close 1008)."""
+
+    async def send(self, raw):
+        m = json.loads(raw)
+        self.sent.append(m)
+        if "setup" in m:
+            self.refused = m["setup"]["model"]
+
+    async def recv(self):
+        raise RuntimeError(f"received 1008 (policy violation) {self.refused} is not found for API version v1beta")
+
+
+def test_ws_falls_back_to_the_next_live_model(monkeypatch):
+    """#112: the configured model is refused at setup -> the next model in the chain opens the call."""
+    ups = []
+
+    async def connect(url):
+        up = RefusingUpstream() if not ups else FakeUpstream()
+        ups.append(up)
+        return up
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("LIVE_MODEL", "gemini-0-retired-live")
+    monkeypatch.setattr(live, "connect_upstream", connect)
+    assert live.live_models()[:2] == ["gemini-0-retired-live", "gemini-3.1-flash-live-preview"]
+    tok = c.post("/live/token", json={"context": CTX}).json()
+    with c.websocket_connect(tok["ws_path"]) as ws:
+        ready = ws.receive_json()
+        assert ready["type"] == "ready" and ready["model"] == "gemini-3.1-flash-live-preview"
+        ws.send_json({"type": "end"})
+    assert ups[1].sent[0]["setup"]["model"] == "models/gemini-3.1-flash-live-preview"
+
+
+def test_ws_reports_the_real_setup_error_when_every_model_is_refused(monkeypatch):
+    async def connect(url):
+        return RefusingUpstream()
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("LIVE_FALLBACK_MODELS", "gemini-x-live")
+    monkeypatch.setattr(live, "connect_upstream", connect)
+    tok = c.post("/live/token", json={"context": CTX}).json()
+    with c.websocket_connect(tok["ws_path"]) as ws:
+        err = ws.receive_json()
+        assert err["type"] == "error" and "not found for API version" in err["message"] and "gemini-x-live" in err["message"]
+        assert "test-key" not in err["message"]
+        assert ws.receive_json() == {"type": "ended", "reason": "error"}

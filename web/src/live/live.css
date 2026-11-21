@@ -47,3 +47,6 @@
 .lumi-live-consent p { margin: 10px 0 0; }
 .lumi-live .lumi-live-yes { margin-left: auto; background: var(--card-ink, #1d2a24); border-color: var(--card-ink, #1d2a24); color: var(--card-bg, #fffdf8); }
 .lumi-live button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+/* #112: the real error under the generic line */
+.lumi-live-detail { display: block; margin-top: 4px; font-size: 12px; opacity: 0.8; overflow-wrap: anywhere; }
