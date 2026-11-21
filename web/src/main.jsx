@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { pathToNode, validateTree } from './tree.js';
+import NodeDetail from './NodeDetail.jsx';
+import { money } from './results.js';
 import './style.css';
 
-const money = value => Number.isFinite(value)
-  ? new Intl.NumberFormat('en-CH', { style: 'currency', currency: 'CHF', maximumFractionDigits: 0 }).format(value)
-  : 'Not available';
 const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 function Branch({ node, current, busy, onChoose }) {
@@ -34,26 +33,28 @@ function App() {
   const [profile, setProfile] = useState(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
-  const [retryPath, setRetryPath] = useState([]);
+  const [overrides, setOverrides] = useState([]);
+  const [retryRequest, setRetryRequest] = useState({ path: [], assumptions: [] });
   const controller = useRef(null);
   const heading = useRef(null);
 
-  async function expand(path, moveFocus = true) {
+  async function expand(path, moveFocus = true, assumptions = overrides) {
     controller.current?.abort();
     const request = new AbortController();
     controller.current = request;
     setBusy(true);
     setError('');
-    setRetryPath(path);
+    setRetryRequest({ path, assumptions });
     try {
       const response = await fetch(`${apiBase}/tree/expand`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path }), signal: request.signal,
+        body: JSON.stringify({ path, assumptions }), signal: request.signal,
       });
       if (!response.ok) throw new Error(`The simulation API returned ${response.status}. Check the backend and retry.`);
       const data = validateTree(await response.json());
       if (request.signal.aborted) return;
       setTree(data);
+      setOverrides(assumptions);
       if (moveFocus) requestAnimationFrame(() => heading.current?.focus());
     } catch (failure) {
       if (!request.signal.aborted) setError(failure instanceof TypeError
@@ -107,7 +108,7 @@ function App() {
         <div role="status" className="status">{busy ? 'Calculating the visible branches…' : tree
           ? `${tree.nodes.length} visible nodes · ${current?.result.horizon_months ?? '—'}-month horizon · ${mock ? 'Mock engine — illustrative results' : 'Simulation results'}`
           : 'Connect the simulation API to start exploring.'}</div>
-        {error && <div className="error" role="alert"><p>{error}</p><button onClick={() => expand(retryPath)} disabled={busy}>Retry simulation</button></div>}
+        {error && <div className="error" role="alert"><p>{error}</p><button onClick={() => expand(retryRequest.path, true, retryRequest.assumptions)} disabled={busy}>Retry simulation</button></div>}
 
         {tree && <div className="tree">
           <nav className="path" aria-label="Chosen decision path">{chosen.filter(node => node.node_id !== tree.current).map((node, index) =>
@@ -122,6 +123,8 @@ function App() {
           <div className="roots" aria-hidden="true">╲ │ ╱</div>
         </div>}
       </section>
+      {current && <NodeDetail node={current} peers={alternatives.length ? [current, ...alternatives] : [current, ...children]}
+        assumptions={tree.assumptions} busy={busy} onApply={next => expand(path, false, next)} />}
       <footer><p><strong>Possibilities, with perspective.</strong> These are conditional simulations, not guaranteed forecasts. {mock && 'The engine currently uses mock assumptions.'}</p>
         <p>Only visible branches are calculated. Your choices stay in this session.</p></footer>
     </main>
