@@ -12,8 +12,8 @@ exploration more correct and richer; never predict, never fit the model to the s
 
 ## #48 completion record
 
-The eight-item engine queue is implemented in the PRs below. Merge item 8 before
-closing #48. The original audit below is a historical snapshot; its old counts,
+All eight items of the engine queue are integrated in the PRs below, including
+item 8 in master at `b00380f` (with the #78 review corrections). The original audit below is a historical snapshot; its old counts,
 values and weaknesses are not a current inventory. Current sources and remaining
 modelling choices are recorded in `core/bench/SOURCES.md` and the assumption files.
 
@@ -44,6 +44,11 @@ The equity-heavy scenario return is also labelled unverified: its 5.5% value
 is unchanged, but weighted asset CAGRs cannot verify a portfolio return.
 No new public contract is introduced by items 7-8; the additive contracts for
 items 1-6 are documented in `docs/contracts.md`.
+
+Remaining item-5 limitation: living costs abroad are editable UBS scenario inputs,
+not city-specific estimates. The kit names no destination city; choosing one and
+its source is still required before such estimates can be claimed. EUR inflation,
+foreign social security and stochastic FX also remain outside this implementation.
 
 ## 1. What the benchmark says today
 
