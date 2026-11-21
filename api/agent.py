@@ -688,7 +688,7 @@ def detect_language(text: str, hint: str | None = None) -> str:
     return best if scores[best] >= 2 else "en"
 
 
-_NUM = re.compile(r"(?<![\w.])-?\d[\d'’,  ]*(?:\.\d+)?\s*(?:k\b)?", re.I)
+_NUM = re.compile(r"(?<![\w.])-?\d[\d'’,   ]*(?:\.\d+)?\s*(?:k\b)?", re.I)
 
 
 def _numbers_in(obj: Any, acc: list[float]) -> list[float]:
@@ -721,6 +721,17 @@ def _parse(tok: str) -> float | None:
     except ValueError:
         return None
     return v * 1000 if k else v
+
+
+def user_context_text(question: str, ctx: dict) -> str:
+    """Numbers the user gave us count as grounded: the question (or voice transcript), the earlier turns,
+    the profile (savings, rent, income...) and any assumption they changed (#112)."""
+    parts = [question or ""]
+    parts += [str(m.get("content") or "") for m in (ctx.get("history") or []) if isinstance(m, dict)]
+    for key in ("profile", "assumptions"):
+        if ctx.get(key):
+            parts.append(json.dumps(ctx[key], ensure_ascii=False, default=str))
+    return "\n".join(parts)
 
 
 def check_grounding(answer: str, tool_outputs: list[Any], user_text: str = "", rel_tol: float = 0.02) -> dict:
@@ -1057,15 +1068,17 @@ def ask(question: str, ctx: dict) -> dict:
         if ctx.get("mode") == "call":
             answer = " ".join(split_sentences(answer)[:CALL_MAX_SENTENCES])
     if answer:
-        grounding = check_grounding(answer, [c["result"] for c in box.calls], question)
+        grounding = check_grounding(answer, [c["result"] for c in box.calls], user_context_text(question, ctx))
         if not grounding["grounded"]:
             log.warning("ungrounded numbers %s -> template", grounding["ungrounded_numbers"])
             answer = None
     if not answer:
+        # The template is built only from engine results, so what we return is grounded; the numbers the
+        # model got wrong stay visible for the logs (#112: a voice note must never end in a dead end).
         mode = "template"
         answer = template_answer(ctx, lang, box)
-        if grounding["grounded"] is None:
-            grounding = {"grounded": True, "ungrounded_numbers": []}
+        grounding = {"grounded": True, "ungrounded_numbers": [],
+                     "llm_ungrounded_numbers": grounding.get("ungrounded_numbers") or []}
 
     return {
         "answer": answer,
@@ -1101,7 +1114,7 @@ def _sysmsg(box: "Toolbox", ctx: dict, lang: str, node_id: str, reason: str | No
                          preloaded=json.dumps(preloaded, ensure_ascii=False))
 
 
-def _clean_sentence(sent: str, box: "Toolbox", question: str) -> tuple[str | None, str | None]:
+def _clean_sentence(sent: str, box: "Toolbox", question: str, user_text: str | None = None) -> tuple[str | None, str | None]:
     """Apply the same guards as ask() to one sentence. Returns (text or None, reason dropped)."""
     sent = re.sub(r"[*_#`]+", "", sent).strip()
     if not sent:
@@ -1109,7 +1122,7 @@ def _clean_sentence(sent: str, box: "Toolbox", question: str) -> tuple[str | Non
     if _ADVICE.search(sent):
         return None, "advice"
     sent, _ = soften_forecasts(sent)
-    g = check_grounding(sent, [c["result"] for c in box.calls], question)
+    g = check_grounding(sent, [c["result"] for c in box.calls], question if user_text is None else user_text)
     if not g["grounded"]:
         return None, "ungrounded:" + ",".join(g["ungrounded_numbers"])
     return sent, None
@@ -1143,10 +1156,11 @@ def ask_stream(question: str, ctx: dict):
     dropped_sents: list[str] = []
     first_ms = None
     max_sent = CALL_MAX_SENTENCES if ctx.get("mode") == "call" else 4
+    user_ctx = user_context_text(question, ctx)
 
     def emit(part: str):
         nonlocal first_ms
-        text, why = _clean_sentence(part, box, question)
+        text, why = _clean_sentence(part, box, question, user_ctx)
         if text:
             sent_out.append(text)
             if first_ms is None:

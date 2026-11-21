@@ -925,3 +925,29 @@ def test_llm_base_url_targets_a_self_hosted_server(monkeypatch):
     out = llm.chat([{"role": "user", "content": "hi"}], reasoning={"enabled": False})
     assert seen["url"] == "http://localhost:11434/v1/chat/completions" and "Authorization" not in seen["headers"]
     assert not {"models", "usage", "reasoning"} & set(seen["body"]) and out["cost_usd"] == 0.0
+
+
+def test_voice_note_with_an_ungrounded_number_falls_back_to_a_grounded_template(monkeypatch):
+    """#112: a voice-note answer with a number the engine did not produce must end in the engine's
+    template answer, reported as grounded (the web rejects grounded=false), never in a dead end."""
+    from api import agent
+    transcript = "Hey Lumi, um, I have like 8000 francs saved, is that enough to do the master's or not?"
+    monkeypatch.setattr(agent.llm, "available", lambda: True)
+    monkeypatch.setattr(agent.llm, "chat", lambda *a, **k: {
+        "message": {"content": "With your CHF 8,000 you would still be short by about CHF 10,531 in month 7."},
+        "model": "fake", "cost_usd": 0.0, "prompt_tokens": 1, "completion_tokens": 1, "latency_ms": 1})
+    j = agent.ask(transcript, {"profile": engine.default_profile(), "path": ["2"], "language": "en"})
+    assert j["mode"] == "template" and j["answer"]
+    assert j["grounding"]["grounded"] is True and j["grounding"]["ungrounded_numbers"] == []
+    assert j["grounding"]["llm_ungrounded_numbers"] == ["10,531"]
+
+
+def test_numbers_the_user_gave_are_grounded(monkeypatch):
+    """Savings from the profile, a rent from an earlier turn and a narrow-space French figure all pass."""
+    from api import agent
+    prof = {**engine.default_profile(), "savings": 8000}
+    ctx = {"profile": prof, "path": ["2"], "language": "fr",
+           "history": [{"role": "user", "content": "Et si mon loyer passe à 1300 ?"}]}
+    txt = agent.user_context_text("Est-ce assez ?", ctx)
+    assert check_grounding("Avec CHF 8\u202f000 et un loyer de 1\u202f300, ...", [], txt)["grounded"]
+    assert not check_grounding("Il manquerait CHF 10\u202f531.", [], txt)["grounded"]
