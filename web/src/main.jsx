@@ -163,6 +163,13 @@ function App() {
     try { setTree(await fetchTree(path, { lens: true })); } catch (e) { setError(e.message); } finally { setLensPending(false); }
   }
 
+  // a lever's "try" button: recompute the whole visible tree with that one assumption overridden
+  function applyLever(id, value) {
+    if (!Number.isFinite(value)) return;
+    const next = [...overrides.filter((o) => o.id !== id), { id, value }];
+    go(path, { assumptions: next, force: true });
+  }
+
   // keyboard + wheel: one level back, never further
   useEffect(() => {
     let acc = 0, last = 0;
@@ -201,7 +208,7 @@ function App() {
 
   const cur = tree?.nodes.find((n) => n.node_id === tree.current);
   const crumbs = tree ? tree.path.map((id) => tree.nodes.find((n) => n.node_id === id)).filter(Boolean) : [];
-  const reportHTML = tree ? renderReport({ data: tree, lang, ui: UI[lang], tr: (n) => translateNode(n, lang), lens, lensPending }) : '';
+  const reportHTML = tree ? renderReport({ data: tree, lang, ui: UI[lang], tr: (n) => translateNode(n, lang), lens, lensPending, applied: overrides.length > 0 }) : '';
 
   return <>
     <main id="stage" aria-label="Financial tree">
@@ -263,7 +270,10 @@ function App() {
 
     {panel === 'report' && cur && <aside className="report drawer" aria-label="Report">
       <button className="close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
-      <div onChange={(e) => { if (e.target.id === 'lensToggle') toggleLens(e.target.checked); }} dangerouslySetInnerHTML={{ __html: reportHTML }} />
+      <div onClick={(e) => { // injected HTML: React's onChange does not see these inputs, clicks do
+        if (e.target.id === 'lensToggle') { toggleLens(e.target.checked); return; }
+        const b = e.target.closest?.('[data-lever]'); if (b && !busy) applyLever(b.dataset.lever, Number(b.dataset.value)); }}
+        dangerouslySetInnerHTML={{ __html: reportHTML }} />
       <div className="drawer-inline"><Assumptions assumptions={tree.assumptions} busy={busy} onApply={(next) => go(path, { assumptions: next, force: true })} /></div>
       <p className="note">{t(lang, 'sessionCost')} USD {cost.toFixed(4)}</p>
     </aside>}
