@@ -172,9 +172,9 @@
       ],
       "kind": "assumption",
       "editable": true,
-      "verified": true,
+      "verified": false,
       "retrieved": "2026-11-21",
-      "source": "Derived from Pictet 'Performance of Swiss shares and bonds 1926-2024' (2025 edition, Table 1): geometric mean 7.7%/year nominal for Swiss shares and 4.0% for bonds, so an 80/20 mix earns about 6.9% before costs (https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf). 5.5% = that minus about 1.4 points of fees and a margin of prudence (the deduction is a modelling choice)"
+      "source": "Modelling choice, not verified: 5.5% nominal annual return for the 80/20 scenario, including an assumed cost/prudence deduction. Pictet Table 1 reports individual asset geometric returns (Swiss shares 7.7%, bonds 4.0%); their weighted average is not a portfolio CAGR and does not verify this scenario return. A portfolio series or justified estimator is needed (https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf)"
     },
     {
       "id": "AS-alexia-equity-vol",

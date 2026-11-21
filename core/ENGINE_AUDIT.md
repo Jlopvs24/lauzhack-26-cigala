@@ -10,6 +10,46 @@ exploration 20 · technical execution & validation 15 · UX & communication 15 �
 responsible design & transparency 10. Direction for tonight: make the simulation and
 exploration more correct and richer; never predict, never fit the model to the synthetic data.
 
+## #48 completion record
+
+All eight items of the engine queue are integrated in the PRs below, including
+item 8 in master at `b00380f` (with the #78 review corrections). The original audit below is a historical snapshot; its old counts,
+values and weaknesses are not a current inventory. Current sources and remaining
+modelling choices are recorded in `core/bench/SOURCES.md` and the assumption files.
+
+| item | delivered | PR |
+|---|---|---|
+| 1 | Explicit before-tax / take-home income basis | #49 |
+| 2 | Gross-to-net payroll, including AHV, ALV, NBU and BVG | #51 |
+| 3 | Official ESTV tax tables by residence and household | #56 |
+| 4 | Capped pillar 3a contributions, tax deduction and locked liquidity | #60 |
+| 5 | EUR amounts, EURCHF conversion and FX stress scenarios | #63 |
+| 6 | Combined decisions, two-lever surfaces, smallest-change search and timing scan | #64 |
+| 7 | Primary-source verification; unsupported assumptions remain explicitly unverified | #66 |
+| 8 | Public-target optimisation, material-gain and leave-one-target-out guards | #72, corrected by #78 |
+
+Item 8 selects **no further default changes**. The two balanced-return references
+are weighted-CAGR approximations, not observed portfolio returns; they remain
+`to_verify` with weight zero. The assumed fee deduction is a modelling choice.
+The regenerated objective uses 15 verified positive-weight targets: loss 2.2267
+before item 7, 2.2089 for current/chosen defaults, and 1.2442 for the unadopted fit.
+Synthetic UBS profiles are smoke checks, never calibration targets. See
+`core/bench/OPTIMISATION.md` for the method, sources and limitations.
+
+Four committed optimiser regression tests cover reproducibility, bounds, target
+and rule exclusions, materiality, and conflicting leave-one-target-out directions.
+The rebased item-8 head `67a9185` passed 250 core/API tests, with five external
+UBS-kit tests skipped in that checkout, and `core.validation()` passed 6/6.
+The equity-heavy scenario return is also labelled unverified: its 5.5% value
+is unchanged, but weighted asset CAGRs cannot verify a portfolio return.
+No new public contract is introduced by items 7-8; the additive contracts for
+items 1-6 are documented in `docs/contracts.md`.
+
+Remaining item-5 limitation: living costs abroad are editable UBS scenario inputs,
+not city-specific estimates. The kit names no destination city; choosing one and
+its source is still required before such estimates can be claimed. EUR inflation,
+foreign social security and stochastic FX also remain outside this implementation.
+
 ## 1. What the benchmark says today
 
 `python -m core.bench` (needs the private UBS kit, see `core/bench/README.md`):
