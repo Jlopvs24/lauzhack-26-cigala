@@ -25,15 +25,12 @@
       "label": "Rent of a studio in Lausanne",
       "value": 1100,
       "unit": "CHF/month",
-      "range": [
-        900,
-        1500
-      ],
+      "range": [900, 1300],
       "kind": "assumption",
       "editable": true,
-      "verified": false,
+      "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified: starter-kit total expenses CHF 3,000 split by the team into rent CHF 1,100 + other CHF 1,900"
+      "source": "Statistique Vaud, Numerus 8-2026 'Loyers vaudois' (FSO structural survey, 2024 data), table T1: average net rent in Vaud CHF 896 (1 room) and CHF 1,198 (2 rooms); Lausanne CHF 20.3/m2 vs Vaud 19.1/m2 (https://www.vd.ch/fileadmin/user_upload/organisation/dfin/statvd/Publications/Numerus/Numerus-08-2026_Loyers.pdf). CHF 1,100 sits between a 1-room and a 2-room flat in Lausanne; new leases cost more. Net rent, utilities in other costs"
     },
     {
       "id": "AS-alexia-master-tuition",
@@ -129,7 +126,7 @@
       "editable": true,
       "verified": false,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. UBS starter kit total 'Move abroad' expenses split by the team; to verify with Eurostat/Destatis rent statistics for the chosen city. Converted from the kit's CHF figure at EURCHF 0.9223 (ECB reference rate, 20 Nov 2026; #48 item 5), so the result at a constant rate is unchanged."
+      "source": "Modelling choice, not verified: market rent of a small flat for a newcomer abroad (e.g. Berlin), from the UBS starter kit 'Move abroad' expenses split by the team and converted from the kit's CHF figure at EURCHF 0.9223 (ECB reference rate, 20 Nov 2026; #48 item 5), so the result at a constant rate is unchanged. The official Berlin Mietspiegel 2026 median EUR 7.71/m2 net cold (about EUR 310 for 40 m2, https://www.berlin.de/sen/sbw/presse/pressemeldungen/pressemitteilung.1674998.php) covers existing leases only and is far below new-lease prices; no official new-lease figure found (checked 2026-11-21)"
     },
     {
       "id": "AS-alexia-raise",
@@ -145,7 +142,7 @@
       "editable": true,
       "verified": false,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. About 5% of CHF 4,200; to verify with the FSO Swiss Earnings Structure Survey, https://www.bfs.admin.ch (salary progression by age)."
+      "source": "Modelling choice, not verified: a one-off negotiated raise of about 5% of CHF 4,200. Context: FSO Swiss Earnings Structure Survey 2024 median gross wage rises about 25% from ages 20-29 to 30-39 (FSO, https://dam-api.bfs.admin.ch/hub/api/dam/assets/36195848/master), part of which is general wage growth already in the model; no official figure for a single negotiated raise (checked 2026-11-21)"
     },
     {
       "id": "AS-alexia-promotion",
@@ -161,7 +158,7 @@
       "editable": true,
       "verified": false,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. About 15% of CHF 4,200; to verify with the FSO Swiss Earnings Structure Survey, https://www.bfs.admin.ch."
+      "source": "Modelling choice, not verified: about 15% of CHF 4,200. FSO reports that 27-31% of master's graduates who changed jobs were promoted, but publishes no size of a promotion raise (https://dam-api.bfs.admin.ch/hub/api/dam/assets/14941889/master, checked 2026-11-21)"
     },
     {
       "id": "AS-alexia-equity-return",
@@ -175,15 +172,15 @@
       ],
       "kind": "assumption",
       "editable": true,
-      "verified": false,
+      "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. Pictet 1926-2024 study (Swiss shares about 7.7%/year nominal) minus fees and a margin of prudence."
+      "source": "Derived from Pictet 'Performance of Swiss shares and bonds 1926-2024' (2025 edition, Table 1): geometric mean 7.7%/year nominal for Swiss shares and 4.0% for bonds, so an 80/20 mix earns about 6.9% before costs (https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf). 5.5% = that minus about 1.4 points of fees and a margin of prudence (the deduction is a modelling choice)"
     },
     {
       "id": "AS-alexia-equity-vol",
       "param": "equity_heavy_vol",
       "label": "Volatility of an 80% equity portfolio",
-      "value": 0.15,
+      "value": 0.16,
       "unit": "1/year",
       "range": [
         0.12,
@@ -191,25 +188,22 @@
       ],
       "kind": "assumption",
       "editable": true,
-      "verified": false,
+      "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. Modelling choice between the balanced portfolio (10%) and a pure equity index (about 17%)."
+      "source": "Derived from Pictet 'Performance of Swiss shares and bonds 1926-2024' (2025 edition, Table 1): standard deviation 19.9% (shares) and 3.9% (bonds), correlation 28%, so an 80/20 mix has about 16.2%/year (https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf)"
     },
     {
       "id": "AS-alexia-car-resale",
       "param": "car_resale",
       "label": "Resale value of the car after 2 years",
-      "value": 7000,
+      "value": 10000,
       "unit": "CHF",
-      "range": [
-        4000,
-        10000
-      ],
+      "range": [7000, 12000],
       "kind": "assumption",
       "editable": true,
       "verified": false,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. About 50% depreciation after 2 years; to verify with a used-car price index."
+      "source": "Modelling choice, corrected, not fully verified: the TCS cost-per-km method depreciates 7% of the catalogue price per year plus 2% per 10,000 km, about 20% after 2 years at 15,000 km/year (CHF 12,000 of 15,000; https://www.tcs.ch/de/testberichte-ratgeber/ratgeber/kontrollen-unterhalt/kilometerkosten-musterauto-2026.php); market resale values are lower (about 35% loss). The TCS booklet itself was not opened; Eurotax data is paywalled (checked 2026-11-21)"
     },
     {
       "id": "AS-alexia-side-job",
@@ -225,7 +219,7 @@
       "editable": true,
       "verified": false,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. A few hours a week at a student-job rate; to verify."
+      "source": "Modelling choice, not verified: about a 20% student job. FSO 'Conditions d'etudes et de vie dans les hautes ecoles suisses' 2024: 72% of students work next to their studies, 29% at up to 20% (https://dam-api.bfs.admin.ch/hub/api/dam/assets/36147161/master); the average income from work alone is only in the annex tables (checked 2026-11-21)"
     },
     {
       "id": "AS-alexia-parttime-income",
@@ -239,9 +233,9 @@
       ],
       "kind": "assumption",
       "editable": true,
-      "verified": false,
+      "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. 60% of the CHF 4,200 junior salary; a student at 60% may earn less. To verify."
+      "source": "60% of the CHF 4,200 junior salary. Proportional pay checked: the FSO Swiss Earnings Structure Survey standardises wages to full-time equivalents and only jobs at 50% or less earn clearly less per FTE (-13%; Statistique Vaud Numerus 6-2026, https://www.vd.ch/fileadmin/user_upload/organisation/dfin/statvd/Publications/Numerus/Numerus-06-2026_Salaires.pdf). The CHF 4,200 base is the starter-kit figure"
     },
     {
       "id": "AS-alexia-80pct-income",
@@ -255,15 +249,15 @@
       ],
       "kind": "assumption",
       "editable": true,
-      "verified": false,
+      "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. 80% of the CHF 4,200 junior salary; feasibility next to studies is itself a modelling choice."
+      "source": "80% of the CHF 4,200 junior salary; proportional pay checked as for AS-alexia-parttime-income (FSO wage survey via Statistique Vaud Numerus 6-2026, https://www.vd.ch/fileadmin/user_upload/organisation/dfin/statvd/Publications/Numerus/Numerus-06-2026_Salaires.pdf). Feasibility of 80% next to studies remains a modelling choice"
     },
     {
       "id": "AS-alexia-study-loan-rate",
       "param": "study_loan_rate",
       "label": "Interest rate of the study loan",
-      "value": 0.02,
+      "value": 0.0,
       "unit": "1/year",
       "range": [
         0.0,
@@ -271,41 +265,35 @@
       ],
       "kind": "assumption",
       "editable": true,
-      "verified": false,
+      "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. To verify with Vaud cantonal study grants and loans (Office cantonal des bourses d'études), https://www.vd.ch."
+      "source": "Canton of Vaud study loans: interest-free during the studies and for 5 years after them; after that, 5%/year late interest (vd.ch repayment FAQ, https://www.vd.ch/formation/aides-financieres-aux-etudes-et-a-la-formation-professionnelle-bourses-ou-prets/informations-principales/questions-frequentes/remboursement). Node 2.2.3 is a separate what-if: a 5% rate from graduation, not the Vaud late-interest rule"
     },
     {
       "id": "AS-alexia-scholarship",
       "param": "scholarship",
       "label": "Scholarship during the master's",
-      "value": 500,
+      "value": 744,
       "unit": "CHF/month",
-      "range": [
-        0,
-        1000
-      ],
+      "range": [0, 2100],
       "kind": "assumption",
       "editable": true,
-      "verified": false,
+      "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. To verify with Vaud cantonal study grants and loans (Office cantonal des bourses d'études), https://www.vd.ch or the EPFL social scholarship (https://www.epfl.ch/education/studies/en/epfl-social-scholarship/)."
+      "source": "FSO 'Conditions d'etudes et de vie dans les hautes ecoles suisses' 2024: median study aid (grant or loan) per recipient CHF 597/month, CHF 744 for students living away from their parents (https://dam-api.bfs.admin.ch/hub/api/dam/assets/36147161/master). Upper end: EPFL social scholarship at most CHF 2,100/month (Directive LEX 2.10.3, https://www.epfl.ch/about/overview/wp-content/uploads/2021/11/LEX-2.10.3_Directive-VPA-bourses-detudes_ENG_final.pdf)"
     },
     {
       "id": "AS-alexia-internship",
       "param": "internship_pay",
       "label": "Paid internship in the second year",
-      "value": 2500,
+      "value": 2000,
       "unit": "CHF/month",
-      "range": [
-        1500,
-        3500
-      ],
+      "range": [2000, 3500],
       "kind": "assumption",
       "editable": true,
-      "verified": false,
+      "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. To verify with EPFL internship guidelines or a Swiss salary survey."
+      "source": "EPFL 'Looking for an internship': EPFL recommends a minimum of CHF 2,000 per month for internships in Switzerland (no legal minimum) (https://epfl.ch/education/studies/en/rules-and-procedures/internships/looking-for-an-internship/)"
     },
     {
       "id": "AS-alexia-abroad-promotion",
@@ -321,7 +309,7 @@
       "editable": true,
       "verified": false,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. About 15% of CHF 3,700; to verify. Converted from the kit's CHF figure at EURCHF 0.9223 (ECB reference rate, 20 Nov 2026; #48 item 5), so the result at a constant rate is unchanged."
+      "source": "Modelling choice, not verified: about 15% of the salary abroad, same reasoning as AS-alexia-promotion (no official figure for the size of a promotion raise, checked 2026-11-21). Converted from the kit's CHF figure at EURCHF 0.9223 (ECB reference rate, 20 Nov 2026; #48 item 5), so the result at a constant rate is unchanged."
     },
     {
       "id": "AS-alexia-side-project",
@@ -337,7 +325,7 @@
       "editable": true,
       "verified": false,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. Illustrative; a side project may earn nothing."
+      "source": "Modelling choice, not verified: illustrative; a side project may earn nothing (no statistic applies, checked 2026-11-21)"
     },
     {
       "id": "AS-alexia-later-master-salary",
@@ -353,23 +341,20 @@
       "editable": true,
       "verified": false,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. To verify with the FSO Swiss Earnings Structure Survey, https://www.bfs.admin.ch."
+      "source": "Modelling choice, not verified: the starter-kit master's salary (CHF 4,800) plus about 8% for 3 years of prior work experience. Context: FSO graduate surveys give a median CHF 80,900 gross/year one year after a university master's (2023, https://dam-api.bfs.admin.ch/hub/api/dam/assets/32172110/master) and CHF 95,000 five years after (2014 cohort, https://dam-api.bfs.admin.ch/hub/api/dam/assets/14941889/master), both above the starter-kit scale used in this tree (checked 2026-11-21)"
     },
     {
       "id": "AS-alexia-zurich-salary",
       "param": "zurich_salary",
       "label": "Net salary of a job in Zurich, with experience",
-      "value": 5400,
+      "value": 5150,
       "unit": "CHF/month",
-      "range": [
-        4800,
-        6000
-      ],
+      "range": [4800, 6000],
       "kind": "assumption",
       "editable": true,
-      "verified": false,
+      "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. To verify with the FSO Swiss Earnings Structure Survey, https://www.bfs.admin.ch by region."
+      "source": "Starter-kit master's salary CHF 4,800 (Lausanne) x 1.072, the Zurich premium over the Lake Geneva region in the FSO Swiss Earnings Structure Survey 2024 (median gross wage CHF 7,502 vs 6,998/month; https://dam-api.bfs.admin.ch/hub/api/dam/assets/36195855/master). No Zurich figure for young graduates is published; the ratio, not the base, is the verified part"
     },
     {
       "id": "AS-alexia-zurich-rent",
@@ -383,9 +368,9 @@
       ],
       "kind": "assumption",
       "editable": true,
-      "verified": false,
+      "verified": true,
       "retrieved": "2026-11-21",
-      "source": "Modelling choice, not verified. To verify with FSO rent statistics by canton."
+      "source": "Statistik Stadt Zuerich, 'Mietpreise 2026 in der Stadt Zuerich' (1 April 2026): median net rent of a 2-room flat CHF 1,497/month; 1-room flats are not surveyed; rent with utilities is about 10-15% higher (https://www.stadt-zuerich.ch/artikel/de/statistik-und-daten/mietpreise-2026-in-der-stadt-zuerich.html)"
     }
   ],
   "root": {
@@ -758,7 +743,7 @@
               {
                 "node_id": "2.1.1",
                 "label": "Get a scholarship",
-                "description": "CHF 500 a month during the two years.",
+                "description": "About CHF 740 a month during the two years (median Swiss study aid, away from parents).",
                 "catalog": [
                   "S003"
                 ],
@@ -822,7 +807,7 @@
               {
                 "node_id": "2.1.3",
                 "label": "Paid internship in year 2",
-                "description": "CHF 2,500 a month for the 12 months of year 2.",
+                "description": "CHF 2,000 a month (the EPFL recommended minimum) for the 12 months of year 2.",
                 "catalog": [
                   "S005"
                 ],
@@ -844,7 +829,7 @@
           {
             "node_id": "2.2",
             "label": "Study loan of CHF 15,000",
-            "description": "Borrows CHF 15,000 at 2%, repaid at CHF 300 a month once she works (month 25).",
+            "description": "Borrows CHF 15,000 interest-free (Vaud study loan), repaid at CHF 300 a month once she works (month 25).",
             "catalog": [
               "S009",
               "S071"
@@ -896,7 +881,7 @@
               {
                 "node_id": "2.2.3",
                 "label": "Rate rises to 5%",
-                "description": "The variable rate rises to 5% at graduation.",
+                "description": "Stress case: the loan charges 5% from graduation (Vaud charges 5% only on late repayment).",
                 "catalog": [
                   "S075"
                 ],
