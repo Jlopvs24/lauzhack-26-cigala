@@ -28,6 +28,5 @@ Purpose: a recording of the real app, to play if the live demo fails at judging 
 
 ## Fallbacks while recording
 
-- **If *Make it mine* is not mounted in the app yet,** record shot 5 on `web/src/personalize/demo.html` and caption it "component preview". Tell thread 0.
 - **If the parse asks a clarifying question,** keep it in the video and answer *"for the two years of the master's"*. It shows the parser never guesses.
 - **If Lumi's answer in shot 8 takes more than 5 s,** cut the wait.

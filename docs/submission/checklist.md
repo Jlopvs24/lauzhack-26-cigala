@@ -69,7 +69,7 @@ gh repo view Jlopvs24/lauzhack-26-cigala --json visibility -q .visibility    # e
   curl -s -X POST http://127.0.0.1:8000/tree/personalize -H "Content-Type: application/json" \
     -d '{"path":["2"],"node_id":"2","text":"I would get a CHF 600/month scholarship during the master","language":"en"}'
   ```
-  It must return a `proposal` with `monthly_net_income` `add` `600`, months `0`–`24`, and `numbers_not_in_your_words: []`. On Sat 20:45 it did: 2.5 s, USD 0.00008. Then do it in the UI: **Make it mine** must be visible on the master's branch (on Sat 20:50 it was not yet mounted in `web/src/main.jsx`; thread 6), and after **Confirm** the master's card must show the new gap.
+  It must return a `proposal` with `monthly_net_income` `add` `600`, months `0`–`24`, and `numbers_not_in_your_words: []`. On Sat 20:45 it did: 2.5 s, USD 0.00008. Then do it in the UI: **Make it mine** is on the current branch (#67). After **Confirm**, the master's card must show the new gap, and the branch must be marked as yours.
 - [ ] **Document extraction:** run this three times and expect HTTP 200 each time, at 10 s or less:
   ```bash
   curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" -X POST http://127.0.0.1:8000/profiles/extract -F "files=@data/synthetic/docs/P00001-payslip.jpg"

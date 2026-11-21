@@ -9,7 +9,7 @@ One story, Alexia, told in under three minutes, hitting UBS (main), AXA and IMC.
 - Chrome or Edge, full screen, at `http://127.0.0.1:5175`. Language **EN**. Sound **on**: the first click unlocks audio.
 - The API is running on port 8000. `/health` shows `"engine": "core"`, `"personal_conditions_supported": true` and Kokoro `available: true`.
 - The header shows the **Verified 6/6** badge.
-- **Make it mine** appears on the current branch (the component is `web/src/personalize/MakeItMine.jsx`). On Sat 20:50 it was not yet mounted in `web/src/main.jsx` on `master`. If it is still missing, the climax can't be shown in the app: use the standalone page `web/src/personalize/demo.html` and say so.
+- **Make it mine** appears on the current branch (mounted in #67). Custom and patched branches are marked, and the conditions travel with every expand, explore and chat request. Try it once in rehearsal.
 - Clear the session's conditions before you start: **Your conditions** → remove all, or open a new private window. Conditions persist per browser session.
 - Optional AXA beat: the three demo documents are on the desktop (`data/synthetic/docs/P00001-payslip.jpg`, `P00001-bank_statement.pdf`, `P00001-rental_contract.jpg`). **Do this beat only if extraction takes 10 s or less on the demo laptop.** On the shared API on Sat 20:40 it took 57–74 s per photo.
 - Rehearse at least twice against a timer.

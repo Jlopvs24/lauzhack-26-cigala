@@ -133,7 +133,7 @@ Under the starter kit's own assumptions (cash only), the engine returns the kit'
 | UBS starter kit | The three scenarios above, matched exactly |
 | Search verified | The break-even salary found by bisection (CHF 4,959.51) is re-simulated: at it the master's ends level with working or ahead; CHF 1 lower, it ends behind |
 
-Test suites: TESTS_LINE. A calibration harness ([`core/bench/`](core/bench/)) checks the engine against the UBS synthetic ledgers (identities on 1,200 profiles × 24 months, maximum error CHF 0.00) and scores parameters against public Swiss targets only. It never tunes the engine to the synthetic data.
+Test suites on Sat 21 Nov 20:55: `core/tests` 140 passed and 5 skipped (the skips need the private UBS kit); `api/tests` 83 passed; web unit tests 49 of 51 passed. The 2 web failures are fixtures that still expect the pre-ESTV figure (CHF 18,835 instead of 18,553). A calibration harness ([`core/bench/`](core/bench/)) checks the engine against the UBS synthetic ledgers (identities on 1,200 profiles × 24 months, maximum error CHF 0.00) and scores parameters against public Swiss targets only. It never tunes the engine to the synthetic data.
 
 **4. Exploration, not prediction.** UBS asked us to explore possibilities rather than predict, so the core is deterministic and Monte Carlo is an optional lens that stays off by default. For every node, the engine re-runs itself with one input moved:
 
