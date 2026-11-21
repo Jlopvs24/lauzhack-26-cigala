@@ -552,7 +552,8 @@ Runs the engine's self-checks on demand (~1 s) and returns `{engine_version, pas
 | POST | `/simulate` | `{profile, node, assumptions, weather}` → SimulationResult |
 | POST | `/agent/ask` | `{question, context}` → answer + tool traces (numbers only from engine) |
 | POST | `/voice/stt`, `/voice/tts` | speech in/out |
-| POST | `/report` | `{profile?, path, assumptions?, uncertainty?, language?}` → path report (12 sections, below) |
+| POST | `/report` | `{profile?, path, assumptions?, uncertainty?, language?}` → path report (12 sections, below); no LLM in the request path, ~1 s cold, ~10 ms cached |
+| POST | `/report/summary` | same body → `{text, mode: llm\|template, template, language, model, cost_usd, cached, latency_ms, rejected_llm_numbers?}`: grounded LLM rewording of the report summary, to swap in when it arrives |
 
 Engine functions for `api/engine.py`: `core.expand(profile, path, assumptions, weather)`, `core.simulate(profile, node, assumptions, weather)`, `core.node_info(node_id)`, `core.assumptions_list(overrides)`, `core.weather_catalog()`.
 
@@ -566,7 +567,7 @@ Implements `docs/report-spec.md` §3. Every number comes from engine calls (one 
   "path": ["0", "2", "2.1"], "leaf": "2.1",
   "section_order": [{"key": "summary", "title": "Plain-language summary", "n": 1}, "... 12 items ..."],
   "sections": {
-    "summary": {"text": "If “Do a master's” then “Student job only”, then under these assumptions ...", "mode": "llm | template",
+    "summary": {"text": "If “Do a master's” then “Student job only”, then under these assumptions ...", "mode": "template",
                 "template": "deterministic text the LLM may only reword", "model": "qwen/qwen3.7-flash", "cost_usd": 0.0001},
     "scope": {"question": "...", "horizon_months": 120, "currency": "CHF", "jurisdiction": "Switzerland (Lausanne)",
               "as_of": "2025-01-01", "values": "nominal CHF; final_net_worth_real is in today's prices", "basis": "..."},
@@ -603,7 +604,9 @@ Implements `docs/report-spec.md` §3. Every number comes from engine calls (one 
 ```
 
 - Months in report rows are 1-based ("month 7"), unlike engine metrics (0-based).
-- `summary.mode = "llm"` only when the LLM's rewording of `summary.template` adds no number outside it (0.5% tolerance); otherwise the template is returned (`rejected_llm_numbers`).
+- `/report` never calls the LLM: `sections.summary` is always `{text, mode: "template", template, cost_usd: 0, model: "template"}` (English, deterministic).
+- `POST /report/summary` (same body; `language` picks the output language) rewords or translates that template with the frugal default model (`qwen/qwen3.7-flash`, ~3-4 s, ~USD 0.00003). `mode = "llm"` only when the rewording adds no number outside the template (0.5% tolerance); otherwise `mode = "template"` with `rejected_llm_numbers`. The UI shows `/report` at once and swaps the summary text in when this returns.
+- Both are cached per API worker by request hash (`cached: true`, cost 0). `language` is not part of the `/report` key, so a summary in another language reuses the same report data.
 
 ## Env vars
 

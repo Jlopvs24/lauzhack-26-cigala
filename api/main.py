@@ -260,7 +260,7 @@ def report(req: ReportReq):
     """Path report (docs/report-spec.md §3): 12 structured sections, numbers only from the engine."""
     from api.report import build_report
     t0 = time.perf_counter()
-    body = _engine_body(req, "profile", "path", "assumptions", "uncertainty", "language")
+    body = _engine_body(req, "profile", "path", "assumptions", "uncertainty")  # language: summary only
     try:
         out, hit = cache.cached("/report", body, engine.version(), lambda: build_report(
             req.profile, req.path, req.assumptions, req.uncertainty, req.language))
@@ -269,6 +269,36 @@ def report(req: ReportReq):
     if hit:
         out = {**out, "cost_usd": 0.0, "latency_ms": int((time.perf_counter() - t0) * 1000)}
     return {**out, "cached": hit}
+
+
+def _report_data(req: "ReportReq") -> dict:
+    """The /report payload (same cache entry as POST /report)."""
+    from api.report import build_report
+    body = _engine_body(req, "profile", "path", "assumptions", "uncertainty")
+    out, _ = cache.cached("/report", body, engine.version(), lambda: build_report(
+        req.profile, req.path, req.assumptions, req.uncertainty, req.language))
+    return out
+
+
+@app.post("/report/summary")
+def report_summary(req: ReportReq):
+    """Grounded LLM rewording of the report's template summary, for the UI to swap in when it arrives.
+    Same body as /report. Returns {text, mode: llm|template, template, language, model, cost_usd, cached,
+    latency_ms, rejected_llm_numbers?}. Uses the frugal default model; any number not in the template means
+    the template is returned instead. Cached by request."""
+    from api.report import llm_summary
+    t0 = time.perf_counter()
+    body = _engine_body(req, "profile", "path", "assumptions", "uncertainty", "language")
+    try:
+        out, hit = cache.cached("/report/summary", body, engine.version(),
+                                lambda: llm_summary(_report_data(req), req.language))
+    except (KeyError, ValueError, StopIteration) as e:
+        raise HTTPException(422, f"bad path: {e}") from e
+    out = {**out, "language": req.language, "cached": hit,
+           "latency_ms": int((time.perf_counter() - t0) * 1000)}
+    if hit:
+        out["cost_usd"] = 0.0
+    return out
 
 
 @app.post("/agent/ask")

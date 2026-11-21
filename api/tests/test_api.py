@@ -419,7 +419,8 @@ def test_report_has_12_sections_and_engine_numbers():
     assert S["alternatives"]["levels"][0]["siblings"] and S["alternatives"]["status_quo_baseline"]["node_id"] == "0"
     assert [r["weather"] for r in S["stress"]["rows"]] == ["none", "recession", "inflation", "market_crash", "job_loss"]
     assert S["constraints"]["items"][0]["name"] in ("liquidity_floor", "no_funding_gap")
-    assert any(not c["passed"] for c in S["constraints"]["items"])  # master's path has a funding gap
+    if engine.ENGINE_NAME == "core":  # core's tree: this master's path has a funding gap
+        assert any(not c["passed"] for c in S["constraints"]["items"])
     assert S["uncertainty"]["enabled"] is False
     rep_body = (S["validation"].get("reproduce_report") or S["validation"]["reproduce"])["body"]
     assert rep_body["path"] == ["2", "2.1"]
@@ -445,7 +446,8 @@ def test_report_rejects_llm_summary_with_invented_numbers(monkeypatch):
     monkeypatch.setattr(report.llm, "chat", lambda *a, **k: {
         "message": {"content": "If you do this, then you would have CHF 987'654 after 10 years."},
         "model": "fake", "cost_usd": 0.00001, "prompt_tokens": 1, "completion_tokens": 1, "latency_ms": 1})
-    s = report.build_report(None, ["2"])["sections"]["summary"]
+    assert report.build_report(None, ["2"])["sections"]["summary"]["mode"] == "template"  # no LLM by default
+    s = report.build_report(None, ["2"], with_llm=True)["sections"]["summary"]
     assert s["mode"] == "template" and s["rejected_llm_numbers"]
 
 
@@ -536,3 +538,24 @@ def test_validation_route():
     again = c.get("/validation").json()
     assert again["cached"] is True and again["duration_ms"] == j["duration_ms"]  # same run within the TTL
     assert c.get("/validation?refresh=true").json()["cached"] is False
+
+
+
+def test_report_never_calls_the_llm_and_summary_route(monkeypatch):
+    from api import report
+    calls = []
+
+    def fake_chat(msgs, **k):
+        calls.append(1)
+        return {"message": {"content": msgs[-1]["content"].replace("If ", "If you go ", 1)}, "model": "fake",
+                "cost_usd": 0.00001, "prompt_tokens": 1, "completion_tokens": 1, "latency_ms": 1}
+
+    monkeypatch.setattr(report.llm, "available", lambda: True)
+    monkeypatch.setattr(report.llm, "chat", fake_chat)
+    j = _report(path=["1", "1.1"])
+    assert j["sections"]["summary"]["mode"] == "template" and not calls
+    s = c.post("/report/summary", json={"path": ["1", "1.1"]}).json()
+    assert s["mode"] == "llm" and s["text"].startswith("If you go") and s["template"] and len(calls) == 1
+    again = c.post("/report/summary", json={"path": ["1", "1.1"]}).json()
+    assert again["cached"] is True and again["cost_usd"] == 0 and len(calls) == 1
+    assert c.post("/report/summary", json={"path": ["9.9"]}).status_code == 422
