@@ -173,3 +173,37 @@ def test_call_prototype_served():
 def test_agent_call_mode_template():
     j = c.post("/agent/ask", json={"question": "why?", "context": {"path": ["2"], "mode": "call"}}).json()
     assert j["answer"] and j["cost_usd"] == 0
+
+
+def test_extract_wires_multimodal(monkeypatch):
+    import multimodal
+    seen = {}
+
+    def fake_extract(files=None, text=None, audio=None, audio_format="wav", strategy="frugal", base_profile=None):
+        seen.update(files=[n for n, _ in files], text=text, audio=audio, audio_format=audio_format)
+        return {"profile": {"cash": 8000, "provenance": {"cash": {"source": "bank_statement_pdf_text"}}},
+                "extractor": "fake", "cost_usd": 0.0001, "latency_ms": 5, "missing_fields": ["age"],
+                "checks": [], "documents": [], "transcripts": []}
+
+    monkeypatch.setattr(multimodal, "extract", fake_extract)
+    r = c.post("/profiles/extract", data={"text": "I pay 900 rent"},
+               files=[("files", ("payslip.jpg", b"img", "image/jpeg")), ("files", ("note.wav", b"RIFF", "audio/wav"))])
+    j = r.json()
+    assert r.status_code == 200 and j["extractor"] == "fake" and j["profile"]["provenance"]["cash"]
+    assert {"profile", "extractor", "cost_usd", "latency_ms", "missing_fields"} <= set(j)
+    assert seen == {"files": ["payslip.jpg"], "text": "I pay 900 rent", "audio": b"RIFF", "audio_format": "wav"}
+
+
+def test_extract_falls_back_to_mock_without_deps(monkeypatch):
+    import multimodal
+
+    def missing(*a, **k):
+        raise ImportError("No module named 'rapidocr_onnxruntime'")
+
+    monkeypatch.setattr(multimodal, "extract", missing)
+    j = c.post("/profiles/extract", data={"text": "hi"}).json()
+    assert j["extractor"] == "mock" and "mock_reason" in j and j["profile"]["provenance"]
+
+
+def test_extract_needs_input():
+    assert c.post("/profiles/extract", data={}).status_code == 422
