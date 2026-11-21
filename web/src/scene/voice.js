@@ -36,9 +36,46 @@ export function levelFromSamples(buf) {
   return Math.min(1, Math.sqrt(sum / (buf.length || 1)) * 4.5);
 }
 
+/**
+ * Sentence cache: `${lang}|${sentence}` -> {p: Promise<object URL>}. Requests are 'fg' (narration now) or 'low'
+ * (prefetch). #118: when narration needs a sentence a prefetch already asked for, that request is promoted
+ * to 'fg', so cancelling the prefetch queue (any view change) can never abort a sentence that is about to play.
+ */
+export function createTtsCache({ fetchImpl = (...a) => fetch(...a), api = API, max = 160,
+  toUrl = async (r) => URL.createObjectURL(await r.blob()), revoke = (u) => URL.revokeObjectURL(u) } = {}) {
+  const cache = new Map();
+  const ctls = new Map(); // AbortController -> entry
+  let fgPending = 0;
+  function synth(sentence, lang, low = false) {
+    const key = `${lang}|${sentence}`;
+    const hit = cache.get(key);
+    if (hit) {
+      cache.delete(key); cache.set(key, hit); // LRU touch
+      if (!low && hit.kind === 'low' && !hit.settled) { hit.kind = 'fg'; fgPending++; }
+      return hit.p;
+    }
+    const c = new AbortController();
+    const entry = { kind: low ? 'low' : 'fg', settled: false, c };
+    ctls.set(c, entry);
+    if (!low) fgPending++;
+    const signal = AbortSignal.any ? AbortSignal.any([c.signal, AbortSignal.timeout(30000)]) : c.signal;
+    entry.p = Promise.resolve().then(() => fetchImpl(`${api}/voice/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: sentence, language: lang }), signal, priority: low ? 'low' : 'high' }))
+      .then(async (r) => { if (!r.ok) throw new Error(`tts ${r.status}`); return (entry.url = await toUrl(r)); })
+      .catch((e) => { if (cache.get(key) === entry) cache.delete(key); throw e; })
+      .finally(() => { entry.settled = true; ctls.delete(c); if (entry.kind === 'fg') fgPending--; });
+    entry.p.catch(() => {});
+    cache.set(key, entry);
+    while (cache.size > max) { const [k, e] = cache.entries().next().value; if (e.url) revoke(e.url); cache.delete(k); }
+    return entry.p;
+  }
+  function abort(kind) { for (const [c, e] of ctls) if (!kind || e.kind === kind) { c.abort(); ctls.delete(c); } }
+  return { synth, abort, has: (key) => cache.has(key), get fgPending() { return fgPending; } };
+}
+
 export function createVoice({ onTalking = () => {}, onNoVoice = () => {}, onLevel = () => {} } = {}) {
   let unlocked = false, muted = false, audio = null, seq = 0, serverLangs = [], disposed = false;
-  let preGen = 0, fgPending = 0;
+  let preGen = 0;
   const hasSpeech = typeof window !== 'undefined' && 'speechSynthesis' in window;
   const health = fetch(`${API}/health`).then((r) => r.json())
     .then((h) => { if (h.voice?.kokoro?.available) serverLangs = h.voice.kokoro.languages || []; })
@@ -52,28 +89,18 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {}, onLeve
   });
   const browserVoice = (lang) => (hasSpeech ? pickVoice(voices.length ? voices : (voices = speechSynthesis.getVoices()), lang) : null);
 
-  // ---------- sentence cache: `${lang}|${sentence}` -> Promise<object URL> ----------
-  const cache = new Map();
-  const ctls = new Map(); // AbortController -> 'fg' | 'low'
-  function synth(sentence, lang, low = false) {
-    const key = `${lang}|${sentence}`;
-    const hit = cache.get(key);
-    if (hit) { cache.delete(key); cache.set(key, hit); return hit.p; } // LRU touch
-    const c = new AbortController(); ctls.set(c, low ? 'low' : 'fg');
-    if (!low) fgPending++;
-    const signal = AbortSignal.any ? AbortSignal.any([c.signal, AbortSignal.timeout(30000)]) : c.signal;
-    const entry = {};
-    entry.p = fetch(`${API}/voice/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: sentence, language: lang }), signal, priority: low ? 'low' : 'high' })
-      .then(async (r) => { if (!r.ok) throw new Error(`tts ${r.status}`); return (entry.url = URL.createObjectURL(await r.blob())); })
-      .catch((e) => { if (cache.get(key) === entry) cache.delete(key); throw e; })
-      .finally(() => { ctls.delete(c); if (!low) fgPending--; });
-    entry.p.catch(() => {});
-    cache.set(key, entry);
-    while (cache.size > 160) { const [k, e] = cache.entries().next().value; if (e.url) URL.revokeObjectURL(e.url); cache.delete(k); }
-    return entry.p;
+  // ---------- sentence cache (createTtsCache) + the next clip decoded ahead ----------
+  const tts = createTtsCache();
+  const synth = tts.synth, abort = tts.abort;
+  const warm = new Map(); // object URL -> Audio already loading (#118: no decode gap between sentences)
+  function preload(p) {
+    p.then((url) => {
+      if (!url || warm.has(url) || typeof Audio === 'undefined') return;
+      const a = new Audio(); a.preload = 'auto'; a.src = url;
+      warm.set(url, a);
+      while (warm.size > 4) warm.delete(warm.keys().next().value);
+    }, () => {});
   }
-  function abort(kind) { for (const [c, k] of ctls) if (!kind || k === kind) { c.abort(); ctls.delete(c); } }
 
   // Silence everything at once: the playing sentence, the browser voice, every foreground TTS
   // request and the rest of the paragraph (seq invalidates it).
@@ -125,7 +152,8 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {}, onLeve
   function playUrl(url, my) {
     return new Promise((resolve, reject) => {
       if (my !== seq) return resolve();
-      audio = new Audio(url);
+      audio = warm.get(url) || new Audio(url);
+      warm.delete(url);
       if (ensureAnalyser() && actx.state === 'running') { // a suspended context would mute the clip
         try { actx.resume?.(); actx.createMediaElementSource(audio).connect(analyser); } catch { /* plays unmetered */ }
       }
@@ -175,7 +203,7 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {}, onLeve
     }
     // pipeline: sentences k+1 and k+2 are synthesised while k plays; when k ends, k+1 starts at once.
     // Not ready within NEXT_MS: the browser voice (same language) reads that one sentence instead of a pause.
-    const ahead = (k) => { for (const j of [k + 1, k + 2]) if (parts[j]) synth(parts[j], lang).catch(() => {}); };
+    const ahead = (k) => { for (const j of [k + 1, k + 2]) if (parts[j]) preload(synth(parts[j], lang)); };
     ahead(0);
     for (let k = 0; k < parts.length; k++) {
       let url = null;
@@ -202,8 +230,17 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {}, onLeve
       u.voice = v; u.lang = v.lang; u.rate = 1.02;
       u.onstart = () => { speaking = true; pulse = 0.7; startMeter(); onTalking(true); };
       u.onboundary = (e) => { if (e.name !== 'sentence') { pulse = 0.55 + Math.random() * 0.4; startMeter(); } };
-      u.onend = u.onerror = () => { speaking = false; done(); };
-      setTimeout(done, 15000 + sentence.length * 120); // Chrome sometimes never fires onend
+      let started = false, t0 = Date.now();
+      const finish = () => { clearInterval(poll); speaking = false; done(); };
+      u.onend = u.onerror = finish;
+      const prevStart = u.onstart;
+      u.onstart = (e) => { started = true; prevStart?.(e); };
+      // #118: Chrome sometimes never fires onend; the queue going idle is the end (or it never started)
+      const poll = setInterval(() => {
+        const idle = !speechSynthesis.speaking && !speechSynthesis.pending;
+        if (my !== seq || (idle && (started || Date.now() - t0 > 2500))) finish();
+      }, 150);
+      setTimeout(finish, 15000 + sentence.length * 120);
       speechSynthesis.speak(u);
     });
   }
@@ -215,9 +252,9 @@ export function createVoice({ onTalking = () => {}, onNoVoice = () => {}, onLeve
     const g = preGen;
     await Promise.race([health, sleep(600)]);
     if (muted || disposed || !serverLangs.includes(lang)) return;
-    const todo = [...new Set(texts.flatMap(splitSentences))].filter((s) => !cache.has(`${lang}|${s}`));
+    const todo = [...new Set(texts.flatMap(splitSentences))].filter((s) => !tts.has(`${lang}|${s}`));
     for (const s of todo) {
-      while (fgPending > 0) { if (g !== preGen) return; await sleep(250); }
+      while (tts.fgPending > 0) { if (g !== preGen) return; await sleep(250); }
       if (g !== preGen || disposed || document.visibilityState === 'hidden') return;
       try { await synth(s, lang, true); } catch { /* aborted or failed: never mind */ }
     }

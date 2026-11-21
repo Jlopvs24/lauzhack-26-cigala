@@ -35,3 +35,25 @@ test('mouth level: silence is 0, a loud wave saturates at 1', async () => {
   const soft = Uint8Array.from({ length: 64 }, (_, i) => (i % 2 ? 138 : 118));
   assert.ok(levelFromSamples(soft) > 0.2 && levelFromSamples(soft) < 0.6);
 });
+
+test('#118: a sentence the prefetch asked for is promoted when narration needs it, so a view change cannot abort it', async () => {
+  const { createTtsCache } = await import('./voice.js');
+  const pending = [];
+  const fetchImpl = (url, opts) => new Promise((ok, fail) => {
+    pending.push({ body: JSON.parse(opts.body), ok: () => ok({ ok: true }) });
+    opts.signal.addEventListener('abort', () => fail(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+  });
+  const tts = createTtsCache({ fetchImpl, api: '', toUrl: async () => 'blob:x', revoke: () => {} });
+  const low = tts.synth('Hello there.', 'en', true); // prefetch
+  const other = tts.synth('Another one.', 'en', true);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(tts.fgPending, 0);
+  const fg = tts.synth('Hello there.', 'en'); // narration needs it now: same request, promoted
+  assert.equal(fg, low);
+  assert.equal(tts.fgPending, 1);
+  tts.abort('low'); // any view change cancels the prefetch queue
+  await assert.rejects(other, /aborted/);
+  pending.find((x) => x.body.text === 'Hello there.').ok();
+  assert.equal(await fg, 'blob:x');
+  assert.equal(tts.fgPending, 0);
+});
