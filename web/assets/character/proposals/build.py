@@ -1,255 +1,307 @@
 """Generate the 3 character proposals (3 health states x 2 poses each) as SVG.
 
-Run:  python web/assets/character/proposals/build.py
+v2: humanoid little trees (bark body, branch arms, root feet, leaves on the head).
+Original designs: own faces, silhouettes, palettes and names.
+
+Run:  python web/assets/character/proposals/build.py [thread_preview.html]
 Writes <name>-<health>-<pose>.svg next to this file and index.html (comparison page).
 
 Every SVG uses the same group ids so the final version can be animated with CSS:
-  #character  #leaves  #body  #face  #eyes  #mouth  #arm-left  #arm-right  #feet  #extras
+  #character  #legs  #arm-left  #arm-right  #body  #head  #leaves  #face  #eyes  #mouth  #extras
 """
 import base64
 import sys
 from pathlib import Path
 
 OUT = Path(__file__).parent
-INK = "#2B3A33"          # outline colour, shared by tree and characters
-SW = 4                   # outline width at viewBox scale
+INK = "#2B2620"   # outline colour, shared by tree and characters
+SW = 4
 
 HEALTH = {
-    # leaf fill, leaf vein/shadow, cheek, droop angle (deg), body tint factor
-    "sano":    {"leaf": "#5DBB63", "leaf2": "#3E8E4A", "cheek": "#F4A39A", "droop": 0},
-    "regular": {"leaf": "#B9C24F", "leaf2": "#8C9632", "cheek": "#EDB7A8", "droop": 22},
-    "debil":   {"leaf": "#C9A26B", "leaf2": "#94703F", "cheek": "#E6C8BE", "droop": 55},
+    "healthy":    {"leaf": "#5DBB63", "leaf2": "#3E8E4A", "droop": 0,  "tilt": 0},
+    "fair": {"leaf": "#B9C24F", "leaf2": "#8C9632", "droop": 20, "tilt": 3},
+    "weak":   {"leaf": "#C9A26B", "leaf2": "#94703F", "droop": 50, "tilt": 8},
 }
-POSES = ["reposo", "explicando"]
+POSES = ["idle", "explaining"]
 
 
-def svg(inner: str, title: str) -> str:
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" '
-        f'width="200" height="240" role="img" aria-label="{title}">\n'
-        f'<title>{title}</title>\n'
-        f'<g id="character" stroke="{INK}" stroke-width="{SW}" '
-        f'stroke-linecap="round" stroke-linejoin="round">\n{inner}\n</g>\n</svg>\n'
-    )
+def svg(inner, title):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="200" height="240" '
+            f'role="img" aria-label="{title}">\n<title>{title}</title>\n'
+            f'<g id="character" stroke="{INK}" stroke-width="{SW}" stroke-linecap="round" '
+            f'stroke-linejoin="round">\n{inner}\n</g>\n</svg>\n')
 
 
-# ---------- shared face parts ----------
+def branch(x1, y1, x2, y2, fill, w=9, bend=6):
+    """A limb: thick ink stroke with a bark stroke on top (gives a clean outline)."""
+    mx = (x1 + x2) / 2 + (bend if x2 > x1 else -bend)
+    my = (y1 + y2) / 2 + 4
+    d = f"M{x1},{y1} Q{mx},{my} {x2},{y2}"
+    return (f'<path d="{d}" fill="none" stroke="{INK}" stroke-width="{w + 7}"/>'
+            f'<path d="{d}" fill="none" stroke="{fill}" stroke-width="{w}"/>')
 
-def eyes(lx, rx, y, health, pose):
-    out = [f'<g id="eyes">']
-    ry = 7 if health != "debil" else 6
-    for x in (lx, rx):
-        out.append(f'<ellipse cx="{x}" cy="{y}" rx="5" ry="{ry}" fill="{INK}" stroke="none"/>')
-        out.append(f'<circle cx="{x + 1.8}" cy="{y - 2.5}" r="1.8" fill="#fff" stroke="none"/>')
-    if health == "debil":  # worried brows
-        out.append(f'<path d="M{lx - 7},{y - 11} L{lx + 4},{y - 14}" fill="none" stroke-width="3"/>')
-        out.append(f'<path d="M{rx + 7},{y - 11} L{rx - 4},{y - 14}" fill="none" stroke-width="3"/>')
-    elif pose == "explicando":  # raised, engaged brows
-        out.append(f'<path d="M{lx - 6},{y - 13} Q{lx},{y - 17} {lx + 6},{y - 13}" fill="none" stroke-width="3"/>')
-        out.append(f'<path d="M{rx - 6},{y - 13} Q{rx},{y - 17} {rx + 6},{y - 13}" fill="none" stroke-width="3"/>')
+
+def fingers(x, y, ang, fill):
+    """Three twig fingers fanning out at angle `ang` (degrees, 0 = right)."""
+    out = [f'<g transform="translate({x},{y}) rotate({ang})">']
+    for a in (-35, 0, 35):
+        out.append(f'<g transform="rotate({a})">'
+                   f'<path d="M0,0 L11,0" fill="none" stroke="{INK}" stroke-width="8"/>'
+                   f'<path d="M0,0 L11,0" fill="none" stroke="{fill}" stroke-width="3.5"/></g>')
     out.append('</g>')
-    return "\n".join(out)
+    return "".join(out)
 
 
-def mouth(cx, y, health, pose):
-    if pose == "explicando":
-        h = {"sano": 12, "regular": 9, "debil": 7}[health]
-        d = f'M{cx - 9},{y - 2} Q{cx},{y - 2 + h * 1.6} {cx + 9},{y - 2} Z'
-        return f'<path id="mouth" d="{d}" fill="#8E3B3B" stroke-width="3"/>'
-    d = {
-        "sano":    f'M{cx - 10},{y - 2} Q{cx},{y + 9} {cx + 10},{y - 2}',
-        "regular": f'M{cx - 8},{y + 1} Q{cx},{y + 4} {cx + 8},{y + 1}',
-        "debil":   f'M{cx - 8},{y + 4} Q{cx},{y - 2} {cx + 8},{y + 4}',
-    }[health]
+def roots(x, y, fill, flip=1):
+    """Root foot: three short splayed roots."""
+    return "".join(branch(x, y, x + dx * flip, y + dy, fill, w=5, bend=0) for dx, dy in ((-12, 8), (0, 10), (12, 8)))
+
+
+def leaf_shape(x, y, ang, size, health, vein=True):
+    h = HEALTH[health]
+    s = size
+    v = (f'<path d="M2,0 L{s * 0.8},0" fill="none" stroke="{h["leaf2"]}" stroke-width="2"/>' if vein else "")
+    return (f'<g transform="translate({x},{y}) rotate({ang})">'
+            f'<path d="M0,0 C{s * 0.25},{-s * 0.45} {s * 0.8},{-s * 0.45} {s},0 C{s * 0.8},{s * 0.45} {s * 0.25},{s * 0.45} 0,0 Z" '
+            f'fill="{h["leaf"]}" stroke-width="3"/>{v}</g>')
+
+
+def fallen(x, y, health, rot):
+    return leaf_shape(x, y, rot, 18, health, vein=False)
+
+
+def grain(paths, color):
+    return "".join(f'<path d="{d}" fill="none" stroke="{color}" stroke-width="2.5"/>' for d in paths)
+
+
+def eyes(lx, rx, y, health, pose, style, iris):
+    out = ['<g id="eyes">']
+    if style == "big":       # big round eyes, two highlights
+        rxx, ryy = 8, 10
+    elif style == "oval":    # calm oval eyes
+        rxx, ryy = 6, 8
+    else:                    # small bright dots
+        rxx, ryy = 5, 6
+    if health == "weak":
+        ryy = ryy * 0.75
+    for x in (lx, rx):
+        out.append(f'<ellipse cx="{x}" cy="{y}" rx="{rxx}" ry="{ryy}" fill="{iris}" stroke-width="2.5"/>')
+        out.append(f'<circle cx="{x + rxx * 0.3}" cy="{y - ryy * 0.4}" r="{max(2, rxx * 0.32)}" fill="#fff" stroke="none"/>')
+        if style == "big":
+            out.append(f'<circle cx="{x - rxx * 0.35}" cy="{y + ryy * 0.4}" r="1.4" fill="#fff" stroke="none"/>')
+        if health == "weak":  # heavy eyelid
+            out.append(f'<path d="M{x - rxx - 1},{y - ryy * 0.3} Q{x},{y - ryy * 0.9} {x + rxx + 1},{y - ryy * 0.3}" fill="none" stroke-width="3"/>')
+    out.append('</g>')
+    return "".join(out)
+
+
+def brows(lx, rx, y, health, pose, color, heavy=False):
+    w = 5 if heavy else 3
+    if health == "weak":
+        return (f'<path d="M{lx - 9},{y + 2} L{lx + 5},{y - 3}" fill="none" stroke="{color}" stroke-width="{w}"/>'
+                f'<path d="M{rx + 9},{y + 2} L{rx - 5},{y - 3}" fill="none" stroke="{color}" stroke-width="{w}"/>')
+    lift = 4 if pose == "explaining" else 0
+    return (f'<path d="M{lx - 9},{y - lift} Q{lx},{y - 6 - lift} {lx + 8},{y - lift}" fill="none" stroke="{color}" stroke-width="{w}"/>'
+            f'<path d="M{rx - 8},{y - lift} Q{rx},{y - 6 - lift} {rx + 9},{y - lift}" fill="none" stroke="{color}" stroke-width="{w}"/>')
+
+
+def mouth(cx, y, health, pose, wide=10):
+    if pose == "explaining":
+        h = {"healthy": 11, "fair": 9, "weak": 6}[health]
+        return (f'<path id="mouth" d="M{cx - wide * 0.8},{y - 2} Q{cx},{y + h * 1.5} {cx + wide * 0.8},{y - 2} Z" '
+                f'fill="#6E2F2A" stroke-width="3"/>')
+    d = {"healthy": f"M{cx - wide},{y - 2} Q{cx},{y + 9} {cx + wide},{y - 2}",
+         "fair": f"M{cx - wide * 0.7},{y + 1} Q{cx},{y + 4} {cx + wide * 0.7},{y + 1}",
+         "weak": f"M{cx - wide * 0.7},{y + 4} Q{cx},{y - 2} {cx + wide * 0.7},{y + 4}"}[health]
     return f'<path id="mouth" d="{d}" fill="none" stroke-width="3"/>'
 
 
-def cheeks(lx, rx, y, health):
-    c = HEALTH[health]["cheek"]
-    return (f'<ellipse cx="{lx}" cy="{y}" rx="7" ry="4.5" fill="{c}" stroke="none" opacity=".9"/>'
-            f'<ellipse cx="{rx}" cy="{y}" rx="7" ry="4.5" fill="{c}" stroke="none" opacity=".9"/>')
+def cheeks(lx, rx, y, color):
+    return (f'<ellipse cx="{lx}" cy="{y}" rx="6.5" ry="4" fill="{color}" stroke="none" opacity=".75"/>'
+            f'<ellipse cx="{rx}" cy="{y}" rx="6.5" ry="4" fill="{color}" stroke="none" opacity=".75"/>')
 
 
-def leaf(path, health, vein=None):
+def figure(health, pose, c):
+    """Assemble a humanoid tree from a design config `c`."""
     h = HEALTH[health]
-    v = f'<path d="{vein}" fill="none" stroke="{h["leaf2"]}" stroke-width="2.5"/>' if vein else ""
-    return f'<path d="{path}" fill="{h["leaf"]}"/>{v}'
+    k = c["name"].lower()
+    bark = c["bark"][health]
+    dark = c["bark_dark"][health]
+    legs = (f'<g id="legs">{branch(88, 186, 84, 210, bark, w=12, bend=0)}{branch(112, 186, 116, 210, bark, w=12, bend=0)}'
+            f'{roots(84, 210, bark)}{roots(116, 210, bark)}</g>')
+    sl, sr = c["shoulders"]
+    left = f'<g id="arm-left">{branch(*sl, sl[0] - 20, sl[1] + 38, bark)}{fingers(sl[0] - 20, sl[1] + 38, 115, bark)}</g>'
+    if pose == "explaining":
+        ex, ey = sr[0] + 36, sr[1] - 34
+        right = (f'<g id="arm-right">{branch(*sr, ex, ey, bark)}{fingers(ex, ey, -45, bark)}'
+                 f'{leaf_shape(ex + 9, ey - 13, -70, 14, health, vein=False)}</g>')
+    else:
+        right = f'<g id="arm-right">{branch(*sr, sr[0] + 20, sr[1] + 38, bark)}{fingers(sr[0] + 20, sr[1] + 38, 65, bark)}</g>'
+    body = (f'<g id="body"><path d="{c["torso"]}" fill="{bark}"/>'
+            f'<clipPath id="{k}-torso-clip"><path d="{c["torso"]}"/></clipPath>'
+            f'<g clip-path="url(#{k}-torso-clip)">{c["torso_marks"](dark, health)}</g></g>')
+    hx, hy = c["head_pivot"]
+    head = [f'<g id="head" transform="rotate({h["tilt"]} {hx} {hy})">',
+            c["back_foliage"](health) if "back_foliage" in c else "",
+            f'<path d="{c["head"]}" fill="{bark}"/>',
+            f'<clipPath id="{k}-head-clip"><path d="{c["head"]}"/></clipPath>',
+            f'<g clip-path="url(#{k}-head-clip)">{c["head_marks"](dark, health)}</g>',
+            f'<g id="leaves">{c["foliage"](health)}</g>',
+            f'<g id="face">{c["face"](health, pose, dark)}</g>',
+            '</g>']
+    extras = ""
+    if health == "fair":
+        extras = fallen(146, 222, health, -15)
+    if health == "weak":
+        extras = fallen(140, 224, health, -20) + fallen(40, 220, health, 20) + fallen(158, 196, health, 50)
+    return legs + left + right + body + "".join(head) + f'<g id="extras">{extras}</g>'
 
 
-def arm(x1, y1, x2, y2, hand=None, color=INK):
-    out = f'<path d="M{x1},{y1} Q{(x1 + x2) / 2 + (6 if x2 > x1 else -6)},{(y1 + y2) / 2 + 4} {x2},{y2}" fill="none" stroke="{color}" stroke-width="6"/>'
-    if hand:
-        out += f'<circle cx="{x2}" cy="{y2}" r="5.5" fill="{hand}" stroke-width="3"/>'
+# ---------- A: Sprig: baby sapling, big round head, sprout on top ----------
+
+def sprig_foliage(health):
+    d = HEALTH[health]["droop"]
+    out = f'<path d="M100,44 Q98,32 101,22" fill="none" stroke-width="5"/>'
+    out += f'<g transform="rotate({-d} 100 26)">{leaf_shape(100, 26, 200, 30, health)}</g>'
+    out += f'<g transform="rotate({d} 100 24)">{leaf_shape(101, 24, -25, 32, health)}</g>'
+    if health != "weak":
+        out += leaf_shape(138, 58, -50, 18, health, vein=False)   # little side leaf
     return out
 
 
-def fallen_leaf(x, y, health, rot=-30):
-    h = HEALTH[health]
-    return (f'<g transform="translate({x},{y}) rotate({rot})">'
-            f'<path d="M0,0 C6,-9 18,-9 22,0 C16,7 6,7 0,0 Z" fill="{h["leaf"]}" stroke-width="2.5"/></g>')
-
-
-# ---------- A: Pip, a seed with two leaves ----------
-
-def pip(health, pose):
-    h = HEALTH[health]
-    body_fill = {"sano": "#F3D9A4", "regular": "#EBD3A3", "debil": "#E2D2B6"}[health]
-    belly = {"sano": "#FBEBC8", "regular": "#F6E6C6", "debil": "#EFE5D3"}[health]
-    d = h["droop"]
-    leaves = (
-        f'<g id="leaves">'
-        f'<path d="M100,84 Q98,70 100,60" fill="none" stroke-width="5"/>'
-        f'<g transform="rotate({-d} 100 62)">'
-        + leaf("M100,62 C86,36 62,32 52,44 C62,64 86,70 100,62 Z", health, "M98,61 Q78,50 60,45")
-        + '</g>'
-        f'<g transform="rotate({d * 0.8} 100 60)">'
-        + leaf("M100,60 C110,30 138,24 150,34 C144,58 116,68 100,60 Z", health, "M102,59 Q124,46 144,36")
-        + '</g></g>'
-    )
-    body = (
-        f'<g id="body">'
-        f'<path d="M100,80 C142,80 160,130 160,160 C160,194 133,214 100,214 C67,214 40,194 40,160 C40,130 58,80 100,80 Z" fill="{body_fill}"/>'
-        f'<ellipse cx="100" cy="178" rx="34" ry="26" fill="{belly}" stroke="none"/>'
-        f'</g>'
-    )
-    feet = (f'<g id="feet"><ellipse cx="80" cy="216" rx="15" ry="7" fill="{body_fill}"/>'
-            f'<ellipse cx="120" cy="216" rx="15" ry="7" fill="{body_fill}"/></g>')
-    left = f'<g id="arm-left">{arm(46, 166, 28, 190, body_fill)}</g>'
-    if pose == "explicando":
-        right = f'<g id="arm-right">{arm(154, 156, 184, 124, body_fill)}</g>'
-    else:
-        right = f'<g id="arm-right">{arm(154, 166, 172, 190, body_fill)}</g>'
-    face = f'<g id="face">{cheeks(74, 126, 156, health)}{eyes(86, 114, 140, health, pose)}{mouth(100, 158, health, pose)}</g>'
-    extras = f'<g id="extras">{fallen_leaf(140, 226, health) if health == "debil" else ""}</g>'
-    return feet + left + right + body + leaves + face + extras
-
-
-# ---------- B: Mossa, a round bush that walks ----------
-
-CANOPY = [(100, 112, 54), (60, 124, 32), (140, 124, 32), (74, 84, 30), (126, 84, 30), (100, 68, 30), (100, 142, 40)]
-
-
-def mossa(health, pose):
-    h = HEALTH[health]
-    circles = CANOPY if health != "debil" else [c for i, c in enumerate(CANOPY) if i != 4]
-    scale = {"sano": 1.0, "regular": 0.97, "debil": 0.92}[health]
-    trunk = "#A9764E" if health != "debil" else "#9C7E64"
-    outline = "".join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="{INK}" stroke-width="{SW * 2}"/>' for x, y, r in circles)
-    fill = "".join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="{h["leaf"]}" stroke="none"/>' for x, y, r in circles)
-    # soft inner shadow tufts
-    tufts = (f'<path d="M58,128 Q66,138 78,134" fill="none" stroke="{h["leaf2"]}" stroke-width="3"/>'
-             f'<path d="M122,134 Q134,138 142,128" fill="none" stroke="{h["leaf2"]}" stroke-width="3"/>'
-             f'<path d="M88,70 Q100,62 112,70" fill="none" stroke="{h["leaf2"]}" stroke-width="3"/>')
-    berries = {"sano": [(70, 92), (132, 96), (150, 132), (104, 58)], "regular": [(70, 92), (150, 132)], "debil": []}[health]
-    fruit = "".join(f'<circle cx="{x}" cy="{y}" r="6" fill="#F2B33D" stroke-width="3"/>' for x, y in berries)
-    body = (f'<g id="body" transform="translate(100 120) scale({scale}) translate(-100 -120)">'
-            f'{outline}{fill}{tufts}</g>')
-    leaves = f'<g id="leaves">{fruit}</g>'
-    feet = (f'<g id="feet">'
-            f'<path d="M88,176 L86,206 M112,176 L114,206" fill="none" stroke="{INK}" stroke-width="16"/>'
-            f'<path d="M88,176 L86,206 M112,176 L114,206" fill="none" stroke="{trunk}" stroke-width="8"/>'
-            f'<ellipse cx="82" cy="210" rx="13" ry="6" fill="{trunk}"/><ellipse cx="118" cy="210" rx="13" ry="6" fill="{trunk}"/>'
-            f'</g>')
-
-    def twig(x1, y1, x2, y2):
-        return (arm(x1, y1, x2, y2, color=INK).replace('stroke-width="6"', 'stroke-width="10"')
-                + arm(x1, y1, x2, y2, color=trunk).replace('stroke-width="6"', 'stroke-width="4"')
-                + f'<g transform="translate({x2},{y2}) rotate({-40 if x2 > x1 else 220})">'
-                  f'<path d="M0,0 C4,-8 14,-8 18,0 C14,6 4,6 0,0 Z" fill="{h["leaf"]}" stroke-width="2.5"/></g>')
-    left = f'<g id="arm-left">{twig(48, 140, 26, 164)}</g>'
-    right = f'<g id="arm-right">{twig(152, 132, 182, 102) if pose == "explicando" else twig(152, 140, 174, 164)}</g>'
-    face = f'<g id="face">{cheeks(74, 126, 134, health)}{eyes(86, 114, 118, health, pose)}{mouth(100, 136, health, pose)}</g>'
-    extras = ""
-    if health == "regular":
-        extras = fallen_leaf(150, 214, health, -10)
-    if health == "debil":
-        extras = fallen_leaf(140, 216, health, -20) + fallen_leaf(40, 210, health, 25) + fallen_leaf(160, 190, health, 60)
-    return feet + left + right + body + leaves + face + f'<g id="extras">{extras}</g>'
-
-
-# ---------- C: Tilo, a sprout living in a small pot ----------
-
-def tilo(health, pose):
-    h = HEALTH[health]
-    pot = {"sano": "#E2856A", "regular": "#D98A73", "debil": "#C99A88"}[health]
-    rim = {"sano": "#C9664E", "regular": "#C06E59", "debil": "#B08473"}[health]
-    soil = {"sano": "#6B4A35", "regular": "#7D5C44", "debil": "#9C8268"}[health]
-    bend = {"sano": 0, "regular": 18, "debil": 48}[health]
-    n_leaves = {"sano": 3, "regular": 2, "debil": 1}[health]
-    sprout = [f'<g id="leaves" transform="rotate({bend} 100 108)">',
-              '<path d="M100,108 C96,88 104,70 100,40" fill="none" stroke-width="5"/>',
-              f'<path d="M100,108 C96,88 104,70 100,40" fill="none" stroke="{h["leaf2"]}" stroke-width="2"/>']
-    if n_leaves >= 1:
-        sprout.append(leaf("M100,86 C88,70 68,70 62,80 C72,94 90,94 100,86 Z", health, "M98,86 Q80,80 66,80"))
-    if n_leaves >= 2:
-        sprout.append(leaf("M101,70 C112,54 132,54 138,64 C128,78 110,78 101,70 Z", health, "M103,70 Q120,64 134,64"))
-    if n_leaves >= 3:
-        sprout.append(leaf("M100,42 C90,28 92,14 100,8 C108,14 110,28 100,42 Z", health, "M100,40 L100,14"))
-    else:
-        sprout.append(f'<circle cx="100" cy="40" r="5" fill="{h["leaf2"]}" stroke-width="3"/>')
-    sprout.append('</g>')
-    body = (f'<g id="body">'
-            f'<path d="M60,120 L140,120 L131,206 Q130,214 122,214 L78,214 Q70,214 69,206 Z" fill="{pot}"/>'
-            f'<rect x="50" y="104" width="100" height="22" rx="8" fill="{rim}"/>'
-            f'<ellipse cx="100" cy="108" rx="42" ry="5" fill="{soil}" stroke="none"/>'
-            + (f'<path d="M122,150 L128,162 L123,170" fill="none" stroke-width="2.5"/>' if health == "debil" else "")
-            + '</g>')
-    feet = (f'<g id="feet"><ellipse cx="82" cy="216" rx="13" ry="6" fill="{rim}"/>'
-            f'<ellipse cx="118" cy="216" rx="13" ry="6" fill="{rim}"/></g>')
-    left = f'<g id="arm-left">{arm(64, 150, 42, 176, pot)}</g>'
-    right = f'<g id="arm-right">{arm(136, 142, 170, 114, pot) if pose == "explicando" else arm(136, 150, 158, 176, pot)}</g>'
-    face = f'<g id="face">{cheeks(76, 124, 170, health)}{eyes(87, 113, 154, health, pose)}{mouth(100, 172, health, pose)}</g>'
-    extras = f'<g id="extras">{fallen_leaf(146, 228, health, -15) if health == "debil" else ""}</g>'
-    return feet + left + right + body + "".join(sprout) + face + extras
-
-
-CHARACTERS = {
-    "pip": (pip, "Pip", "Una semilla curiosa con dos hojas: pregunta antes de explicar y nunca te dice qué elegir, solo qué pasa en cada camino.",
-            "Semilla redonda + 2 hojas. Silueta de huevo, muy simple de animar (las hojas son las 'orejas' que expresan el ánimo)."),
-    "mossa": (mossa, "Mossa", "Un arbusto bajito y tranquilo que camina despacio: le gusta poner los números en orden y contarlos con calma.",
-              "Copa redonda de nubes verdes con piernas de tronco. Las bayas doradas = colchón de ahorro; se caen cuando la salud baja."),
-    "tilo": (tilo, "Tilo", "Un brote que vive en su maceta: sabe que crecer lleva tiempo y te enseña cómo cambia tu árbol con cada decisión.",
-             "Maceta de terracota con cara + brote. La maceta es 'lo que tienes hoy' (tronco); el brote crece o se dobla con la salud."),
+SPRIG = {
+    "name": "Sprig",
+    "line": "A freshly sprouted little tree, curious and cheerful: shows you what happens on every branch, but the choice is always yours.",
+    "note": "Baby tree: big round head, two-leaf sprout, big dark eyes. Warm bark with soft grain.",
+    "bark": {"healthy": "#B07A4E", "fair": "#A87C58", "weak": "#9A8572"},
+    "bark_dark": {"healthy": "#7E5233", "fair": "#7A573D", "weak": "#6F5E50"},
+    "shoulders": ((84, 136), (116, 136)),
+    "torso": "M84,124 C80,146 78,170 82,192 L118,192 C122,170 120,146 116,124 Z",
+    "torso_marks": lambda dk, h: grain(["M92,126 Q89,156 93,190", "M108,126 Q111,156 107,190"], dk)
+        + f'<ellipse cx="100" cy="160" rx="5" ry="7" fill="none" stroke="{dk}" stroke-width="2.5"/>',
+    "head": "M100,42 C138,42 152,66 150,92 C148,118 128,130 100,130 C72,130 52,118 50,92 C48,66 62,42 100,42 Z",
+    "head_pivot": (100, 128),
+    "head_marks": lambda dk, h: grain(["M60,72 Q56,90 62,108", "M140,72 Q144,90 138,108", "M92,48 Q100,52 108,48"], dk),
+    "foliage": sprig_foliage,
+    "face": lambda h, p, dk: (cheeks(70, 130, 106, "#E89A7F") + brows(82, 118, 74, h, p, dk)
+                              + eyes(82, 118, 90, h, p, "big", "#3A2418") + mouth(100, 110, h, p)),
 }
 
 
+# ---------- B: Maple: young tree with a bushy leaf crown, moss on the shoulder ----------
+
+CROWN = [(100, 38, 26), (74, 48, 20), (126, 48, 20), (86, 27, 17), (114, 27, 17), (58, 56, 13), (142, 56, 13)]
+
+
+def maple_crown(health):
+    circles = CROWN if health == "healthy" else CROWN[:5] if health == "fair" else CROWN[:3]
+    h = HEALTH[health]
+    out = "".join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="{INK}" stroke-width="{SW * 2}"/>' for x, y, r in circles)
+    out += "".join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="{h["leaf"]}" stroke="none"/>' for x, y, r in circles)
+    out = branch(92, 60, 84, 40, "#8C5E3C", w=5, bend=0) + branch(108, 60, 116, 40, "#8C5E3C", w=5, bend=0) + out
+    out += f'<path d="M80,40 Q90,32 100,40 M106,36 Q116,28 126,38" fill="none" stroke="{h["leaf2"]}" stroke-width="3"/>'
+    if health == "healthy":
+        out += "".join(f'<circle cx="{x}" cy="{y}" r="4.5" fill="#F2B33D" stroke-width="2.5"/>' for x, y in ((70, 44), (132, 52), (104, 22)))
+    return out
+
+
+MAPLE = {
+    "name": "Maple",
+    "line": "A calm young tree who speaks slowly: puts your numbers in order and tells you what could happen, without pushing you anywhere.",
+    "note": "Young tree: leafy canopy on top of the head (thins out as health drops), moss on the shoulder, bark brows, golden fruits = savings.",
+    "bark": {"healthy": "#8C5E3C", "fair": "#8A6448", "weak": "#857262"},
+    "bark_dark": {"healthy": "#5E3C24", "fair": "#5E4230", "weak": "#5C4E42"},
+    "shoulders": ((82, 138), (118, 138)),
+    "torso": "M80,124 C76,150 76,172 80,192 L120,192 C124,172 124,150 120,124 Z",
+    "torso_marks": lambda dk, h: grain(["M88,126 Q84,150 88,190", "M100,126 Q103,158 99,190", "M112,126 Q116,150 112,190"], dk)
+        + (f'<path d="M80,124 Q92,132 104,126 Q98,138 86,136 Z" fill="#7FA650" stroke="none"/>' if h != "weak" else ""),
+    "head": "M100,52 C132,52 144,74 142,96 C140,118 124,130 100,130 C76,130 60,118 58,96 C56,74 68,52 100,52 Z",
+    "head_pivot": (100, 128),
+    "head_marks": lambda dk, h: grain(["M66,84 Q62,98 68,112", "M134,84 Q138,98 132,112"], dk),
+    "back_foliage": maple_crown,
+    "foliage": lambda h: "",
+    "face": lambda h, p, dk: (cheeks(74, 126, 108, "#D98C72") + brows(84, 116, 80, h, p, dk, heavy=True)
+                              + eyes(84, 116, 94, h, p, "oval", "#2E1C12") + mouth(100, 112, h, p, wide=12)),
+}
+
+
+# ---------- C: Bea: slender birch kid, pale bark, branch "antlers" with small leaves ----------
+
+def bea_foliage(health):
+    d = HEALTH[health]["droop"]
+    n = {"healthy": 3, "fair": 2, "weak": 1}[health]
+    out = ""
+    for side, (bx, by, tx, ty) in ((-1, (88, 50, 70, 24)), (1, (112, 50, 130, 24))):
+        out += f'<g transform="rotate({side * d * 0.5} {bx} {by})">{branch(bx, by, tx, ty, "#EDE6D8", w=5, bend=0)}'
+        spots = [(tx, ty, -90 + side * 30), ((bx + tx) / 2, (by + ty) / 2, -90 + side * 80), (tx + side * 2, ty + 10, side * 20 if side > 0 else 160)]
+        for x, y, a in spots[:n]:
+            out += leaf_shape(x, y, a + side * d, 16, health, vein=False)
+        out += '</g>'
+    return out
+
+
+BEA = {
+    "name": "Bea",
+    "line": "A small, bright birch with pale bark: loves asking why and walks you through every path calmly, with the data.",
+    "note": "Birch: white bark with dark horizontal marks, slender body, two little branches on the head. The most distinctive silhouette.",
+    "bark": {"healthy": "#EDE6D8", "fair": "#E6DFCF", "weak": "#D8D2C6"},
+    "bark_dark": {"healthy": "#4A403A", "fair": "#4A403A", "weak": "#5A524C"},
+    "shoulders": ((86, 134), (114, 134)),
+    "torso": "M86,120 C83,146 82,170 85,192 L115,192 C118,170 117,146 114,120 Z",
+    "torso_marks": lambda dk, h: "".join(f'<path d="M{x},{y} l{w},0" fill="none" stroke="{dk}" stroke-width="3"/>'
+                                         for x, y, w in ((84, 140, 10), (104, 152, 12), (88, 172, 9), (106, 182, 10))),
+    "head": "M100,46 C130,46 142,68 140,92 C138,114 122,124 100,124 C78,124 62,114 60,92 C58,68 70,46 100,46 Z",
+    "head_pivot": (100, 122),
+    "head_marks": lambda dk, h: "".join(f'<path d="M{x},{y} l{w},0" fill="none" stroke="{dk}" stroke-width="3"/>'
+                                        for x, y, w in ((60, 70, 12), (126, 64, 14), (128, 106, 12))),
+    "foliage": bea_foliage,
+    "face": lambda h, p, dk: (cheeks(76, 124, 102, "#F0A0A0") + brows(86, 114, 74, h, p, dk)
+                              + eyes(86, 114, 88, h, p, "dot", "#2B2620") + mouth(100, 104, h, p, wide=8)),
+}
+
+CHARACTERS = {"sprig": SPRIG, "maple": MAPLE, "bea": BEA}
+
+
 def main():
-    for key, (fn, name, *_rest) in CHARACTERS.items():
+    for f in OUT.glob("*.svg"):
+        f.unlink()
+    for key, c in CHARACTERS.items():
         for health in HEALTH:
             for pose in POSES:
                 (OUT / f"{key}-{health}-{pose}.svg").write_text(
-                    svg(fn(health, pose), f"{name} — {health}, {pose}"), encoding="utf-8")
+                    svg(figure(health, pose, c), f"{c['name']} — {health}, {pose}"), encoding="utf-8")
     write_index(sys.argv[1] if len(sys.argv) > 1 else None)
 
 
 def src(name):
-    data = (OUT / name).read_bytes()
-    return "data:image/svg+xml;base64," + base64.b64encode(data).decode()
+    return "data:image/svg+xml;base64," + base64.b64encode((OUT / name).read_bytes()).decode()
 
 
-def write_index(embed_for_thread=None):
+def write_index(thread_path=None):
     cards = []
-    for key, (_fn, name, line, note) in CHARACTERS.items():
+    for key, c in CHARACTERS.items():
         cells = "".join(
-            f'<figure><img src="{src(f'{key}-{hl}-{p}.svg')}" alt="{name} {hl} {p}"><figcaption>{hl} · {p}</figcaption></figure>'
+            f'<figure><img src="{src(f"{key}-{hl}-{p}.svg")}" alt="{c["name"]} {hl} {p}"><figcaption>{hl} · {p}</figcaption></figure>'
             for p in POSES for hl in HEALTH)
         cards.append(
-            f'<section class="card"><header><h2>{name}</h2><p class="line">“{line}”</p>'
-            f'<p class="note">{note}</p></header>'
-            f'<div class="hero"><img class="bob" src="{src(f'{key}-sano-reposo.svg')}" alt="{name}"></div>'
+            f'<section class="card"><header><h2>{c["name"]}</h2><p class="line">“{c["line"]}”</p>'
+            f'<p class="note">{c["note"]}</p></header>'
+            f'<div class="hero"><img class="bob" src="{src(f"{key}-healthy-idle.svg")}" alt="{c["name"]}"></div>'
             f'<div class="grid">{cells}</div></section>')
     html = INDEX.replace("{{CARDS}}", "\n".join(cards))
     (OUT / "index.html").write_text(html, encoding="utf-8")
-    if embed_for_thread:  # variant without page background, for inline previews
-        thread = html.replace("background:var(--bg);color:var(--ink);", "").replace("padding:24px 16px", "padding:0")
-        Path(embed_for_thread).write_text(thread, encoding="utf-8")
+    if thread_path:  # variant without page background, for inline previews
+        t = (html.replace("background:var(--bg);color:var(--ink);", "").replace("padding:24px 16px", "padding:0")
+             .replace("minmax(340px,1fr)", "minmax(220px,1fr)")
+             .replace("</style>", ".card{color:#2B2620}.hero img{width:120px;height:144px}</style>"))
+        Path(thread_path).write_text(t, encoding="utf-8")
 
 
 INDEX = """<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Personaje: propuestas</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Character proposals</title>
 <style>
-:root{--bg:#F6F3EA;--card:#FFFDF7;--ink:#2B3A33;--muted:#6B766F;--line:#E4DFD0}
+:root{--bg:#F6F3EA;--card:#FFFDF7;--ink:#2B2620;--muted:#6B766F;--line:#E4DFD0}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;padding:24px 16px}
 h1{font-size:22px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 20px;max-width:900px}
 .wrap{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
@@ -263,12 +315,12 @@ figure{margin:0;text-align:center;background:#F4F7EF;border-radius:10px;padding:
 figure img{width:100%;max-width:110px;height:auto}figcaption{font-size:11px;color:var(--muted)}
 .legend{margin-top:20px;font-size:13px;color:var(--muted)}
 </style></head><body>
-<h1>Personaje: 3 propuestas</h1>
-<p class="sub">Cada una en 3 estados de salud (sano · regular · débil) y 2 poses (reposo · explicando). Diseños originales: formas redondeadas simples, sin corteza ni rasgos humanoides de árbol. Todas comparten trazo (#2B3A33, 4px) y paleta de hojas con el árbol (ver STYLE.md).</p>
+<h1>Character: 3 proposals (v2, little humanoid trees)</h1>
+<p class="sub">Each in 3 health states (healthy · fair · weak) and 2 poses (idle · explaining). Bark body, branch arms with twig fingers, root feet and leaves on the head; each with its own face, silhouette, palette and name.</p>
 <div class="wrap">
 {{CARDS}}
 </div>
-<p class="legend">Fila 1: reposo · Fila 2: explicando (brazo señalando a la derecha, boca abierta). Las versiones finales irán animadas (parpadeo, balanceo de hojas, caminar).</p>
+<p class="legend">Row 1: idle · Row 2: explaining (arm pointing right holding a leaf, mouth open). The final version will be animated (blink, swaying leaves, walking).</p>
 </body></html>
 """
 
