@@ -1,0 +1,20 @@
+{
+  "profile_id": "P00001",
+  "display_name": "Alexia",
+  "age": 20,
+  "city": "Lausanne",
+  "currency": "CHF",
+  "as_of": "2025-01-01",
+  "employment_status": "student",
+  "cash": 8000,
+  "monthly_net_income": 1200,
+  "monthly_rent": 900,
+  "monthly_other_expenses": 600,
+  "assets": [{"type": "investment", "value": 0}],
+  "liabilities": [],
+  "goals": [{"name": "Emergency savings", "target": 12800, "target_date": "2029-12-31", "priority": "high"}],
+  "provenance": {
+    "cash": {"source": "ubs_kit_sample_profile", "confidence": 1.0},
+    "monthly_net_income": {"source": "ubs_kit_scenario_config", "confidence": 1.0}
+  }
+}
