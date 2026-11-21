@@ -269,7 +269,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .narration { transition: opacity 0.25s ease; }
 .narration.right { left: auto; right: 28px; bottom: var(--dock-h, 110px); flex-direction: row-reverse; }
 .narration.right .say-card { border-radius: 18px 18px 6px 18px; transform-origin: 100% 100%; }
-.tag.occluded { opacity: 0.12 !important; pointer-events: none; }
+.tag.occluded { opacity: 0.4 !important; pointer-events: none; }
+.tag.compact .meta { display: none; }
+.tag.compact .card { padding: 6px 12px; }
 
 /* branch cards: slot A "does it hold?", slot B "what it trades" */
 .tag .meta { display: flex; flex-direction: column; gap: 3px; }

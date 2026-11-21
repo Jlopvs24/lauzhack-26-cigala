@@ -118,7 +118,10 @@ export async function createScene({ world, labels, onTagClick }) {
     const narrow = VW() < 720, W2 = VW();
     // reads first (no layout thrash): tag sizes (re-measured every 20 frames) and obstacle rects
     frameNo++;
-    for (const t of tags.values()) if (!t.w || frameNo % 20 === 0) { t.w = t.el.offsetWidth; t.h = t.el.offsetHeight; }
+    for (const t of tags.values()) if (!t.w || frameNo % 20 === 0) {
+      const full = !t.el.classList.contains('compact');
+      if (full) { t.w = t.el.offsetWidth; t.h = t.el.offsetHeight; t.hc = t.h - (t.el.querySelector('.meta')?.offsetHeight || 0); }
+    }
     const obstacles = readObstacles();
     const placed = [];
     for (const t of tags.values()) {
@@ -135,6 +138,7 @@ export async function createScene({ world, labels, onTagClick }) {
     if (avoid.narration && obstacles.narration) chooseSide(placed, obstacles, narrow);
     for (const p of layoutLabels(placed, obstacles.list)) {
       const hidden = p.hidden || !!p.t.off;
+      if (p.t.compactShown !== !!p.compact) { p.t.compactShown = !!p.compact; p.t.el.classList.toggle('compact', !!p.compact); }
       if (p.t.occluded !== hidden) { p.t.occluded = hidden; p.t.el.classList.toggle('occluded', hidden); }
       if (p.t.edgeShown !== !!p.t.edge) { p.t.edgeShown = !!p.t.edge; p.t.el.classList.toggle('edge', !!p.t.edge); }
       p.t.el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0) translate(-50%, -50%)`;
@@ -172,7 +176,16 @@ export async function createScene({ world, labels, onTagClick }) {
         if (!best || cost < best.cost) best = { dx, dy, r, cost };
       }
       if (!best) { p.hidden = true; continue; }
-      if (best.cost > 0 && (PRIORITY[p.t.status] ?? 3) > 0) { p.hidden = true; p.t.slot = null; continue; }
+      p.compact = false;
+      if (best.cost > 0 && (PRIORITY[p.t.status] ?? 3) > 0) {
+        // a grey alternative with no free slot: try its name only (a small pill) before fading it
+        const small = p.t.status === 'sibling' && p.t.hc ? { ...p.t, h: p.t.hc } : null;
+        const fit = small && cands.map(([dx, dy]) => [dx, dy, rectAt(p.x + dx, p.y + dy, small)])
+          .find(([dx, dy, r]) => r.top >= minY && r.bottom <= maxY + 40 && r.left >= 4 && r.right <= W2 - 4
+            && !taken.some((q) => overlap(r, q)) && !fixed.some((q) => overlap(r, q)));
+        if (fit) { p.compact = true; p.t.slot = null; p.x += fit[0]; p.y += fit[1]; taken.push(fit[2]); continue; }
+        p.hidden = true; p.t.slot = null; continue;
+      }
       p.t.slot = [best.dx, best.dy]; p.x += best.dx; p.y += best.dy;
       taken.push(best.r);
     }
