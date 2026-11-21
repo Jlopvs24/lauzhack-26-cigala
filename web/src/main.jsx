@@ -105,7 +105,8 @@ function App() {
       if (disposed) { s.destroy(); return; }
       scene.current = s;
       s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), document.querySelector('.nav-back'), document.querySelector('.cmp-bar'), document.querySelector('.cmp-options-mount'),
-        document.querySelector('.top .brand'), ...document.querySelectorAll('#crumbs > span'), document.querySelector('.top-actions'), document.querySelector('.wx'), document.querySelector('.leaf-cta')].filter(Boolean) }));
+        document.querySelector('.top .brand'), ...document.querySelectorAll('#crumbs > span'), document.querySelector('.top-actions'), document.querySelector('.wx'), document.querySelector('.leaf-cta'),
+        ...document.querySelectorAll('[data-layout-obstacle]')].filter(Boolean) })); // any panel can opt in (weather rail, Lumi dock)
       await s.intro();
       if (introRef.current) gsap.from(introRef.current.children, { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: 'power3.out' });
     });

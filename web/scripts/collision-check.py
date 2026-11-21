@@ -37,7 +37,7 @@ def all_paths():  # walk the tree the API serves (works for any depth)
 
 MEASURE = """() => {
   const rect = (el) => { const r = el.getBoundingClientRect(); return r.width && r.height ? r : null; };
-  const obstacles = ['.say-card', '#lumi', '.chatp-dock-wrap', '.nav-back', '.top .brand', '.top-actions', '.wx', '.leaf-cta', ...[...document.querySelectorAll('#crumbs > span')].map((_, i) => `#crumbs > span:nth-child(${i + 1})`)].map((s) => document.querySelector(s)).filter(Boolean).map(rect).filter(Boolean);
+  const obstacles = ['.say-card', '#lumi', '.chatp-dock-wrap', '.nav-back', '.top .brand', '.top-actions', '.wx', '.leaf-cta', ...[...document.querySelectorAll('#crumbs > span')].map((_, i) => `#crumbs > span:nth-child(${i + 1})`)].map((s) => document.querySelector(s)).concat([...document.querySelectorAll('[data-layout-obstacle]')]).filter(Boolean).map(rect).filter(Boolean);
   const bad = [];
   for (const t of document.querySelectorAll('.tag')) {
     if (t.classList.contains('occluded') || +getComputedStyle(t).opacity < 0.5) continue;
