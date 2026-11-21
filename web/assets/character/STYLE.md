@@ -1,12 +1,12 @@
 # Visual style: tree of life + character
 
 Owner: Juan's Claude thread 4 (`web/assets/character/`). Guide for the web app (`web/`, Lluc).
-Status: **proposal**. Works with any of the 3 character proposals (v3 bubbles: Bo, Lumi, Dew) in `proposals/` (open `proposals/index.html`).
+Status: **proposal**. Character: Lumi, in `guide/` (open `guide/demo.html`).
 
 ## 1. Principles
 
-- **Flat, rounded, friendly.** Simple shapes, soft curves, no gradients except very subtle ones on the sky and on the character. No realistic bark or textures.
-- **One outline for everything:** `#2B2620`, 4px at 200px character height (scale proportionally), `stroke-linecap: round; stroke-linejoin: round`. The character and the tree must look drawn by the same hand.
+- **Flat, rounded, friendly.** Simple shapes, soft curves, no gradients except very subtle ones on the sky; only the guide glows. No realistic bark or textures.
+- **One outline for the tree:** `#2B2620`, 4px at 200px height (scale proportionally), `stroke-linecap: round; stroke-linejoin: round`. The guide (Lumi) has no outline on purpose: it glows.
 - **Health is shown, not told:** colour and posture of leaves (and the character's colour and shape) change with financial health; the number is always also shown as text (accessibility, transparency).
 - **The character never points at an option as "the best".** When it points, it points at the leaf/panel it is explaining, never a branch by itself.
 
@@ -69,16 +69,17 @@ Health mapping (same for tree and character): use the engine's health score, thr
 - Market drawdown: wind — 3 curved ink lines, foliage sways (`rotate(±3deg)`), 1–2 fruits fall.
 - Badge on the node: weather icon + name, so it is never only colour.
 
-## 4. Character in the scene
+## 4. Character in the scene: Lumi
 
-The character is **not a tree**: it is a small friendly bubble that lives next to the tree (proposals v3: Bo, Lumi, Dew). It is the only element with a soft radial gradient and a white shine, so it reads as "the guide", separate from the flat tree.
+The character is **not a tree**: **Lumi** is a soft glowing orb that floats next to the tree (`guide/`). No outline: a pale pearly sphere with a white shine, a soft inner shade, a halo, small dark pill eyes (`#1F2B4D`), a tiny mouth and pink blush. It is the only element with gradients and glow, so it reads as "the guide", separate from the flat tree.
 
-- Size: ~110–150 px tall on desktop, 80 px mobile. Floats next to the trunk at rest, with its soft shadow on the ground line.
-- When a leaf is explained: glides (translateX/Y, ease-in-out, ~600 ms) to the leaf panel's side, switches to the **explaining** pose (leans toward the panel, points with a floating hand, mouth opens while audio plays), then floats back.
-- Health state of the character = health of the **currently selected node**. Healthy: own colour + sparkles. Fair: yellow-olive, slightly squashed. Weak: beige-grey, deflated, worried face, sweat drop. Same health colours as the foliage.
-- SVG group ids (same for all proposals): `#character #shadow #float #body #face #eyes #mouth #hand-left #hand-right #extras`. Animation plan: float (translateY on `#float`, 2.4 s loop) while `#shadow` scales slightly, blink (scaleY on `#eyes`), mouth toggle while speaking, squash on landing (scale on `#body`), hands bob out of phase.
-- Respect `prefers-reduced-motion`: no gliding or floating, only cross-fade between poses.
-- Files: `proposals/<name>-<healthy|fair|weak>-<idle|explaining>.svg`.
+- **Use it:** `import { createGuide } from ".../assets/character/guide/guide.js"` and `import ".../guide.css"`, then `createGuide(div, { health })`. API: `setHealth("healthy"|"fair"|"weak")`, `setPose("idle"|"explaining")`, `setTalking(bool)`, `moveTo(x, y)`, `destroy()`. Demo: open `guide/demo.html`.
+- **Size:** set the host element width (default 140 px, 5:6 ratio); ~90 px on mobile.
+- **Health = health of the currently selected node.** Healthy: mint, smiling, bright halo. Fair: warm yellow, neutral mouth, slightly squashed. Weak: pale grey-beige, short worried eyes, sinks and flattens, dim halo. Health changes cross-fade (0.4 s).
+- **Explaining:** leans and looks toward the right, mouth open, sparkles. Place the leaf panel to its right (or mirror the host with `scaleX(-1)` if the panel is on the left; the face stays readable).
+- **Moving:** `moveTo` glides with a slight overshoot and a jelly stretch. Glide to the side of the leaf panel, explain, then come back next to the trunk.
+- Respects `prefers-reduced-motion` (no float, glide or squash).
+- Static images of every state: `guide/states/lumi-<healthy|fair|weak>-<idle|explaining>.svg`. Regenerate states and demo with `node web/assets/character/guide/export.mjs`.
 
 ## 5. Type
 
