@@ -150,26 +150,30 @@ export async function createScene({ world, labels, onTagClick }) {
   const rectAt = (x, y, t) => ({ left: x - t.w / 2 - 4, right: x + t.w / 2 + 4, top: y - t.h / 2 - 4, bottom: y + t.h / 2 + 4 });
   function layoutLabels(placed, fixed) {
     const order = [...placed].sort((a, b) => (PRIORITY[a.t.status] ?? 3) - (PRIORITY[b.t.status] ?? 3) || a.y - b.y);
-    const taken = [], minY = 70, maxY = VH() - 40;
+    const taken = [], minY = VW() < 720 ? 110 : 70, maxY = VH() - 40;
     for (const p of order) {
       p.hidden = false;
       if (p.t.off || !p.t.w) { continue; }
-      const step = p.t.h * 0.6 + 6;
-      const offsets = [0];
-      for (let k = 1; k <= 4; k++) offsets.push(-k * step, k * step);
-      if (p.t.slot != null) offsets.unshift(p.t.slot);
+      const step = p.t.h * 0.6 + 6, W2 = VW(), narrow = W2 < 720;
+      const cands = [[0, 0]];
+      for (let k = 1; k <= 4; k++) cands.push([0, -k * step], [0, k * step]);
+      if (narrow) { // phones: a card may also slide sideways (staying on screen)
+        const sx = p.t.w * 0.55 + 6;
+        for (const dx of [-sx, sx]) for (let k = 0; k <= 3; k++) for (const dy of k ? [-k * step, k * step] : [0]) cands.push([dx, dy]);
+      }
+      if (p.t.slot) cands.unshift(p.t.slot);
       let best = null;
-      for (const dy of offsets) {
-        const y = p.y + dy;
-        if (y < minY || y > maxY) continue;
-        const r = rectAt(p.x, y, p.t);
+      for (const [dx, dy] of cands) {
+        const x = p.x + dx, y = p.y + dy;
+        if (y < minY || y > maxY || x - p.t.w / 2 < 4 || x + p.t.w / 2 > W2 - 4) continue;
+        const r = rectAt(x, y, p.t);
         const cost = taken.reduce((c, q) => c + overlap(r, q), 0) + fixed.reduce((c, q) => c + overlap(r, q), 0);
-        if (cost === 0) { best = { dy, r, cost }; break; }
-        if (!best || cost < best.cost) best = { dy, r, cost };
+        if (cost === 0) { best = { dx, dy, r, cost }; break; }
+        if (!best || cost < best.cost) best = { dx, dy, r, cost };
       }
       if (!best) { p.hidden = true; continue; }
       if (best.cost > 0 && (PRIORITY[p.t.status] ?? 3) > 0) { p.hidden = true; p.t.slot = null; continue; }
-      p.t.slot = best.dy; p.y += best.dy;
+      p.t.slot = [best.dx, best.dy]; p.x += best.dx; p.y += best.dy;
       taken.push(best.r);
     }
     return placed;
