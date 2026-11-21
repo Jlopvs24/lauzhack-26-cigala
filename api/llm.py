@@ -100,3 +100,60 @@ def chat(messages: list[dict], tools: list[dict] | None = None, model: str | Non
     log.info("llm %s %s $%.6f %d+%d tok %d ms", purpose, rec["model"], rec["cost_usd"],
              rec["prompt_tokens"], rec["completion_tokens"], latency)
     return {"message": data["choices"][0]["message"], **rec}
+
+
+def chat_stream(messages: list[dict], tools: list[dict] | None = None, model: str | None = None,
+                purpose: str = "agent", timeout: float = 30.0, **params):
+    """Streaming completion. Yields ("content", text_delta) as tokens arrive, then one
+    ("final", {message: {content, tool_calls}, model, cost_usd, prompt_tokens, completion_tokens, latency_ms,
+    first_token_ms}). Tool-call deltas are assembled. Raises on HTTP/network error."""
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        raise RuntimeError("OPENROUTER_API_KEY not set")
+    chain = [model] if model else models()
+    body = {"model": chain[0], "messages": messages, "usage": {"include": True}, "stream": True, **params}
+    if len(chain) > 1:
+        body["models"] = chain
+    if tools:
+        body["tools"] = tools
+    t0 = time.perf_counter()
+    first = None
+    content, calls, used_model, usage = [], {}, chain[0], {}
+    with httpx.stream("POST", OPENROUTER_URL, json=body, timeout=timeout,
+                      headers={"Authorization": f"Bearer {key}", "X-Title": "cigala-lauzhack"}) as r:
+        if r.status_code != 200:
+            raise RuntimeError(f"openrouter {r.status_code}: {r.read()[:300]!r}")
+        for line in r.iter_lines():
+            if not line.startswith("data: ") or line.strip() == "data: [DONE]":
+                continue
+            try:
+                d = json.loads(line[6:])
+            except json.JSONDecodeError:
+                continue
+            if "error" in d:
+                raise RuntimeError(f"openrouter error: {str(d['error'])[:300]}")
+            used_model = d.get("model") or used_model
+            if d.get("usage"):
+                usage = d["usage"]
+            for ch in d.get("choices") or []:
+                delta = ch.get("delta") or {}
+                if delta.get("content"):
+                    if first is None:
+                        first = int((time.perf_counter() - t0) * 1000)
+                    content.append(delta["content"])
+                    yield "content", delta["content"]
+                for tc in delta.get("tool_calls") or []:
+                    slot = calls.setdefault(tc.get("index", 0), {"id": None, "type": "function",
+                                                                 "function": {"name": "", "arguments": ""}})
+                    slot["id"] = tc.get("id") or slot["id"]
+                    fn = tc.get("function") or {}
+                    slot["function"]["name"] += fn.get("name") or ""
+                    slot["function"]["arguments"] += fn.get("arguments") or ""
+    latency = int((time.perf_counter() - t0) * 1000)
+    rec = {"ts": time.time(), "purpose": purpose, "model": used_model,
+           "cost_usd": float(usage.get("cost") or 0.0), "prompt_tokens": int(usage.get("prompt_tokens") or 0),
+           "completion_tokens": int(usage.get("completion_tokens") or 0), "latency_ms": latency}
+    USAGE.add(rec)
+    tool_calls = [calls[i] for i in sorted(calls)] or None
+    yield "final", {"message": {"content": "".join(content), "tool_calls": tool_calls}, **rec,
+                    "first_token_ms": first}

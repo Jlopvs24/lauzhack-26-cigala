@@ -25,10 +25,12 @@ Keys are read from `.env.local` at the repo root (`OPENROUTER_API_KEY`, `TOGETHE
 | GET | `/health` | – | engine, llm, voice status |
 | GET | `/profiles/demo` | – | `{profile}` (Alexia) |
 | GET | `/assumptions` | – | `{assumptions: [Assumption]}` |
-| POST | `/tree/expand` | `{profile?, path, assumptions?, weather?, uncertainty?}` | visible tree (below); `uncertainty` (default `false`) turns on the optional Monte Carlo lens |
+| POST | `/tree/expand` | `{profile?, path, assumptions?, weather?, uncertainty?, exploration?, sensitivity?}` | visible tree (below). Lean by default (`exploration`/`sensitivity` false, ~50 ms); cached by request (`cached: true`) |
+| POST | `/tree/explore` | `{profile?, path, assumptions?, weather?}` | current node only: `{node_id, exploration, sensitivity, plan_check, facts[]}` via `core.explore` (~0.2 s, cached) |
 | POST | `/simulate` | `{profile?, node, assumptions?, weather?, uncertainty?}` | `{result: SimulationResult}` |
 | POST | `/profiles/extract` | multipart `files[]` (PDF/JPG/PNG, audio also accepted), `text?`, `audio?`, `base_profile?` (JSON string) | `{profile (with per-field provenance), extractor, cost_usd, latency_ms, missing_fields, checks, documents, transcripts}` via `multimodal.extract`; mock (`extractor: "mock"`, `mock_reason`) only if multimodal deps are missing |
 | POST | `/agent/ask` | `{question, context}` | answer + traces (below) |
+| POST | `/agent/ask/stream` | same as `/agent/ask` | Server-Sent Events: `start` at once, `sentence` (each checked before sending), `replace` (fallback text), `done` (same fields as `/agent/ask` + `first_sentence_ms`) |
 | POST | `/report` | `{profile?, path, assumptions?, uncertainty?, language?}` | path report: 12 structured sections, numbers only from the engine; summary = deterministic template, optionally reworded/translated by the LLM and number-checked (see docs/contracts.md) |
 | POST | `/voice/stt` | multipart `audio` (WAV/MP3), `language?` | `{text, language, cost_usd, model}` |
 | POST | `/voice/ask` | multipart `audio`, `context` (JSON string), `language?` | `/agent/ask` response + `transcript`, `stt` |
@@ -98,3 +100,17 @@ is true. Tools:
 - `get_exploration`: the engine's levers, break-even, goal-seek, reverse stress and timing analyses, when present
 - `what_would_have_to_be_true`: an engine-computed bisection for the threshold value of a lever at which cash
   never goes negative, the node catches up with a sibling, or a goal is reached
+
+## Running it (shared server)
+
+```bash
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 2
+```
+
+- Each worker warms core's tree in a background thread at start-up (~1 s), and again when `/profiles/extract`
+  returns a new profile.
+- Kokoro TTS runs in its own worker process per API worker (4 ONNX threads, `TTS_THREADS`), with audio cached
+  per (text, language, voice). Engine requests never wait for TTS.
+- Responses of `/tree/expand`, `/tree/explore` and `/report` are cached per worker (LRU of 256, `API_CACHE_ITEMS`).
+- The streaming agent uses `AGENT_STREAM_MODEL` (default `anthropic/claude-haiku-5.5`, fastest first token measured:
+  ~1.3 s), falling back to the normal chain.
