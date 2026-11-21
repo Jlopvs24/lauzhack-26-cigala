@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Alexia's Tree</title>
+<script>
+  // theme before first paint: saved choice, else the system's
+  try { const t = localStorage.getItem("cigala.theme"); document.documentElement.dataset.theme = t || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch { document.documentElement.dataset.theme = "light"; }
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -11,8 +15,10 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main id="stage" aria-label="Alexia's financial tree">
+<main id="stage" aria-label="Financial tree">
   <div id="world"></div>
+  <div class="grade" aria-hidden="true"></div>
+  <div class="moon" aria-hidden="true"></div>
   <div class="mist mist-a" aria-hidden="true"></div>
   <div class="mist mist-b" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
@@ -24,32 +30,62 @@
   <div class="brand"><span class="mark" aria-hidden="true"></span>cigala</div>
   <nav id="crumbs" aria-label="Path"></nav>
   <div class="top-actions">
-    <button id="mute" class="ghost-btn" aria-pressed="false" title="Mute Lumi">Sound on</button>
-    <button id="reportBtn" class="ghost-btn" hidden>Report</button>
+    <div class="seg" id="langs" role="group" aria-label="Language"></div>
+    <button id="theme" class="ghost-btn" aria-label="Toggle light or dark"></button>
+    <button id="mute" class="ghost-btn" aria-pressed="false" data-i18n="soundOn"></button>
+    <button id="reportBtn" class="ghost-btn" hidden data-i18n="report"></button>
   </div>
 </header>
 
-<button id="back" class="back" hidden aria-label="Back one level">
+<button id="back" class="back" hidden>
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  <span>Back</span>
+  <span data-i18n="back"></span>
 </button>
 
 <section id="intro" class="intro">
-  <p class="eyebrow">A financial twin for students</p>
-  <h1>Every choice grows<br><em>a different tree.</em></h1>
-  <p class="lede">Alexia is 20, studies in Lausanne and has CHF 8,000 saved. Explore what each path does to her next ten years. Every number comes from a tested engine.</p>
-  <button id="begin" class="primary">Enter the tree</button>
+  <p class="eyebrow" data-i18n="eyebrow"></p>
+  <h1><span data-i18n="h1a"></span><br><em data-i18n="h1b"></em></h1>
+  <p class="lede" data-i18n="lede"></p>
+  <div class="choices">
+    <button id="demo" class="primary" data-i18n="demo"></button>
+    <button id="own" class="secondary" data-i18n="own"></button>
+  </div>
+  <p class="demo-note" data-i18n="demoNote"></p>
+</section>
+
+<section id="roots" class="roots" hidden aria-labelledby="rootsTitle">
+  <h2 id="rootsTitle" data-i18n="rootsTitle"></h2>
+  <p class="roots-lede" data-i18n="rootsLede"></p>
+  <div id="rootsInput">
+    <textarea id="rootsText" rows="4" data-i18n-ph="rootsText"></textarea>
+    <div class="roots-row">
+      <label class="file"><input id="rootsFiles" type="file" multiple accept=".pdf,.jpg,.jpeg,.png"><span data-i18n="files"></span></label>
+      <button type="button" id="rootsMic" class="ghost-btn" data-i18n="speak"></button>
+    </div>
+    <p id="rootsFileList" class="roots-files"></p>
+    <div class="roots-actions">
+      <button type="button" id="rootsCancel" class="text-btn" data-i18n="cancel"></button>
+      <button type="button" id="rootsRead" class="primary" data-i18n="read"></button>
+    </div>
+  </div>
+  <div id="rootsReview" hidden>
+    <p class="roots-lede" data-i18n="review"></p>
+    <div class="fields" id="rootsFields"></div>
+    <p id="rootsMeta" class="roots-files"></p>
+    <div class="roots-actions">
+      <button type="button" id="rootsCancel2" class="text-btn" data-i18n="cancel"></button>
+      <button type="button" id="rootsGrow" class="primary" data-i18n="grow"></button>
+    </div>
+  </div>
 </section>
 
 <aside id="narration" class="narration" aria-live="polite">
   <div id="lumi"></div>
-  <div class="say-card" id="sayCard" hidden>
-    <p id="sayText"></p>
-  </div>
+  <div class="say-card" id="sayCard" hidden><p id="sayText"></p></div>
 </aside>
 
 <form id="ask" class="ask" autocomplete="off" hidden>
-  <input id="askInput" type="text" placeholder="Ask Lumi about this branch" aria-label="Ask Lumi">
+  <input id="askInput" type="text" data-i18n-ph="ask">
   <button type="button" id="micBtn" class="icon-btn" aria-label="Speak your question">
     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
   </button>
@@ -58,12 +94,12 @@
   </button>
 </form>
 
-<aside id="report" class="report" aria-label="Branch report" hidden>
-  <button class="close" id="reportClose" aria-label="Close report">×</button>
+<aside id="report" class="report" hidden>
+  <button class="close" id="reportClose" aria-label="Close">×</button>
   <div id="reportBody"></div>
 </aside>
 
-<div id="loading" class="loading" hidden>Growing the branch…</div>
+<div id="loading" class="loading" hidden data-i18n="loading"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script type="module" src="app.js"></script>

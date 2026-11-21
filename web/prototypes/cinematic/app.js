@@ -4,6 +4,7 @@
 // between rectangles; the higher-detail still fades in on top as we arrive, so the zoom is seamless.
 // Greying uses a per-still label map (limb*10 + sub-branch) computed offline (see README.md).
 import { createGuide } from "../../assets/character/guide/guide.js";
+import { UI, STORY, NODES, LANGS, SPEECH_LANG } from "./i18n.js";
 
 const qs = new URLSearchParams(location.search);
 const API = qs.get("api") || "http://127.0.0.1:8002";
@@ -169,6 +170,43 @@ function showStill(name, on, { delay = 0, duration = 1.0 } = {}) {
   return s;
 }
 
+
+// ---------- language ----------
+let lang = (() => { try { return localStorage.getItem("cigala.lang") || "en"; } catch { return "en"; } })();
+if (!UI[lang]) lang = "en";
+const t = (k) => UI[lang][k] ?? UI.en[k];
+// node text in the current language; `known` = false when we only have the engine's English
+function tr(n) {
+  const x = NODES[n.label]?.[lang];
+  if (lang === "en" || x) return { label: x ? x[0] : n.label, desc: x ? x[1] : n.description || "", known: true };
+  return { label: n.label, desc: n.description || "", known: false };
+}
+function applyLang() {
+  document.documentElement.lang = lang;
+  for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  for (const el of document.querySelectorAll("[data-i18n-ph]")) { el.placeholder = t(el.dataset.i18nPh); el.setAttribute("aria-label", t(el.dataset.i18nPh)); }
+  $("#langs").innerHTML = Object.entries(LANGS).map(([k, v]) => `<button type="button" data-lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("");
+  $("#mute").textContent = muted ? t("soundOff") : t("soundOn");
+  $("#theme").textContent = document.documentElement.dataset.theme === "dark" ? t("light") : t("dark");
+}
+$("#langs").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-lang]");
+  if (!b || b.dataset.lang === lang) return;
+  lang = b.dataset.lang;
+  try { localStorage.setItem("cigala.lang", lang); } catch {}
+  applyLang();
+  if (data) { refreshView(); narrate(storyFor(data)); }
+});
+
+// ---------- light / dark: the scene is graded, not only the UI ----------
+function setTheme(th, animate = true) {
+  document.documentElement.dataset.theme = th;
+  try { localStorage.setItem("cigala.theme", th); } catch {}
+  $("#theme").textContent = th === "dark" ? t("light") : t("dark");
+  if (animate && !reduced) gsap.fromTo(".grade, .moon", { opacity: th === "dark" ? 0 : 1 }, { opacity: th === "dark" ? 1 : 0, duration: 1.4, ease: "power2.inOut", clearProps: "opacity" });
+}
+$("#theme").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+
 // ---------- labels ----------
 const tags = new Map();
 const labelsEl = $("#labels");
@@ -177,17 +215,16 @@ function tagMeta(n) {
   const r = n.result;
   if (!r || n.status === "pruned") return "";
   const m = r.metrics, h = r.health;
-  const cash = m.first_negative_month != null ? `<span class="warn">cash short from month ${m.first_negative_month + 1}</span>` : "cash stays positive";
-  return `Health <b>${Math.round(h.score)}</b> · ${cash}`;
+  const cash = m.first_negative_month != null ? `<span class="warn">${t("tagShort")(m.first_negative_month + 1)}</span>` : t("tagOk");
+  return `${t("tagHealth")} <b>${Math.round(h.score)}</b> · ${cash}`;
 }
 function syncTags(nodes, current) {
   const keep = new Set();
   for (const n of nodes) {
-    if (n.node_id === current) continue;
-    if (n.status === "chosen") continue; // the path is in the breadcrumbs; keep the image clean
+    if (n.node_id === current || n.status === "chosen") continue; // the path is in the breadcrumbs
     keep.add(n.node_id);
-    let t = tags.get(n.node_id);
-    if (!t) {
+    let tg = tags.get(n.node_id);
+    if (!tg) {
       const el = document.createElement("button");
       el.type = "button";
       el.innerHTML = `<span class="card"><span class="name"></span><span class="meta"></span></span><span class="dot"></span>`;
@@ -195,33 +232,37 @@ function syncTags(nodes, current) {
       el.style.opacity = 0;
       labelsEl.append(el);
       const [wx, wy] = anchor(n.node_id);
-      t = { el, wx, wy };
-      tags.set(n.node_id, t);
+      tg = { el, wx, wy };
+      tags.set(n.node_id, tg);
       gsap.to(el, { opacity: 1, duration: 0.8, delay: 0.25, ease: "power2.out" });
     }
-    t.status = n.status;
-    t.el.className = `tag ${n.status}`;
-    t.el.disabled = !(n.status === "child" || n.status === "sibling");
-    t.el.tabIndex = t.el.disabled ? -1 : 0;
-    t.el.setAttribute("aria-label", `${n.label}${n.status === "pruned" ? " (not taken)" : ""}`);
-    t.el.querySelector(".name").textContent = n.label;
-    const mEl = t.el.querySelector(".meta");
+    tg.status = n.status;
+    tg.el.className = `tag ${n.status}`;
+    tg.el.disabled = !(n.status === "child" || n.status === "sibling");
+    tg.el.tabIndex = tg.el.disabled ? -1 : 0;
+    const name = tr(n).label;
+    tg.el.setAttribute("aria-label", name);
+    tg.el.querySelector(".name").textContent = name;
+    const mEl = tg.el.querySelector(".meta");
     const showMeta = n.status === "child" || n.status === "sibling";
     mEl.innerHTML = showMeta ? tagMeta(n) : "";
     mEl.hidden = !showMeta || !mEl.innerHTML;
   }
-  for (const [id, t] of tags) if (!keep.has(id)) {
+  for (const [id, tg] of tags) if (!keep.has(id)) {
     tags.delete(id);
-    gsap.to(t.el, { opacity: 0, duration: 0.35, onComplete: () => t.el.remove() });
+    gsap.to(tg.el, { opacity: 0, duration: 0.35, onComplete: () => tg.el.remove() });
   }
 }
 
 // ---------- data ----------
-const seen = new Map(); // node_id -> {label, parent_id}: keeps pruned branches drawn after they leave the API response
+const seen = new Map(); // node_id -> {label, parent_id}: keeps pruned branches drawn even if the API omits them
 let path = [];
 let data = null;
+let profile = null; // null = the API's demo persona (Alexia)
 async function expand(p) {
-  const r = await fetch(`${API}/tree/expand`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: p }) });
+  const body = { path: p };
+  if (profile) body.profile = profile;
+  const r = await fetch(`${API}/tree/expand`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`expand ${r.status}`);
   return r.json();
 }
@@ -236,7 +277,7 @@ function visibleNodes(d) {
   return nodes;
 }
 
-// ---------- Lumi + voice ----------
+// ---------- Lumi + voice (always in the UI language) ----------
 const lumi = createGuide($("#lumi"), { mood: 70 });
 let audioUnlocked = false, muted = false, audio = null, speakSeq = 0;
 function unlockAudio() {
@@ -251,13 +292,19 @@ function stopSpeech() {
   try { speechSynthesis.cancel(); } catch {}
   lumi.setTalking(false);
 }
+function browserVoice(l) {
+  const vs = speechSynthesis.getVoices();
+  const want = SPEECH_LANG[l].toLowerCase(), base = l.toLowerCase();
+  return vs.find((v) => v.lang.toLowerCase() === want) || vs.find((v) => v.lang.toLowerCase().startsWith(base)) || null;
+}
+let warnedNoVoice = {};
 async function speak(text) {
   stopSpeech();
-  if (muted || !audioUnlocked) return;
-  const seq = speakSeq;
-  try {
+  if (muted || !audioUnlocked || !text) return;
+  const seq = speakSeq, l = lang;
+  try { // server voice: Kokoro (EN, ES, FR) or the configured provider, asked for this language
     const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 9000);
-    const r = await fetch(`${API}/voice/tts`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, language: "en" }), signal: ctl.signal });
+    const r = await fetch(`${API}/voice/tts`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, language: l }), signal: ctl.signal });
     clearTimeout(timer);
     if (!r.ok) throw new Error(`tts ${r.status}`);
     const url = URL.createObjectURL(await r.blob());
@@ -268,46 +315,48 @@ async function speak(text) {
     await audio.play();
   } catch {
     if (seq !== speakSeq || !("speechSynthesis" in window)) return;
+    const v = browserVoice(l);
+    if (!v) { // never read this text with another language's voice
+      if (!warnedNoVoice[l]) { warnedNoVoice[l] = true; sayText.textContent += " " + t("noVoice"); }
+      return;
+    }
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-GB"; u.rate = 1.02;
+    u.voice = v; u.lang = v.lang; u.rate = 1.02;
     u.onstart = () => lumi.setTalking(true);
     u.onend = () => lumi.setTalking(false);
     speechSynthesis.speak(u);
   }
 }
 const sayCard = $("#sayCard"), sayText = $("#sayText");
-function narrate(text, pointEl) {
+function narrate(text) {
   sayText.textContent = text;
   if (sayCard.hidden) { sayCard.hidden = false; gsap.fromTo(sayCard, { opacity: 0, y: 8, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: "power3.out" }); }
   else gsap.fromTo(sayText, { opacity: 0 }, { opacity: 1, duration: 0.4 });
-  lumi.pointAt(pointEl || null);
   lumi.setPose?.("explaining");
   speak(text);
 }
 $("#mute").addEventListener("click", (e) => {
   muted = !muted;
   e.currentTarget.setAttribute("aria-pressed", String(muted));
-  e.currentTarget.textContent = muted ? "Sound off" : "Sound on";
+  e.currentTarget.textContent = muted ? t("soundOff") : t("soundOn");
   if (muted) stopSpeech(); else { unlockAudio(); speak(sayText.textContent); }
 });
 
-const listJoin = (a) => a.length <= 1 ? a.join("") : a.slice(0, -1).join(", ") + " or " + a[a.length - 1];
 function storyFor(d) {
+  const S = STORY[lang];
   const cur = d.nodes.find((n) => n.node_id === d.current);
-  const parent = d.nodes.find((n) => n.node_id === cur.parent_id);
-  const kids = d.nodes.filter((n) => n.status === "child").map((n) => n.label.replace(/^./, (c) => c.toLowerCase()));
+  const kidsN = d.nodes.filter((n) => n.status === "child");
   const m = cur.result.metrics, h = cur.result.health;
-  const cash = m.first_negative_month != null
-    ? `In the median path her cash runs short from month ${m.first_negative_month + 1}.`
-    : "In the median path her cash never runs out.";
-  if (d.current === "0") {
-    return `This is Alexia today: ${cur.description.replace(/\.$/, "")}. Her health score is ${Math.round(h.score)} out of 100. ${cash} Three paths grow from here: ${listJoin(kids)}. Choose one and I'll show you what it changes.`;
-  }
-  const change = (cur.changes && cur.changes[0]) || cur.description;
+  const cash = m.first_negative_month != null ? S.short(m.first_negative_month + 1) : S.ok;
+  const c = tr(cur);
+  // non-English: say only what we can say in that language (unknown engine text stays on screen, not in the voice)
+  const kids = kidsN.map((n) => tr(n)).filter((x) => x.known).map((x) => x.label);
+  const desc = c.known ? c.desc.replace(/([^.])$/, "$1.") : "";
+  const who = profile?.display_name || "Alexia";
+  const n = { who, label: c.known ? c.label : "", desc, score: Math.round(h.score) };
+  if (d.current === "0") return S.root(n, cash, kids);
   const dh = cur.delta_vs_parent?.health_score;
-  const delta = dh == null ? "" : ` That is ${Math.abs(dh).toFixed(1)} points ${dh >= 0 ? "higher" : "lower"} than the branch it grows from.`;
-  const next = kids.length ? ` From here: ${listJoin(kids)}.` : " This is the end of this branch; open the report for the details.";
-  return `${cur.label}. ${change.replace(/\.$/, "")}. Health ${Math.round(h.score)} out of 100.${delta} ${cash}${next} The other branches stay in grey so you can compare.`;
+  return S.node(n, cash, kids, dh == null ? "" : S.delta(dh)).replace(/^\. /, "");
 }
 
 // ---------- report ----------
@@ -317,35 +366,36 @@ function bandSVG(b) {
   const X = (i) => (i / (n - 1)) * 360, Y = (v) => 110 - ((v - lo) / (hi - lo || 1)) * 100;
   const line = (arr) => arr.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
   const area = `${line(p90)} ${p10.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).reverse().join(" ")}`;
-  return `<svg class="band" viewBox="0 0 360 120" preserveAspectRatio="none" role="img" aria-label="Net worth, 10th to 90th percentile over 10 years">
-    <line x1="0" x2="360" y1="${Y(0)}" y2="${Y(0)}" stroke="#c9ccc5" stroke-dasharray="3 4"/>
-    <polygon points="${area}" fill="#8fb56a" fill-opacity="0.28"/>
-    <polyline points="${line(p50)}" fill="none" stroke="#3e6b3a" stroke-width="1.8" vector-effect="non-scaling-stroke"/></svg>`;
+  return `<svg class="band" viewBox="0 0 360 120" preserveAspectRatio="none" role="img" aria-label="${t("bandNote")}">
+    <line x1="0" x2="360" y1="${Y(0)}" y2="${Y(0)}" class="zero" stroke-dasharray="3 4"/>
+    <polygon points="${area}" class="area"/>
+    <polyline points="${line(p50)}" class="median" fill="none" stroke-width="1.8" vector-effect="non-scaling-stroke"/></svg>`;
 }
 function renderReport(d) {
   const cur = d.nodes.find((n) => n.node_id === d.current), r = cur.result, m = r.metrics, h = r.health;
+  const c = tr(cur);
   const sens = (r.sensitivity || [])[0];
-  const passed = (r.checks || []).filter((c) => c.passed).length;
+  const passed = (r.checks || []).filter((x) => x.passed).length;
   const goals = Object.entries(m.goal_probability || {}).map(([k, v]) => `<dt>${k}</dt><dd>${Math.round(v * 100)}%</dd>`).join("");
   $("#reportBody").innerHTML = `
-    <div class="kicker">${cur.node_id === "0" ? "Today" : "Branch " + cur.node_id}</div>
-    <h2>${cur.label}</h2>
-    <p class="desc">${cur.description || ""}</p>
-    <div class="score"><b>${Math.round(h.score)}</b><span>health score / 100 · ${h.level}</span></div>
+    <div class="kicker">${cur.node_id === "0" ? t("today") : t("branch") + " " + cur.node_id}</div>
+    <h2>${c.label}</h2>
+    <p class="desc">${c.desc}</p>
+    <div class="score"><b>${Math.round(h.score)}</b><span>${t("healthLbl")} · ${h.level}</span></div>
     <dl>
-      <dt>Net worth in 10 years (median)</dt><dd>${fmtCHF(m.final_net_worth_p50)}</dd>
-      <dt>Range, 10th–90th percentile</dt><dd>${fmtCHF(m.final_net_worth_p10)} – ${fmtCHF(m.final_net_worth_p90)}</dd>
-      <dt>Lowest cash</dt><dd class="${m.min_cash < 0 ? "warn" : ""}">${fmtCHF(m.min_cash)}</dd>
-      <dt>Cash runs short</dt><dd class="${m.first_negative_month != null ? "warn" : ""}">${m.first_negative_month != null ? "month " + (m.first_negative_month + 1) : "never"}</dd>
-      <dt>Futures where cash runs out</dt><dd>${Math.round(m.shortfall_probability * 100)}%</dd>
+      <dt>${t("m_nw")}</dt><dd>${fmtCHF(m.final_net_worth_p50)}</dd>
+      <dt>${t("m_range")}</dt><dd>${fmtCHF(m.final_net_worth_p10)} – ${fmtCHF(m.final_net_worth_p90)}</dd>
+      <dt>${t("m_min")}</dt><dd class="${m.min_cash < 0 ? "warn" : ""}">${fmtCHF(m.min_cash)}</dd>
+      <dt>${t("m_short")}</dt><dd class="${m.first_negative_month != null ? "warn" : ""}">${m.first_negative_month != null ? t("m_month") + " " + (m.first_negative_month + 1) : t("m_never")}</dd>
+      <dt>${t("m_paths")}</dt><dd>${Math.round(m.shortfall_probability * 100)}%</dd>
       ${goals}
     </dl>
-    <h3>Net worth, ${r.n_paths.toLocaleString("en-US")} simulated futures</h3>
+    <h3>${t("bandTitle")(r.n_paths.toLocaleString("en-US"))}</h3>
     ${r.bands?.net_worth ? bandSVG(r.bands.net_worth) : ""}
-    <p class="note">Band = 10th to 90th percentile; line = median. Uncertainty, not a forecast.</p>
-    ${sens ? `<h3>Assumption that matters most</h3><p class="note"><b>${sens.label}</b> (${sens.base_value} ${sens.unit}): moving it from ${sens.low_value} to ${sens.high_value} shifts the 10-year net worth by ${fmtCHF(sens.delta_final_net_worth)}.</p>` : ""}
-    ${cur.changes?.length ? `<h3>What this choice changes</h3><ul>${cur.changes.map((c) => `<li>${c}</li>`).join("")}</ul>` : ""}
-    <h3>Checks</h3><p class="note">${passed} of ${(r.checks || []).length} accounting checks passed · engine ${r.engine_version} · seed ${r.seed}</p>`;
+    <p class="note">${t("bandNote")}</p>
+    ${sens ? `<h3>${t("sensTitle")}</h3><p class="note">${t("sens")(sens.label, sens.low_value, sens.high_value, fmtCHF(sens.delta_final_net_worth))}</p>` : ""}
+    ${lang === "en" && cur.changes?.length ? `<h3>${t("changesTitle")}</h3><ul>${cur.changes.map((x) => `<li>${x}</li>`).join("")}</ul>` : ""}
+    <h3>${t("checksTitle")}</h3><p class="note">${t("checks")(passed, (r.checks || []).length)} · ${r.engine_version} · seed ${r.seed}</p>`;
 }
 function openReport() { const el = $("#report"); el.hidden = false; gsap.fromTo(el, { opacity: 0, x: 24 }, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }); }
 function closeReport() { const el = $("#report"); gsap.to(el, { opacity: 0, x: 24, duration: 0.25, onComplete: () => (el.hidden = true) }); }
@@ -356,7 +406,12 @@ $("#reportClose").addEventListener("click", closeReport);
 let busy = false;
 function crumbs(d) {
   const byId = new Map(d.nodes.map((n) => [n.node_id, n]));
-  $("#crumbs").innerHTML = d.path.map((id) => `<span>${byId.get(id)?.label ?? id}</span>`).join("");
+  $("#crumbs").innerHTML = d.path.map((id) => `<span>${byId.get(id) ? tr(byId.get(id)).label : id}</span>`).join("");
+}
+function refreshView() { // re-label without moving (language change)
+  syncTags(visibleNodes(data), data.current);
+  crumbs(data);
+  renderReport(data);
 }
 async function go(newPath) {
   if (busy) return;
@@ -366,20 +421,18 @@ async function go(newPath) {
   const loading = setTimeout(() => ($("#loading").hidden = false), 350);
   let d;
   try { d = await expand(newPath); }
-  catch (e) { clearTimeout(loading); $("#loading").hidden = true; busy = false; narrate("I can't reach the engine right now. Is the API running?"); return; }
+  catch { clearTimeout(loading); $("#loading").hidden = true; busy = false; narrate(t("noEngine")); return; }
   clearTimeout(loading); $("#loading").hidden = true;
   const goingDeeper = newPath.length > path.length;
   path = newPath; data = d;
   const current = d.current;
 
-  // stills on the chosen path, deeper ones fade in as the camera arrives
   const want = new Set(["master"]);
   for (const id of d.path) { const s = stillFor(id); if (s) want.add(s); }
   for (const name of Object.keys(meta)) if (name !== "hot") {
     if (want.has(name)) { const s = showStill(name, true, { delay: goingDeeper ? 0.7 : 0, duration: 1.1 }); await s.ready; }
     else if (stills[name]?.on) showStill(name, false, { duration: 0.8 });
   }
-  // grey every sibling and pruned branch on every visible still
   const nodes = visibleNodes(d);
   const grey = new Set(nodes.filter((n) => n.status === "sibling" || n.status === "pruned").flatMap((n) => codes(n.node_id)));
   for (const s of Object.values(stills)) if (s.on) paintGrey(s, grey);
@@ -398,21 +451,20 @@ async function go(newPath) {
   busy = false;
 }
 function onTagClick(id) {
-  const t = tags.get(id);
-  if (!t || busy) return;
-  if (t.status === "child") go([...path, id]);
-  else if (t.status === "sibling") go([...path.slice(0, -1), id]); // switch sideways, same level
+  const tg = tags.get(id);
+  if (!tg || busy) return;
+  if (tg.status === "child") go([...path, id]);
+  else if (tg.status === "sibling") go([...path.slice(0, -1), id]); // switch sideways, same level
 }
 function back() { if (path.length && !busy) go(path.slice(0, -1)); }
 $("#back").addEventListener("click", back);
 addEventListener("keydown", (e) => {
-  if (e.target.closest("input")) return;
+  if (e.target.closest("input, textarea")) return;
   if (e.key === "Escape" || e.key === "Backspace") { if (!$("#report").hidden) closeReport(); else back(); }
 });
 let wheelAcc = 0, wheelT = 0;
 addEventListener("wheel", (e) => {
-  if (e.target.closest(".report")) return;
-  if (!started) { begin(); return; }
+  if (!started || e.target.closest(".report, .roots")) return;
   const now = performance.now();
   if (now - wheelT > 400) wheelAcc = 0;
   wheelT = now; wheelAcc += e.deltaY;
@@ -424,48 +476,52 @@ addEventListener("pointermove", (e) => {
   look.ty = (e.clientY / innerHeight - 0.5) * 2;
 });
 
-// ---------- ask (type or speak) ----------
+// ---------- ask (type or speak), answered in the UI language ----------
 $("#ask").addEventListener("submit", async (e) => {
   e.preventDefault();
   const q = $("#askInput").value.trim();
   if (!q || !data) return;
   unlockAudio();
   $("#askInput").value = "";
-  narrate("Let me check the numbers…");
+  narrate(t("thinking"));
   try {
-    const r = await fetch(`${API}/agent/ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, context: { path, node_id: data.current, language: "en" } }) });
+    const context = { path, node_id: data.current, language: lang };
+    if (profile) context.profile = profile;
+    const r = await fetch(`${API}/agent/ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, context }) });
     const out = await r.json();
-    narrate(out.answer || "I couldn't answer that one.");
-  } catch { narrate("I can't reach the engine right now."); }
+    narrate(out.answer || t("noAnswer"));
+  } catch { narrate(t("noEngine")); }
 });
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-$("#micBtn").addEventListener("click", (e) => {
-  if (!SR) { narrate("Voice input needs Chrome or Edge. You can type instead."); return; }
-  const btn = e.currentTarget, rec = new SR();
-  rec.lang = "en-US"; rec.interimResults = true;
+function dictate(btn, onText, onEnd) {
+  if (!SR) { narrate(t("noMic")); return; }
+  const rec = new SR();
+  rec.lang = SPEECH_LANG[lang]; rec.interimResults = true; rec.continuous = false;
   btn.classList.add("rec"); stopSpeech();
-  rec.onresult = (ev) => { $("#askInput").value = [...ev.results].map((r) => r[0].transcript).join(""); };
-  rec.onend = () => { btn.classList.remove("rec"); if ($("#askInput").value.trim()) $("#ask").requestSubmit(); };
+  rec.onresult = (ev) => onText([...ev.results].map((r) => r[0].transcript).join(""));
+  rec.onend = () => { btn.classList.remove("rec"); onEnd?.(); };
   rec.start();
-});
+}
+$("#micBtn").addEventListener("click", (e) => dictate(e.currentTarget, (x) => ($("#askInput").value = x), () => { if ($("#askInput").value.trim()) $("#ask").requestSubmit(); }));
 
-// ---------- intro: from the roots up to the whole tree ----------
+// ---------- start portal: own roots or the Alexia demo ----------
 let started = false;
 const rootsRect = rectOf("roots");
 showStill("master", true, { duration: 0.01 });
 showStill("roots", true, { duration: 0.01 });
 cam.cx = rootsRect.x + rootsRect.w / 2; cam.cy = rootsRect.y + rootsRect.h / 2; cam.z = fitZ(rootsRect);
+applyLang();
 requestAnimationFrame(frame);
 await getStill("roots").ready;
 gsap.from(".intro > *", { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: "power3.out" });
-const first = expand([]).catch(() => null); // warm the engine while the intro plays
-for (const n of Object.keys(meta)) if (n !== "hot") getStill(n); // preload every still (3 MB)
+let first = expand([]).catch(() => null); // warm the engine while the portal is up
+for (const n of Object.keys(meta)) if (n !== "hot") getStill(n); // preload every still (2.7 MB)
 
 async function begin() {
   if (started) return;
   started = true;
   unlockAudio();
-  gsap.to(".intro", { opacity: 0, y: -12, duration: 0.6, ease: "power2.in", onComplete: () => $("#intro").remove() });
+  for (const sel of ["#intro", "#roots"]) if (!$(sel).hidden) gsap.to(sel, { opacity: 0, y: -12, duration: 0.6, ease: "power2.in", onComplete: () => ($(sel).hidden = true) });
   showStill("roots", false, { delay: 0.5, duration: 1.4 });
   await camTo(viewRect("0"), { duration: 2.8, ease: "power2.inOut" });
   $("#ask").hidden = false;
@@ -473,5 +529,43 @@ async function begin() {
   await first;
   go([]);
 }
-$("#begin").addEventListener("click", begin);
+$("#demo").addEventListener("click", () => { profile = null; begin(); });
+
+// own roots: text, documents and voice -> POST /profiles/extract -> quick review -> tree
+function swap(from, to) {
+  gsap.to(from, { opacity: 0, y: -10, duration: 0.35, ease: "power2.in", onComplete: () => { $(from).hidden = true; $(to).hidden = false; gsap.fromTo(to, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }); } });
+}
+$("#own").addEventListener("click", () => { unlockAudio(); swap("#intro", "#roots"); });
+for (const id of ["#rootsCancel", "#rootsCancel2"]) $(id).addEventListener("click", () => { $("#rootsReview").hidden = true; $("#rootsInput").hidden = false; swap("#roots", "#intro"); });
+$("#rootsFiles").addEventListener("change", (e) => ($("#rootsFileList").textContent = [...e.target.files].map((f) => f.name).join(" · ")));
+$("#rootsMic").addEventListener("click", (e) => { const base = $("#rootsText").value; dictate(e.currentTarget, (x) => ($("#rootsText").value = (base ? base + " " : "") + x)); });
+const FIELDS = [["age", "f_age"], ["cash", "f_cash"], ["monthly_net_income", "f_income"], ["monthly_rent", "f_rent"], ["monthly_other_expenses", "f_other"]];
+let draft = null;
+$("#rootsRead").addEventListener("click", async () => {
+  const fd = new FormData();
+  const text = $("#rootsText").value.trim();
+  if (text) fd.append("text", text);
+  for (const f of $("#rootsFiles").files) fd.append("files", f);
+  if (!text && !$("#rootsFiles").files.length) { $("#rootsText").focus(); return; }
+  const btn = $("#rootsRead"); btn.disabled = true; btn.textContent = t("reading");
+  try {
+    const r = await fetch(`${API}/profiles/extract`, { method: "POST", body: fd });
+    if (!r.ok) throw new Error(`extract ${r.status}`);
+    const out = await r.json();
+    draft = out.profile;
+    $("#rootsFields").innerHTML = FIELDS.map(([k, l]) => `<label><span>${t(l)}</span><input type="number" inputmode="decimal" data-k="${k}" value="${draft[k] ?? ""}"></label>`).join("");
+    const cost = out.cost_usd != null ? ` · USD ${Number(out.cost_usd).toFixed(4)}` : "";
+    $("#rootsMeta").textContent = `${out.extractor || ""}${cost}${out.latency_ms ? ` · ${out.latency_ms} ms` : ""}`;
+    $("#rootsInput").hidden = true; $("#rootsReview").hidden = false;
+    gsap.fromTo("#rootsReview", { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" });
+  } catch { $("#rootsMeta").textContent = t("noEngine"); }
+  finally { btn.disabled = false; btn.textContent = t("read"); }
+});
+$("#rootsGrow").addEventListener("click", () => {
+  for (const inp of document.querySelectorAll("#rootsFields input")) if (inp.value !== "") draft[inp.dataset.k] = Number(inp.value);
+  profile = draft;
+  seen.clear();
+  first = expand([]).catch(() => null);
+  begin();
+});
 addEventListener("resize", () => { if (data) camTo(viewRect(data.current), { duration: 0.01 }); });
