@@ -145,7 +145,7 @@ function Bar({ v, lo, hi, cls }) {
   return <span className={`vr-bar ${cls} ${v < 0 ? 'neg' : 'pos'}`} style={{ left: `${Math.min(z, p)}%`, width: `${Math.max(0.6, Math.abs(p - z))}%` }} />;
 }
 
-export function CompareLevels({ levels, baseline, L, H, name }) {
+export function CompareLevels({ levels, baseline, L, H, name, pin }) {
   const box = useRef(null), tip = useTip(box);
   const vals = levels.flatMap((l) => l.rows.map((r) => r.final_net_worth_real)).concat([baseline?.final_net_worth_real]).filter(Number.isFinite);
   const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals), pad = (hi - lo) * 0.04;
@@ -167,7 +167,7 @@ export function CompareLevels({ levels, baseline, L, H, name }) {
           <Bar v={r.final_net_worth_real} lo={a} hi={b} cls={r.chosen ? 'me' : 'sib'} />
         </span>
         <span className="vr-row-val">{chf(r.final_net_worth_real)}</span>
-        <span className="vr-row-chip">{r.first_negative_month != null && <span className="vr-chip bad sm">{L.gapChip(r.first_negative_month + 1)}</span>}</span>
+        <span className="vr-row-chip">{r.first_negative_month != null && <span className="vr-chip bad sm">{L.gapChip(r.first_negative_month + 1)}</span>}{pin && <span className="vr-pin no-print">{pin(lv, r)}</span>}</span>
       </div>)}
     </div>)}
     {Number.isFinite(sq) && <p className="vr-refnote"><i className="k ref" />{name(baseline)}: {chf(sq)} · {L.statusQuo}</p>}
