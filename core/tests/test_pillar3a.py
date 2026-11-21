@@ -20,7 +20,7 @@ def test_2026_caps_are_verified():
     assert recs["pillar3a_max"]["value"] == 7258 and recs["pillar3a_max"]["verified"]
     assert recs["pillar3a_max_no_bvg"]["value"] == 36288 and recs["pillar3a_no_bvg_share"]["value"] == 0.2
     assert recs["pillar3a_max"]["value"] == round(0.08 * recs["payroll_bvg_max"]["value"])  # Art. 7 BVV 3
-    assert recs["pillar3a_return"]["verified"] is False and recs["pillar3a_return"]["range"]
+    assert recs["pillar3a_return"]["verified"] is True and recs["pillar3a_return"]["range"]  # Moneyland average
 
 
 def test_payments_are_capped_per_calendar_year_and_reset_in_january():
