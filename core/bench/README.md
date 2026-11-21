@@ -16,6 +16,7 @@ python -m pytest core/tests/test_bench.py -q   # UBS-data tests skip without the
 | `harness.drift_decomposition()` | where our Swiss world departs from the ledgers, switching tax, inflation and wage growth off one by one |
 | `harness.score(overrides, include=("verified",))` | a parameter set against PUBLIC Swiss targets (`targets.json`), squared error in tolerance units |
 | `harness.search(grid)` | exhaustive grid over assumption ids, ranked by `score` |
+| `python -m core.bench.optimise` | seeded search of the tunable parameters against the verified targets, with leave-one-target-out and materiality guards; results and reasoning in `OPTIMISATION.md` |
 
 Rules for using it (Juan's direction): the UBS ledgers are a **sanity check** of accounting and
 consistency; never tune the model to them (they are synthetic and contain no income tax).
