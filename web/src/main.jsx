@@ -111,7 +111,7 @@ function App() {
     createScene({ world: worldRef.current, labels: labelsRef.current, onTagClick: (id, status) => onTag(id, status) }).then(async (s) => {
       if (disposed) { s.destroy(); return; }
       scene.current = s;
-      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), ...document.querySelectorAll('.nav-back'), document.querySelector('.cmp-bar'), document.querySelector('.cmp-hint'), document.querySelector('.cmp-options-mount'),
+      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), ...document.querySelectorAll('.nav-back'), 
         document.querySelector('.top .brand'), ...document.querySelectorAll('#crumbs > span'), document.querySelector('.top-actions'), document.querySelector('.wx'), document.querySelector('.leaf-cta'),
         ...document.querySelectorAll('[data-layout-obstacle]')].filter(Boolean) })); // any panel can opt in (weather rail, Lumi dock)
       await s.intro();
@@ -162,7 +162,7 @@ function App() {
   function tagItems(data, l) {
     const cmp = { nodes: data.nodes, sib: compareSiblings(data.nodes), path: (data.path || []).filter((id) => id !== '0') };
     return visibleNodes(data, seen.current)
-      .filter((n) => n.node_id !== data.current && n.status !== 'chosen')
+      .filter((n) => n.node_id !== data.current && n.status === 'child') // only the options: Back changes the earlier choice
       .map((n) => ({ id: n.node_id, status: n.status, name: translateNode(n, l).label, meta: tagMeta(n, l, cmp), clickable: n.status === 'child' || n.status === 'sibling',
         custom: (n.custom || n.origin === 'user' || personalStore.isCustom(n.node_id)) ? t(l, 'yours')
           : (n.patched || n.inherits_patch || personalStore.forNode(n.node_id)?.length) ? t(l, 'yoursPatched') : '' }));
