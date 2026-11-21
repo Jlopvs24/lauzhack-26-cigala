@@ -47,6 +47,9 @@ All engine routes (and `/agent/ask*` via `context`) accept optional `custom_node
 | POST | `/voice/tts/stream` | same | NDJSON, one line per sentence `{index, text, audio_b64, audio_seconds, synth_ms}`, then `{done}` |
 | GET | `/voice/fillers?language=en` | – | short phrases for call mode |
 | GET | `/call` | – | realtime call prototype (`api/static/call.html`, client `api/static/call.js`) |
+| GET | `/live/status` | – | Lumi Live availability `{available, reason (no_key / budget / busy), model, privacy}` |
+| POST | `/live/token` | `{context, language?}` | starts a Live session: one-use token (60 s), `ws_path`, model, voice, config (system instruction, tools). See "Lumi Live" below |
+| WS | `/live/ws?token=` | binary PCM16 16 kHz + JSON | realtime voice proxy to Gemini Live (protocol in `api/live.py`) |
 | GET | `/usage` | – | cumulative LLM/voice calls, tokens and USD |
 | GET | `/validation` | `?refresh=true` optional | live engine checks from `core.validation()`: `{engine_version, passed, total, all_passed, duration_ms, how, checks[{id, label, passed, detail, evidence, ms}], age_s, cached}`; cached 60 s (`VALIDATION_TTL_S`) |
 
@@ -148,3 +151,34 @@ answer; qwen measured 1.3–4.0 s, median 2.7 s, about USD 0.0001). Every other 
 - **Overrides:** `AGENT_MODEL`, `AGENT_FALLBACK_MODELS`, `AGENT_STREAM_MODEL` (defaults to `AGENT_MODEL`'s first model), `PERSONALIZE_FALLBACK_MODEL`. Every answer returns `model`, `primary_model` and `fallback_used`, and the server logs `agent answered_by=...`.
 - **Latency, measured 21 Nov:** the first streamed sentence takes about 3–6 s with either Qwen model. Haiku measured about 1.4 s earlier; it is still one env var away (`AGENT_STREAM_MODEL=anthropic/claude-haiku-5.5`).
 - **What the guards do:** financial figures come from the deterministic engine. The agent checks larger numeric claims (100 or more; years and small counts are skipped) against tool outputs or the user's own words, within 2% or CHF 1, and falls back to a template when a claim is not found. This is a number check, not a proof that every sentence is right. Advice and forecast wording are filtered, off-topic and injection text is refused before any LLM call, and spend is capped per day (`LLM_DAILY_BUDGET_USD`).
+
+## Lumi Live (optional realtime voice, thread 11)
+
+A spoken conversation with Lumi, Gemini-Live style: the user just talks, Lumi answers in under a second, can be
+interrupted (barge-in), and every number still comes from our engine through tools.
+
+**Privacy: Live is an OPTIONAL mode. While a Live call is open, the user's voice and this branch's engine results go
+to Google (Gemini Live API).** The default mode stays private: open-weight Qwen (or your own `LLM_BASE_URL`), local
+Kokoro voice and browser speech recognition. The web says so on the call card.
+
+- **How:** the browser never sees the key. `POST /live/token` builds the system prompt (the agent's own rules: scope,
+  numbers only from the engine, no recommendations, if-then wording, user's language EN/ES/FR/DE, plus the current
+  node's results preloaded) and returns a one-use token; `WS /live/ws` proxies browser ⇄ Gemini. Tool calls run here,
+  against the engine, with the user's context (profile, path, assumptions, weather, custom_nodes, node_patches).
+  When the user moves in the tree, the web sends `{type: "context"}` and the proxy tells the model (no reply).
+- **Tools:** `get_current_node`, `get_node`, `compare_nodes`, `what_if`, `what_would_fix_it` (core smallest_change),
+  `what_would_have_to_be_true`, `get_exploration`, `get_assumptions`, `explain_assumption`. Personalisation is not
+  exposed in Live (it needs a confirm step in the app).
+- **Guards:** audio cannot be filtered before it is spoken, so the rules live in the prompt; after each turn the
+  transcript is number-checked against tool outputs (`turn_complete.grounding`, logged when a number is not found).
+  Budget: refused when `LLM_DAILY_BUDGET_USD` is reached, and a running call ends when it would pass it. One session
+  per API process (`LIVE_MAX_SESSIONS`), ends after `LIVE_IDLE_S` (180) of silence or `LIVE_MAX_S` (600) in total.
+  Each session is logged in `api/usage.jsonl` (`purpose: "live"`, tokens, estimated USD, turns, tool calls, first
+  audio ms). Prices are estimates (`LIVE_PRICE_*`).
+- **Config:** `GEMINI_API_KEY`, `LIVE_MODEL` (default `gemini-3.1-flash-live-preview`), `LIVE_VOICE` (default
+  `Aoede`). No key ⇒ `/live/status` says `no_key` and the web keeps the classic call.
+- **Model choice, measured 21 Nov:** `gemini-3.1-flash-live-preview` called the tool in 0.44 s and spoke after
+  0.97 s. `gemini-2.5-flash-native-audio-latest` took 6.3 s and answered with an invented number instead of calling
+  the tool.
+- **Latency through our proxy:** setup 0.8 s; first audio 0.56–0.63 s after a turn with no tool call, about 1.3–2.8 s
+  when an engine tool runs first (what_would_fix_it ≈ 1.8 s of engine time). A 30–60 s call costs about USD 0.01–0.02.

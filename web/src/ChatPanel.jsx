@@ -4,6 +4,7 @@ import { createHistory } from './chatHistory.js';
 import { announcePanel, panelLayout } from './chatPanel.js';
 import Dictation from './Dictation.jsx';
 import { useVoiceNote } from './VoiceNote.jsx';
+import { useLumiLive } from './live/LiveCall.jsx';
 import { createGuide } from '../assets/character/guide/guide.js';
 import '../assets/character/guide/guide.css';
 import './chatPanel.css';
@@ -173,7 +174,9 @@ export default function ChatPanel({ context = {}, lang = 'en', disabled = false,
     disabled={!voice.supported || voice.preparing || busy || disabled} aria-pressed={voice.recording}
     aria-label={voice.recording ? T.stop : T.record} title={voice.recording ? T.stop : T.record}
     onClick={() => { latest.current.onUnlock?.(); voice.toggle(); }}><Icon d={voice.recording ? STOP : MIC} fill={voice.recording} /></button>;
-  const callBtn = callUrl && <a className="chatp-btn" href={callUrl} target="_blank" rel="noreferrer" aria-label={T.call} title={T.call}><Icon d={PHONE} /></a>;
+  const live = useLumiLive({ context, lang, history, onUnlock }); // thread 11: realtime call, classic link as fallback
+  const callBtn = live.available ? <button type="button" className={`chatp-btn ${live.active ? 'is-rec' : ''}`} onClick={live.start} aria-label={T.call} title={T.call}><Icon d={PHONE} /></button>
+    : callUrl && <a className="chatp-btn" href={callUrl} target="_blank" rel="noreferrer" aria-label={T.call} title={T.call}><Icon d={PHONE} /></a>;
   const status = voice.preparing ? T.preparing : busy ? T.thinking : '';
   const problem = error || voice.error;
   const turns = Math.ceil(messages.length / 2);
@@ -182,6 +185,7 @@ export default function ChatPanel({ context = {}, lang = 'en', disabled = false,
 
   return <div className={`chatp ${open ? 'is-open' : ''} ${lumi ? 'has-lumi' : ''}`} data-side={layout.side}
     style={{ '--chatp-w': `${layout.width}px`, '--chatp-h': `${layout.height}px` }}>
+    {live.view}
     {lumi && <div className="chatp-lumi-host" data-layout-obstacle=""><div className="chatp-lumi" ref={lumiEl} /></div>}
     {!open && <div className="chatp-dock-wrap">
       {lumi && (sayText || extra) && <div className="chatp-say-col">

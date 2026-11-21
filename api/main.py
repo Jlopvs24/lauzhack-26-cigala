@@ -31,6 +31,8 @@ ALEXIA = engine.default_profile()
 app = FastAPI(title="cigala API", version="0.1.0")
 app.mount("/static", StaticFiles(directory=str(__import__("pathlib").Path(__file__).parent / "static")), name="static")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+from api.live import router as live_router  # noqa: E402  (thread 11: Lumi Live, api/live.py)
+app.include_router(live_router)
 
 
 class Loose(BaseModel):

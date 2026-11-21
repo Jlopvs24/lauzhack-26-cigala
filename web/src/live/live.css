@@ -1,0 +1,45 @@
+/* Lumi Live (thread 11). A compact call card above the chat dock; follows the app's theme tokens when present. */
+.lumi-live {
+  position: fixed; z-index: 60; right: 16px; bottom: calc(var(--chatp-dock-h, 72px) + 96px);
+  width: min(360px, calc(100vw - 32px)); padding: 14px 16px 12px;
+  border-radius: 18px; background: var(--card-bg, #fffdf8); color: var(--card-ink, #1d2a24); font-family: var(--sans, system-ui);
+  backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .18); font-size: 14px; line-height: 1.4;
+  animation: lumi-live-in .22s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes lumi-live-in { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .lumi-live { animation: none; } }
+.lumi-live-head { display: flex; align-items: center; gap: 8px; }
+.lumi-live-head strong { font-size: 15px; }
+.lumi-live-dot {
+  width: 12px; height: 12px; border-radius: 50%; background: #9aa59f; flex: none;
+  box-shadow: 0 0 0 calc(var(--ring, 0) * 9px) color-mix(in srgb, #2fa36b 28%, transparent);
+  transition: box-shadow .08s linear, background .2s;
+}
+.is-live .lumi-live-dot { background: #2fa36b; }
+.is-live.is-speaking .lumi-live-dot { background: #e0a526; box-shadow: 0 0 0 4px color-mix(in srgb, #e0a526 30%, transparent); }
+.is-error .lumi-live-dot { background: #c9483b; }
+.lumi-live-badge { font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 2px 6px; border-radius: 6px; background: #c9483b; color: #fff; }
+.lumi-live-x { margin-left: auto; border: 0; background: none; color: inherit; font-size: 22px; line-height: 1; cursor: pointer; opacity: .6; padding: 0 2px; }
+.lumi-live-x:hover { opacity: 1; }
+.lumi-live-state { margin: 8px 0 0; font-size: 13px; opacity: .72; }
+.lumi-live-captions { margin-top: 8px; max-height: 9.5em; overflow: auto; display: grid; gap: 6px; }
+.lumi-live-captions p { margin: 0; }
+.lumi-live-captions .is-user { opacity: .7; }
+.lumi-live-captions b { font-weight: 600; margin-right: 4px; }
+.lumi-live-msg { margin: 8px 0 0; font-size: 13px; }
+.lumi-live-msg.is-error { color: #b23a2e; }
+.lumi-live-type { display: flex; gap: 6px; margin-top: 10px; }
+.lumi-live-type input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 10px; border: 1px solid color-mix(in srgb, currentColor 20%, transparent); background: transparent; color: inherit; font: inherit; }
+.lumi-live-actions { display: flex; gap: 8px; margin-top: 10px; }
+.lumi-live button:not(.lumi-live-x) {
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent); background: transparent; color: inherit;
+  border-radius: 10px; padding: 7px 12px; font: inherit; cursor: pointer;
+}
+.lumi-live button:disabled { opacity: .45; cursor: default; }
+.lumi-live .lumi-live-end { background: #c9483b; border-color: #c9483b; color: #fff; margin-left: auto; }
+.lumi-live .lumi-live-retry { margin-left: auto; }
+.lumi-live .lumi-live-mute.is-on { background: color-mix(in srgb, currentColor 10%, transparent); }
+.lumi-live-privacy { margin: 10px 0 0; font-size: 11px; opacity: .6; }
+@media (max-width: 640px) { .lumi-live { left: 16px; right: 16px; width: auto; bottom: calc(var(--chatp-dock-h, 72px) + 80px); } }
