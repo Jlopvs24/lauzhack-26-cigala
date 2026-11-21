@@ -295,3 +295,22 @@ body:has(.drawer, .path-report, [aria-modal="true"]:not(.cmp)) .cmp-bar { displa
 .cmp-empty-plus { width: 40px; height: 40px; font-size: 22px; color: var(--card-muted); }
 .cmp-empty button { font: inherit; padding: 9px 18px; border-radius: 999px; cursor: pointer; border: 1px solid var(--card-line); background: transparent; color: inherit; }
 
+
+/* #112: on desktop the bar is a pure overlay in a corner reserved at all times (.cmp-corner is a permanent
+   layout obstacle), so pinning never moves a card, and the bar never covers one. Compact: "Compare n" and clear. */
+.cmp-corner { display: none; }
+.cmp-bar-go-short { display: none; }
+@media (min-width: 721px) {
+  .cmp-corner { display: block; position: fixed; top: 80px; right: calc(20px + var(--chat-panel-w, 0px)); width: 236px; height: 52px;
+    visibility: hidden; pointer-events: none; }
+  .cmp-options-mount ~ .cmp-bar, #stage ~ .cmp-bar { top: 84px; right: calc(24px + var(--chat-panel-w, 0px)); max-width: 228px;
+    flex-wrap: nowrap; gap: 2px; padding: 3px; border-radius: 999px; }
+  #stage ~ .cmp-bar .cmp-bar-chips, #stage ~ .cmp-bar .cmp-bar-count, #stage ~ .cmp-bar .cmp-bar-go-long { display: none; }
+  #stage ~ .cmp-bar .cmp-bar-go-short { display: inline; }
+  #stage ~ .cmp-bar .cmp-bar-actions { margin-left: 0; flex-direction: row-reverse; }
+  #stage ~ .cmp-bar .cmp-bar-go { display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 999px; white-space: nowrap; }
+  #stage ~ .cmp-bar .cmp-bar-n { display: inline-grid; }
+  #stage ~ .cmp-bar .cmp-bar-clear { padding: 8px 10px; font-size: 13px; }
+  /* the first-use hint sits low on the left, beside the weather rail, away from the branch tips */
+  .cmp-hint { top: auto; bottom: 24px; left: 96px; transform: none; max-width: min(440px, calc(100vw - var(--chat-panel-w, 0px) - 560px)); }
+}

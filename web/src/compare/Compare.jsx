@@ -68,7 +68,10 @@ export function CompareBar({ lang = 'en', tr, hidden = false }) {
       <button type="button" aria-label={L.remove(label(i.path.at(-1), i.label))} onClick={() => compareStore.remove(i.key)}>×</button></li>)}</ul>
     <div className="cmp-bar-actions">
       <button type="button" className="cmp-bar-clear" onClick={() => compareStore.clear()}>{L.clear}</button>
-      <button type="button" className="cmp-bar-go" onClick={() => openCompare()}>{items.length < 2 ? L.withAlternatives : L.compare}<i className="cmp-bar-n" aria-hidden="true">{items.length}</i></button>
+      <button type="button" className="cmp-bar-go" onClick={() => openCompare()} title={items.length < 2 ? L.withAlternatives : L.compare}>
+        <span className="cmp-bar-go-long">{items.length < 2 ? L.withAlternatives : L.compare}</span>
+        <span className="cmp-bar-go-short" aria-hidden="true">{L.compare}</span>
+        <i className="cmp-bar-n" aria-hidden="true">{items.length}</i></button>
     </div>
   </div>;
 }
@@ -116,6 +119,8 @@ export function CompareRoot({ lang = 'en', tr, profile = null, assumptions = [],
   }, []);
   const paths = open ? (open.paths || items.map((i) => i.path)) : null;
   return <>
+    {/* #112: desktop keeps this corner for the bar at all times, so pinning never moves a card */}
+    {showBar && <div className="cmp-corner" data-layout-obstacle="" aria-hidden="true" />}
     {showBar && <CompareBar lang={lang} tr={tr} hidden={!!open} />}
     {showBar && <CompareHint lang={lang} hidden={!!open} />}
     {open && <Suspense fallback={null}>
