@@ -7,6 +7,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { buildFromLevels, loadExploration, loadLevels, loadLiveValidation, loadSummary, mergeExploration } from './pathReport.js';
 import { chf, compareLevels, constraintRows, fmtVal, heroTiles, oneLiner, plainTemplate, qualKeys, signedChf, stressRows, timeSeries, tornadoRows, whatIfCards } from './reportModel.js';
 import { ri } from './reportI18n.js';
+import { usePersonalItems } from '../personalize/YourConditions.jsx';
+import { describe as describeOwn } from '../personalize/model.js';
 import { H_I18N } from '../scene/headline.js';
 import { CompareLevels, MarginRows, StressRows, TimeChart, Tornado } from './charts.jsx';
 import './report.css';
@@ -33,7 +35,9 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
   const [openStep, setOpenStep] = useState(null), [trueStep, setTrueStep] = useState(null);
   const [live, setLive] = useState(null), [plainOpen, setPlainOpen] = useState(false);
   const root = useRef(null);
-  const key = JSON.stringify([path, assumptions, profile ? JSON.stringify(profile).length : 0]);
+  const mine = usePersonalItems(); // the user's own conditions (web/src/personalize), sent with every request
+  const key = JSON.stringify([path, assumptions, profile ? JSON.stringify(profile).length : 0, mine.map((it) => it.id)]);
+  const ownOf = (id) => mine.filter((it) => (it.mode === 'patch' ? it.node_id === id : it.custom_node?.node_id === id));
   const name = (n) => tr({ label: n.label, description: n.description }).label;
 
   // stage 1 + 2: the engine's numbers (fast), then the what-ifs. A refetch keeps the previous frame.
@@ -164,8 +168,9 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
             </div>
           </li>
           {steps.map((s, i) => {
-            const dn = s.delta_vs_parent?.final_net_worth_real, open = openStep === i;
-            return <li className={`vr-node ${open ? 'open' : ''} ${i === steps.length - 1 ? 'leaf' : ''}`} key={s.node_id}>
+            const dn = s.delta_vs_parent?.final_net_worth_real, open = openStep === i, own = ownOf(s.node_id);
+            const custom = s.custom || own.some((it) => it.mode === 'branch');
+            return <li className={`vr-node ${open ? 'open' : ''} ${i === steps.length - 1 ? 'leaf' : ''} ${custom ? 'custom' : ''}`} key={s.node_id}>
               <span className="vr-node-dot" aria-hidden="true" />
               <button type="button" className="vr-node-card" aria-expanded={open} aria-controls="vr-step-detail" onClick={() => setOpenStep(open ? null : i)}>
                 <span className="vr-stepno">{L.step(i + 1)}</span>
@@ -176,6 +181,8 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
                     <span aria-hidden="true">{!Number.isFinite(dn) || Math.abs(dn) < 0.5 ? '→' : dn > 0 ? '▲' : '▼'}</span>
                     {Number.isFinite(dn) && Math.abs(dn) >= 0.5 ? `${signedChf(dn)} ${L.nwShort}` : L.noChange}</span>
                   {s.summary.first_negative_month != null && <span className="vr-chip bad sm">{L.gapChip(s.summary.first_negative_month + 1)}</span>}
+                  {custom && <span className="vr-chip own sm">{L.yourBranch}</span>}
+                  {own.filter((it) => it.mode === 'patch').map((it) => <span key={it.id} className="vr-chip own sm" title={it.label}>{L.yourCond}: {it.label}</span>)}
                 </span>
                 <span className="vr-node-more">{open ? L.hideDetail : L.showDetail}</span>
               </button>
@@ -184,6 +191,7 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
         </ol>
         {openStep != null && steps[openStep] && <div className="vr-step-detail" id="vr-step-detail">
           <div>
+            {ownOf(steps[openStep].node_id).length > 0 && <><h3>{L.aYours}</h3><ul className="vr-own-l">{ownOf(steps[openStep].node_id).flatMap((it) => (it.interventions || []).map((iv, j) => <li key={it.id + j}>{describeOwn(iv, lang)}</li>))}</ul></>}
             <h3>{L.changes}</h3>
             {steps[openStep].changes?.length ? <ul>{steps[openStep].changes.map((c, i) => <li key={i}>{c}</li>)}</ul> : <p className="vr-muted">{L.none}</p>}
           </div>
@@ -273,6 +281,11 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
             </table></div> : <p className="vr-muted">–</p>}
           </Disclosure>
           <Disclosure n={4} title={L.dAssume}>
+            {mine.length > 0 && <><h4>{L.aYours}</h4><ul className="vr-own">{mine.map((it) => <li key={it.id}>
+              <span className={`vr-chip sm ${it.mode === 'branch' ? 'own solid' : 'own'}`}>{it.mode === 'branch' ? L.yourBranch : L.yourCond}</span>
+              <span><b>{it.label}</b>{it.mode === 'patch' ? <small> · {(() => { const st = [data.baseline, ...steps].find((x) => x.node_id === it.node_id); return st ? name(st) : it.node_label; })()}</small> : null}
+                <small className="vr-own-d">{(it.interventions || []).map((iv) => describeOwn(iv, lang)).join(' · ')}{it.text ? ` · “${it.text}”` : ''}</small></span>
+            </li>)}</ul></>}
             {introduced.length > 0 && <><h4>{L.aPath}</h4><div className="vr-scroll"><table className="vr-table vr-atable">
               <thead><tr><th>{L.aName}</th><th>{L.value}</th><th>{L.aKind}</th><th>{L.aSource}</th></tr></thead>
               <tbody>{introduced.map(assumptionRow)}</tbody></table></div></>}

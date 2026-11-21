@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Make it mine demo</title>
+    <link rel="icon" href="data:," />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; min-height: 100%; } body { font: 15px/1.5 Inter, system-ui, sans-serif; background: linear-gradient(160deg, #9fb5a3, #5f7a6a 60%, #2f3f37); }
+      :root[data-theme="dark"] body { background: linear-gradient(160deg, #1c2a26, #0e1512); }
+      .stage { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; padding: 32px 24px; }
+      .col { display: grid; gap: 14px; justify-items: start; }
+    </style>
+  </head>
+  <body>
+    <!-- Dev-only page (not in the build): /src/personalize/demo.html?lang=de&theme=dark&state=ask|proposal|clarify|branch&seed=1&app=1 -->
+    <div id="root"></div>
+    <script type="module" src="./demo.jsx"></script>
+  </body>
+</html>

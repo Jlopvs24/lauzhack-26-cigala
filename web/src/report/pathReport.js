@@ -6,6 +6,8 @@
 //  3. loadSummary: POST /report/summary in the background, only for the language model's wording of the
 //     summary (seconds). The page shows a deterministic template until it arrives and never blocks on it.
 import { apiRequest } from '../api.js';
+import { personalFields } from '../personalize/store.js';
+// Every request carries the user's own conditions (custom_nodes / node_patches) from the session store.
 
 export function summary(r) {
   const m = r?.metrics || {}, goals = r?.goals || [];
@@ -21,7 +23,7 @@ const delta = (a, b, k) => (a?.metrics?.[k] != null && b?.metrics?.[k] != null ?
 const series = (r) => ({ cash: r?.deterministic?.cash || [], net_worth: r?.deterministic?.net_worth || [], net_worth_real: r?.deterministic?.net_worth_real || [] });
 
 export function expandBody({ profile, path, assumptions = [], uncertainty = false }) {
-  return { path, assumptions, uncertainty, exploration: false, ...(profile ? { profile } : {}) };
+  return { path, assumptions, uncertainty, exploration: false, ...(profile ? { profile } : {}), ...personalFields() };
 }
 
 // Stage 1. `expand(path, isLeaf)` is injectable for tests; the lens (Monte Carlo) is asked for the leaf only.
@@ -36,7 +38,7 @@ export function buildFromLevels(levels, { profile, path, assumptions = [], uncer
   const steps = levels.slice(1).map((d, i) => {
     const n = curOf(d), parent = curOf(levels[i]);
     return {
-      node_id: n.node_id, parent_id: n.parent_id, label: n.label, description: n.description, depth: n.depth, interventions: n.interventions || [],
+      node_id: n.node_id, parent_id: n.parent_id, label: n.label, description: n.description, depth: n.depth, interventions: n.interventions || [], custom: !!(n.custom || n.origin === 'user'),
       changes: n.changes || [], assumptions_introduced: n.assumptions_introduced || [],
       delta_vs_parent: Object.fromEntries(['final_net_worth_real', 'final_net_worth', 'min_cash', 'final_debt', 'liquidity_months'].map((k) => [k, delta(n.result, parent.result, k)])),
       headline: n.result?.headline || null, result: n.result, summary: summary(n.result),
@@ -77,7 +79,7 @@ export function buildFromLevels(levels, { profile, path, assumptions = [], uncer
 
 // Stage 2: exploration + tornado for every step, in parallel. Resolves to one entry per step (null on failure).
 export function loadExploration({ profile, path, assumptions = [], explore, signal }) {
-  const call = explore || ((p) => apiRequest('/tree/explore', { body: { path: p, assumptions, ...(profile ? { profile } : {}) }, signal }));
+  const call = explore || ((p) => apiRequest('/tree/explore', { body: { path: p, assumptions, ...(profile ? { profile } : {}), ...personalFields() }, signal }));
   return Promise.all(path.map((_, i) => call(path.slice(0, i + 1)).catch(() => null)));
 }
 
@@ -94,7 +96,7 @@ export function mergeExploration(data, explored) {
 // translates the deterministic template and returns the template if any number is not in it; we only take
 // its text. Older APIs without that route still word it inside POST /report. Never awaited by the first render.
 export async function loadSummary({ profile, path, assumptions = [], uncertainty = false, lang = 'en', signal }) {
-  const body = { path, assumptions, uncertainty, language: lang, ...(profile ? { profile } : {}) };
+  const body = { path, assumptions, uncertainty, language: lang, ...(profile ? { profile } : {}), ...personalFields() };
   try {
     const s = await apiRequest('/report/summary', { body, signal });
     if (s?.text) return { text: s.text, mode: s.mode || 'template', model: s.model, lang, testEvidence: [] };
