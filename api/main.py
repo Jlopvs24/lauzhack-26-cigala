@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import time
-from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -22,8 +21,7 @@ load_env()
 
 from api import agent, voice  # noqa: E402  (need env loaded)
 
-FIXTURES = Path(__file__).parent / "fixtures"
-ALEXIA = json.loads((FIXTURES / "alexia.json").read_text(encoding="utf-8"))
+ALEXIA = engine.default_profile()
 
 app = FastAPI(title="cigala API", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -78,7 +76,7 @@ def demo_profile():
 def tree_expand(req: ExpandReq):
     t0 = time.perf_counter()
     try:
-        out = engine.expand(req.profile or ALEXIA, req.path, req.assumptions, req.weather)
+        out = engine.expand(req.profile, req.path, req.assumptions, req.weather)
     except (KeyError, ValueError) as e:
         raise HTTPException(422, f"bad path: {e}") from e
     return {**out, "engine": engine.ENGINE_NAME, **_meta(t0)}
@@ -88,7 +86,7 @@ def tree_expand(req: ExpandReq):
 def simulate(req: SimulateReq):
     t0 = time.perf_counter()
     try:
-        res = engine.simulate(req.profile or ALEXIA, req.node, req.assumptions, req.weather)
+        res = engine.simulate(req.profile, req.node, req.assumptions, req.weather)
     except (KeyError, ValueError) as e:
         raise HTTPException(422, str(e)) from e
     return {"result": res, **_meta(t0)}
@@ -115,7 +113,8 @@ async def profiles_extract(files: list[UploadFile] | None = File(None), text: st
 def agent_ask(req: AskReq):
     t0 = time.perf_counter()
     ctx = dict(req.context)
-    ctx.setdefault("profile", ALEXIA)
+    if not ctx.get("profile"):
+        ctx["profile"] = ALEXIA
     out = agent.ask(req.question, ctx)
     return {**out, "latency_ms": int((time.perf_counter() - t0) * 1000)}
 
@@ -145,7 +144,8 @@ async def voice_ask(audio: UploadFile = File(...), context: str = Form("{}"), la
         ctx = json.loads(context or "{}")
     except json.JSONDecodeError as e:
         raise HTTPException(422, "context must be a JSON object") from e
-    ctx.setdefault("profile", ALEXIA)
+    if not ctx.get("profile"):
+        ctx["profile"] = ALEXIA
     if heard.get("language") and not ctx.get("language"):
         ctx["language"] = heard["language"]
     out = agent.ask(heard["text"], ctx)

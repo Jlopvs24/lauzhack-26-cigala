@@ -16,7 +16,7 @@ from api.env import load_env
 
 load_env()
 
-from api import agent  # noqa: E402
+from api import agent, engine  # noqa: E402
 
 QUESTIONS = [
     ("¿Por qué el máster se queda sin dinero?", {"path": ["2"]}),
@@ -38,8 +38,7 @@ def run(models: list[str]) -> list[dict]:
         os.environ["AGENT_FALLBACK_MODELS"] = m
         for q, ctx in QUESTIONS:
             t0 = time.perf_counter()
-            r = agent.ask(q, {"profile": json.loads((Path(__file__).parent / "fixtures/alexia.json").read_text()),
-                              **ctx})
+            r = agent.ask(q, {"profile": engine.default_profile(), **ctx})
             rows.append({"model": m, "question": q, "mode": r["mode"], "grounded_llm": r["mode"] == "llm",
                          "advice": any(w in r["answer"].lower() for w in ADVICE_WORDS),
                          "lang": r["language"], "cost_usd": r["cost_usd"], "tokens": r["tokens"],
