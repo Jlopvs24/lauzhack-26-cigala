@@ -9,6 +9,7 @@ Everything else is "pruned" and never simulated. Going back one level is just
 """
 from __future__ import annotations
 
+import copy
 import json
 import threading
 from collections import OrderedDict
@@ -16,7 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from .assumptions import AssumptionSet, build_assumptions
-from .models import Profile
+from .models import Profile, parse_interventions
+from .schedule import build_schedule
 from . import plan as pl
 from .simulate import DEFAULT_PATHS, DEFAULT_SEED, simulate_node, trace_id
 from .weather import weather_catalog
@@ -131,6 +133,7 @@ def pruned_nodes(tree: dict, path: list[str] | str | None) -> list[dict]:
                 "status": "pruned",
                 "depth": len(lineage(tree, sid)) - 1,
                 "has_children": bool(sib.get("children")),
+                "custom": bool(sib.get("custom")),
             })
     return out
 
@@ -205,6 +208,123 @@ def assumptions_introduced(ivs: list[dict], aset: AssumptionSet) -> list[dict]:
     return out
 
 
+# --- personal conditions: custom nodes and node patches (plan.md "the tree re-grows") ---
+
+def personalize(tree: dict, custom_nodes: list[dict] | None = None,
+                node_patches: dict[str, list[dict]] | None = None) -> dict:
+    """The tree with the user's own conditions applied, on a deep copy (the input is untouched).
+
+    custom_nodes: ``[{"parent_id", "node_id", "label", "description"?, "interventions": [...]}]``,
+    added as children of ``parent_id`` (a tree node or another custom node, in any order). They
+    inherit their ancestors' interventions like normal nodes and are marked ``custom: true``.
+    node_patches: ``{node_id: [interventions...]}`` appended to that node's own interventions,
+    so the node and its whole subtree recompute; marked ``patched: true`` + ``patch_interventions``.
+    Without either argument the tree is returned as is (no copy). Structure is checked here,
+    intervention values by ``check_personal`` (it needs the profile and assumptions)."""
+    if not custom_nodes and not node_patches:
+        return tree
+    if custom_nodes is not None and not isinstance(custom_nodes, list):
+        raise ValueError("custom_nodes must be a list of {parent_id, node_id, label, interventions}")
+    if node_patches is not None and not isinstance(node_patches, dict):
+        raise ValueError("node_patches must be an object {node_id: [interventions...]}")
+    out = copy.deepcopy(tree)
+    idx = _index(out)
+    pending, seen = [], set()
+    for i, c in enumerate(custom_nodes or []):
+        lab = f"custom_nodes[{i}]"
+        if not isinstance(c, dict):
+            raise ValueError(f"{lab} must be an object")
+        nid, parent = c.get("node_id"), c.get("parent_id")
+        if not isinstance(nid, str) or not nid.strip():
+            raise ValueError(f"{lab}.node_id must be a non-empty string, e.g. '2.c1'")
+        if nid in idx or nid in seen:
+            raise ValueError(f"{lab}.node_id {nid!r} already exists in the tree")
+        if parent is None or not str(parent).strip():
+            raise ValueError(f"{lab}.parent_id is required")
+        label = c.get("label")
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError(f"{lab}.label must be a non-empty string")
+        if c.get("description") is not None and not isinstance(c["description"], str):
+            raise ValueError(f"{lab}.description must be a string")
+        _check_shape(c.get("interventions"), f"{lab}.interventions", allow_empty=True)
+        seen.add(nid)
+        pending.append((lab, str(parent), {"node_id": nid, "label": label,
+                                           "description": c.get("description") or "",
+                                           "interventions": copy.deepcopy(c["interventions"]),
+                                           "custom": True}))
+    while pending:  # a parent may be a custom node listed later
+        rest = []
+        for lab, parent, node in pending:
+            if parent in idx:
+                idx[parent][0].setdefault("children", []).append(node)
+                idx[node["node_id"]] = (node, parent)
+            else:
+                rest.append((lab, parent, node))
+        if len(rest) == len(pending):
+            lab, parent, _ = rest[0]
+            raise ValueError(f"{lab}.parent_id {parent!r} is not a node of the tree or a custom node")
+        pending = rest
+    for nid, ivs in (node_patches or {}).items():
+        lab = f"node_patches[{nid!r}]"
+        if str(nid) not in idx:
+            raise ValueError(f"{lab}: unknown node_id {nid!r}")
+        _check_shape(ivs, lab, allow_empty=False)
+        node = idx[str(nid)][0]
+        node["interventions"] = list(node.get("interventions") or []) + copy.deepcopy(ivs)
+        node["patched"] = True
+        node["patch_interventions"] = copy.deepcopy(ivs)
+    return out
+
+
+def _check_shape(ivs, lab: str, *, allow_empty: bool) -> None:
+    if not isinstance(ivs, list) or (not ivs and not allow_empty):
+        raise ValueError(f"{lab} must be a {'' if allow_empty else 'non-empty '}list of interventions")
+    for j, iv in enumerate(ivs):
+        if not isinstance(iv, dict) or not isinstance(iv.get("param"), str):
+            raise ValueError(f"{lab}[{j}] must be an intervention object with a 'param'")
+
+
+def check_personal(tree: dict, prof: Profile, aset: AssumptionSet) -> None:
+    """Validate custom and patched nodes with the normal intervention schema, in context: the
+    assumptions their ancestors set resolve, and the whole path must build (e.g. a
+    ``monthly_gross_income`` needs the profile's ``age`` and no ``take_home`` basis;
+    ``cancel_one_off`` needs a matching one-off). Raises ``ValueError`` naming the node."""
+    for nid, (node, _) in _index(tree).items():
+        if node.get("custom"):
+            own, where = node.get("interventions") or [], f"custom node {nid!r} interventions"
+        elif node.get("patched"):
+            own, where = node["patch_interventions"], f"node_patches[{nid!r}]"
+        else:
+            continue
+        try:
+            flat = flatten_interventions(tree, nid)
+            A = aset.with_node_values(flat).values()
+            parse_interventions(own, A, prof.horizon_months, where=where)
+            build_schedule(prof, parse_interventions(flat, A, prof.horizon_months), A)
+        except (ValueError, KeyError, TypeError) as e:
+            msg = str(e)
+            raise ValueError(msg if msg.startswith(where) else f"{where}: {msg}") from None
+
+
+def _personal_tree(tree, custom_nodes, node_patches, prof, aset) -> dict:
+    out = personalize(tree, custom_nodes, node_patches)
+    if out is not tree:
+        check_personal(out, prof, aset)
+    return out
+
+
+def personal_flags(tree: dict, node_id: str, chain: list[dict] | None = None) -> dict:
+    """Output markers: ``custom``, ``patched`` (+ ``patch_interventions``), and
+    ``inherits_patch`` when an ancestor was patched (its numbers moved too)."""
+    chain = chain or lineage(tree, node_id)
+    node = chain[-1]
+    out = {"custom": bool(node.get("custom")), "patched": bool(node.get("patched")),
+           "inherits_patch": any(a.get("patched") for a in chain[:-1])}
+    if node.get("patched"):
+        out["patch_interventions"] = node["patch_interventions"]
+    return out
+
+
 DELTA_KEYS = ("final_net_worth", "final_net_worth_p50", "min_cash", "shortfall_probability", "final_cash")
 
 
@@ -212,7 +332,8 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
            assumptions: list[dict] | dict | None = None, weather: list | None = None, *,
            tree: dict | None = None, n_paths: int = DEFAULT_PATHS, seed: int = DEFAULT_SEED,
            sensitivity: bool = True, include_flows: bool = False,
-           uncertainty: bool = False, exploration: bool = True) -> dict:
+           uncertainty: bool = False, exploration: bool = True,
+           custom_nodes: list[dict] | None = None, node_patches: dict | None = None) -> dict:
     """Visible part of the tree for the chosen ``path``, each node with its SimulationResult.
 
     path: chosen node ids from the root, e.g. [], ["2"], ["2", "2.2"] (a leading "0" is ignored).
@@ -225,11 +346,13 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
     every visible node; off by default.
     ``pruned_nodes`` lists the branches turned away from earlier (siblings of every
     ancestor), label only, never simulated.
+    ``custom_nodes`` / ``node_patches``: the user's own conditions (see ``personalize``).
     """
     tree = tree or load_tree()
     profile = profile or load_profile()
     prof = Profile.from_dict(profile)
     aset = build_assumptions(tree.get("assumptions", []), assumptions)
+    tree = _personal_tree(tree, custom_nodes, node_patches, prof, aset)
     values = aset.values()
     path = normalise_path(tree, path)
     vis = visible_nodes(tree, path)
@@ -259,6 +382,7 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
                          if m[k] is not None and pm[k] is not None else None) for k in DELTA_KEYS}
             delta["health_score"] = round(res["health"]["score"] - results[parent]["health"]["score"], 1)
         ivs = node.get("interventions", []) or []
+        chain = lineage(tree, nid)
         nodes.append({
             "node_id": nid,
             "parent_id": parent,
@@ -266,13 +390,14 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
             "description": node.get("description", ""),
             "status": "chosen" if status in ("root", "focus", "chosen") else status,
             "is_current": nid == current,
-            "depth": len(lineage(tree, nid)) - 1,
+            "depth": len(chain) - 1,
             "has_children": bool(node.get("children")),
             "interventions": ivs,
             "changes": [describe_intervention(iv, values) for iv in ivs],
             "assumptions_ref": assumption_refs(ivs),
             "assumptions_introduced": assumptions_introduced(ivs, aset),
             "delta_vs_parent": delta,
+            **personal_flags(tree, nid, chain),
             # copy: cached results are shared, the headline depends on which siblings are visible
             "result": {**res, "headline": pl.headline(res, [results[o] for o, p in group.get(parent, [])
                                                             if o != nid and o in results],
@@ -312,8 +437,11 @@ def _cached_simulate(prof: Profile, tree: dict, node_id: str, aset: AssumptionSe
                      uncertainty: bool = False, exploration: bool = False) -> dict:
     ivs = flatten_interventions(tree, node_id)
     peers = comparators(tree, node_id) if exploration else []
+    own = _index(tree)[node_id][0].get("interventions", []) or []
+    # the key covers the FULL flattened interventions (patches and custom nodes included), the
+    # node's own part (timing) and the peers (break-even), so personal trees never collide
     key = trace_id(prof.raw, ivs, aset.to_list(), weather, n_paths, seed, sensitivity, include_flows, node_id,
-                   uncertainty, exploration, peers)
+                   uncertainty, exploration, peers, own)
     with _LOCK:
         if key in _CACHE:
             _CACHE.move_to_end(key)
@@ -321,8 +449,7 @@ def _cached_simulate(prof: Profile, tree: dict, node_id: str, aset: AssumptionSe
     res = simulate_node(prof, ivs, assumptions=aset, weather=weather, node_id=node_id, n_paths=n_paths,
                         seed=seed, sensitivity=sensitivity, include_flows=include_flows,
                         uncertainty=uncertainty, exploration=exploration,
-                        own_interventions=_index(tree)[node_id][0].get("interventions", []) or [],
-                        comparators=peers)
+                        own_interventions=own, comparators=peers)
     with _LOCK:
         _CACHE[key] = res
         if len(_CACHE) > _CACHE_MAX:
@@ -333,14 +460,18 @@ def _cached_simulate(prof: Profile, tree: dict, node_id: str, aset: AssumptionSe
 def simulate(profile: dict | None = None, node: dict | str | None = None,
              assumptions: list[dict] | dict | None = None, weather: list | None = None, *,
              tree: dict | None = None, n_paths: int = DEFAULT_PATHS, seed: int = DEFAULT_SEED,
-             sensitivity: bool = True, uncertainty: bool = False, exploration: bool = True) -> dict:
+             sensitivity: bool = True, uncertainty: bool = False, exploration: bool = True,
+             custom_nodes: list[dict] | None = None, node_patches: dict | None = None) -> dict:
     """One SimulationResult (deterministic; ``uncertainty=True`` adds the Monte Carlo lens,
     ``exploration=True`` adds the what-would-have-to-be-true analyses). ``node`` is a node id of the tree, ``{"node_id": ...}`` (looked up
     in the tree, interventions inherited from its ancestors) or ``{"node_id": ..., "parent_id": ...,
-    "interventions": [...]}`` for a node not in the tree (applied on top of its parent's path)."""
+    "interventions": [...]}`` for a node not in the tree (applied on top of its parent's path).
+    ``custom_nodes`` / ``node_patches``: the user's own conditions (see ``personalize``)."""
     tree = tree or load_tree()
     profile = profile or load_profile()
     aset = build_assumptions(tree.get("assumptions", []), assumptions)
+    if custom_nodes or node_patches:
+        tree = _personal_tree(tree, custom_nodes, node_patches, Profile.from_dict(profile), aset)
     node = {"node_id": node} if isinstance(node, str) else (node or {"node_id": str(tree["root"]["node_id"])})
     nid = str(node.get("node_id", "custom"))
     idx = _index(tree)
@@ -363,16 +494,17 @@ def simulate(profile: dict | None = None, node: dict | str | None = None,
                          comparators=peers)
 
 
-def node_info(node_id: str, tree: dict | None = None) -> dict:
+def node_info(node_id: str, tree: dict | None = None, *, custom_nodes: list[dict] | None = None, node_patches: dict | None = None) -> dict:
     """Static description of a node (no simulation)."""
-    tree = tree or load_tree()
+    tree = personalize(tree or load_tree(), custom_nodes, node_patches)
     idx = _index(tree)
     if node_id not in idx:
         raise ValueError(f"unknown node_id {node_id!r}")
     node, parent = idx[node_id]
     return {"node_id": node_id, "parent_id": parent, "label": node.get("label", node_id),
             "description": node.get("description", ""), "interventions": node.get("interventions", []) or [],
-            "children": [str(c["node_id"]) for c in node.get("children", []) or []]}
+            "children": [str(c["node_id"]) for c in node.get("children", []) or []],
+            **personal_flags(tree, node_id)}
 
 
 def assumptions_list(overrides: list[dict] | dict | None = None, tree: dict | None = None) -> list[dict]:
@@ -382,7 +514,8 @@ def assumptions_list(overrides: list[dict] | dict | None = None, tree: dict | No
 
 def explore(profile: dict | None = None, path: list[str] | str | None = None,
             assumptions: list[dict] | dict | None = None, weather: list | None = None, *,
-            tree: dict | None = None, n_paths: int = DEFAULT_PATHS, seed: int = DEFAULT_SEED) -> dict:
+            tree: dict | None = None, n_paths: int = DEFAULT_PATHS, seed: int = DEFAULT_SEED,
+            custom_nodes: list[dict] | None = None, node_patches: dict | None = None) -> dict:
     """The heavy, current-node-only part of ``expand``, for lazy loading: the deterministic
     exploration analyses and the tornado of the node at the end of ``path``. Pair it with
     ``expand(..., exploration=False, sensitivity=False)``, which then stays fast."""
@@ -390,6 +523,7 @@ def explore(profile: dict | None = None, path: list[str] | str | None = None,
     profile = profile or load_profile()
     prof = Profile.from_dict(profile)
     aset = build_assumptions(tree.get("assumptions", []), assumptions)
+    tree = _personal_tree(tree, custom_nodes, node_patches, prof, aset)
     path = normalise_path(tree, path)
     current = path[-1] if path else str(tree["root"]["node_id"])
     res = _cached_simulate(prof, tree, current, aset, normalise_weather(weather), n_paths, seed,
@@ -399,17 +533,20 @@ def explore(profile: dict | None = None, path: list[str] | str | None = None,
             "plan_check": res["plan_check"]}
 
 
-def warm(profile: dict | None = None, *, tree: dict | None = None, explore_nodes: bool = False) -> int:
+def warm(profile: dict | None = None, *, tree: dict | None = None, explore_nodes: bool = False,
+         custom_nodes: list[dict] | None = None, node_patches: dict | None = None) -> int:
     """Precompute every node of the tree for ``profile`` (default: the demo profile) so the
     first clicks hit the cache. Meant for a background thread at API start-up. Returns the
-    number of paths warmed."""
+    number of paths warmed. With ``custom_nodes`` / ``node_patches`` it warms that personal tree
+    (same cache keys as the matching ``expand`` / ``explore`` calls)."""
     tree = tree or load_tree()
-    idx = _index(tree)
+    kw = {"custom_nodes": custom_nodes, "node_patches": node_patches}
+    full = personalize(tree, custom_nodes, node_patches)
     n = 0
-    for nid in idx:
-        p = normalise_path(tree, nid)
-        expand(profile, p, tree=tree, exploration=False, sensitivity=False)
+    for nid in _index(full):
+        p = normalise_path(full, nid)
+        expand(profile, p, tree=tree, exploration=False, sensitivity=False, **kw)
         if explore_nodes:
-            explore(profile, p, tree=tree)
+            explore(profile, p, tree=tree, **kw)
         n += 1
     return n

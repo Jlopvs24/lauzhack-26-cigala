@@ -12,8 +12,9 @@ from .assumptions import build_assumptions
 from .models import Profile
 from .plan import WEATHER_TYPES, headline
 from .simulate import DEFAULT_PATHS, DEFAULT_SEED, ENGINE_VERSION, simulate_node
-from .tree import (_index, assumptions_introduced, comparators, describe_intervention, flatten_interventions,
-                   lineage, load_profile, load_tree, normalise_path, normalise_weather)
+from .tree import (_index, _personal_tree, assumptions_introduced, comparators, describe_intervention, flatten_interventions,
+                   lineage, load_profile, load_tree, normalise_path, normalise_weather,
+                   personal_flags)
 
 LIMITATIONS = [
     "Synthetic profile and illustrative figures (UBS starter kit); assumptions with verified=false are modelling choices.",
@@ -53,11 +54,13 @@ def _provenance(profile: dict) -> list[dict]:
 def report_data(profile: dict | None = None, path: list[str] | str | None = None,
                 assumptions: list[dict] | dict | None = None, weather: list | None = None, *,
                 tree: dict | None = None, uncertainty: bool = False,
-                n_paths: int = DEFAULT_PATHS, seed: int = DEFAULT_SEED) -> dict:
+                n_paths: int = DEFAULT_PATHS, seed: int = DEFAULT_SEED,
+                custom_nodes: list[dict] | None = None, node_patches: dict | None = None) -> dict:
     tree = tree or load_tree()
     profile = profile or load_profile()
     prof = Profile.from_dict(profile)
     aset = build_assumptions(tree.get("assumptions", []), assumptions)
+    tree = _personal_tree(tree, custom_nodes, node_patches, prof, aset)
     values = aset.values()
     idx = _index(tree)
     path = normalise_path(tree, path)
@@ -96,9 +99,10 @@ def report_data(profile: dict | None = None, path: list[str] | str | None = None
                                 for k in ("final_net_worth_real", "final_net_worth", "min_cash", "final_debt",
                                           "liquidity_months")},
             "headline": res["headline"],
+            **personal_flags(tree, nid),
             "result": res,
             "alternatives": [{"node_id": str(s["node_id"]), "label": s.get("label", s["node_id"]),
-                              "status": "sibling", "summary": summary(r),
+                              "status": "sibling", "custom": bool(s.get("custom")), "summary": summary(r),
                               "headline": headline(r, [res] + [q for t, q in peers if t is not s], parent_res)}
                              for s, r in peers],
         })
@@ -132,6 +136,8 @@ def report_data(profile: dict | None = None, path: list[str] | str | None = None
                      "path": [root_id] + path,
                      "question": " -> ".join(idx[n][0].get("label", n) for n in [root_id] + path)},
         "starting_state": _provenance(profile),
+        "personal": {"custom_nodes": [n for n in idx if idx[n][0].get("custom")],
+                     "patched_nodes": [n for n in idx if idx[n][0].get("patched")]},
         "baseline": {"node_id": root_id, "label": tree["root"].get("label", root_id),
                      "summary": summary(baseline), "headline": baseline["headline"]},
         "steps": steps,
@@ -144,7 +150,9 @@ def report_data(profile: dict | None = None, path: list[str] | str | None = None
         "validation": {"checks": leaf_res["checks"], "seed": seed, "engine_version": ENGINE_VERSION,
                        "trace_id": leaf_res["trace_id"],
                        "reproduce": {"route": "/tree/expand", "profile": profile, "path": path,
-                                     "assumptions": assumptions, "weather": wx},
+                                     "assumptions": assumptions, "weather": wx,
+                                     **({"custom_nodes": custom_nodes} if custom_nodes else {}),
+                                     **({"node_patches": node_patches} if node_patches else {})},
                        "tests": {"command": "python -m pytest core/tests -q",
                                  "evidence": ["test_identities_hold_in_rich_scenario (accounting identities)",
                                               "test_scenario_isolation_unrelated_assumption_has_no_effect (isolation)",

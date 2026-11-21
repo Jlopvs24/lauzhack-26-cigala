@@ -304,7 +304,7 @@ def test_pruned_nodes_set(path, expected):
     assert not visible & expected                      # a node is either visible or a ghost, never both
     for g in ghosts:
         assert g["status"] == "pruned" and "result" not in g
-        assert set(g) == {"node_id", "parent_id", "label", "status", "depth", "has_children"}
+        assert set(g) == {"node_id", "parent_id", "label", "status", "depth", "has_children", "custom"}
         assert g["depth"] == g["node_id"].count(".") + 1
         assert g["has_children"] == (g["depth"] < 3)
 
@@ -746,3 +746,136 @@ def test_income_basis_default_charges_income_tax_and_take_home_does_not():
 def test_our_tree_profile_is_net_before_tax():
     assert load_profile()["income_basis"] == "net_before_tax"
     assert simulate(None, "1", sensitivity=False, exploration=False)["metrics"]["total_income_tax"] > 0
+
+
+# --- personal conditions: custom nodes and node patches (plan.md "the tree re-grows") ---
+
+SCHOLARSHIP = {"2": [{"param": "one_off_income", "month": 0, "value": 7200, "label": "Scholarship"}]}
+PART_TIME = [{"parent_id": "2", "node_id": "2.c1", "label": "Master's + 40% job",
+              "interventions": [{"param": "monthly_net_income", "op": "add", "value": 1500,
+                                 "from_month": 0, "to_month": 24, "label": "40% job"}]}]
+FAST = dict(sensitivity=False, exploration=False)
+
+
+def _nodes(r):
+    return {n["node_id"]: n for n in r["nodes"]}
+
+
+def _fnw(r):
+    return {n["node_id"]: n["result"]["metrics"]["final_net_worth"] for n in r["nodes"]}
+
+
+def test_patch_moves_the_node_and_its_whole_subtree_but_not_other_branches():
+    from core import report_data
+    from core.tree import _index
+    for path in (["2"], ["2", "2.1"], ["2", "2.2", "2.2.3"]):
+        plain = _nodes(expand(None, path, **FAST))
+        pat = _nodes(expand(None, path, node_patches=SCHOLARSHIP, **FAST))
+        assert plain.keys() == pat.keys()
+        for nid in plain:
+            moved = nid == "2" or nid.startswith("2.")
+            a = plain[nid]["result"]["metrics"]["final_net_worth"]
+            b = pat[nid]["result"]["metrics"]["final_net_worth"]
+            assert (b > a + 1000) if moved else (b == a), (path, nid)
+            assert pat[nid]["patched"] == (nid == "2")
+            assert pat[nid]["inherits_patch"] == nid.startswith("2.")
+    n2 = _nodes(expand(None, ["2"], node_patches=SCHOLARSHIP, **FAST))["2"]
+    assert n2["patch_interventions"] == SCHOLARSHIP["2"] and "Scholarship" in n2["changes"][-1]
+    assert n2["delta_vs_parent"]["final_net_worth"] == pytest.approx(
+        n2["result"]["metrics"]["final_net_worth"] - _fnw(expand(None, ["2"], **FAST))["0"], abs=0.01)
+    assert "patch_interventions" not in _index(load_tree())["2"][0]  # the stored tree is untouched
+    r = report_data(None, ["2", "2.1"], node_patches=SCHOLARSHIP)
+    assert r["steps"][0]["patched"] and r["steps"][1]["inherits_patch"]
+    assert r["personal"]["patched_nodes"] == ["2"]
+    assert r["validation"]["reproduce"]["node_patches"] == SCHOLARSHIP
+
+
+def test_custom_sibling_is_simulated_compared_and_can_grow_children():
+    from core import explore, report_data
+    from core import simulate as sim_one
+    as_child = _nodes(expand(None, ["2"], custom_nodes=PART_TIME, **FAST))
+    c = as_child["2.c1"]
+    assert c["status"] == "child" and c["custom"] and c["parent_id"] == "2" and not as_child["2.1"]["custom"]
+    # inherits node 2: the master's plus the 40% job for 24 months
+    assert c["result"]["metrics"]["final_net_worth"] > as_child["2"]["result"]["metrics"]["final_net_worth"] + 20000
+    focus = _nodes(expand(None, ["2", "2.c1"], custom_nodes=PART_TIME, **FAST))
+    assert focus["2.c1"]["is_current"]
+    assert {"2.1", "2.2", "2.3"} <= {k for k, v in focus.items() if v["status"] == "sibling"}
+    sib = _nodes(expand(None, ["2", "2.1"], custom_nodes=PART_TIME, **FAST))
+    assert sib["2.c1"]["status"] == "sibling" and sib["2.c1"]["custom"]
+    # break-even compares it like any sibling, both ways
+    assert "2.c1" in [b["compared_to"] for b in explore(None, ["2", "2.1"], custom_nodes=PART_TIME)["exploration"]["break_even"]]
+    assert {"2.1", "2.2", "2.3"} <= {b["compared_to"] for b in
+                                     explore(None, ["2", "2.c1"], custom_nodes=PART_TIME)["exploration"]["break_even"]}
+    # a custom node under a custom node, listed before its parent
+    deeper = [{"parent_id": "2.c1", "node_id": "2.c1.c1", "label": "and a cheaper room",
+               "interventions": [{"param": "monthly_rent", "op": "set", "value": 600, "from_month": 0, "to_month": 24}]}] + PART_TIME
+    d = _nodes(expand(None, ["2", "2.c1"], custom_nodes=deeper, **FAST))
+    assert d["2.c1.c1"]["status"] == "child" and d["2.c1.c1"]["depth"] == 3 and d["2.c1"]["has_children"]
+    assert d["2.c1.c1"]["result"]["metrics"]["final_net_worth"] > d["2.c1"]["result"]["metrics"]["final_net_worth"]
+    # pruned ghosts, report alternatives and /simulate see it too
+    ghosts = expand(None, ["2", "2.1", "2.1.1"], custom_nodes=PART_TIME, **FAST)["pruned_nodes"]
+    assert any(g["node_id"] == "2.c1" and g["custom"] for g in ghosts)
+    r = report_data(None, ["2", "2.1"], custom_nodes=PART_TIME)
+    assert any(a["node_id"] == "2.c1" and a["custom"] for a in r["steps"][1]["alternatives"])
+    assert report_data(None, ["2", "2.c1"], custom_nodes=PART_TIME)["steps"][1]["custom"]
+    one = sim_one(None, "2.c1", custom_nodes=PART_TIME, **FAST)
+    assert one["metrics"]["final_net_worth"] == c["result"]["metrics"]["final_net_worth"]
+
+
+def test_personal_requests_do_not_pollute_the_default_cache():
+    import core.tree as ct
+    from core import explore, warm
+    ct._CACHE.clear()
+    default = _fnw(expand(None, ["2"], **FAST))
+    personal = _fnw(expand(None, ["2"], node_patches=SCHOLARSHIP, custom_nodes=PART_TIME, **FAST))
+    assert personal["2"] != default["2"] and "2.c1" not in default
+    assert _fnw(expand(None, ["2"], **FAST)) == default  # cached default, unchanged
+    ct._CACHE.clear()
+    first = _fnw(expand(None, ["2"], node_patches=SCHOLARSHIP, **FAST))
+    assert _fnw(expand(None, ["2"], **FAST)) == default and first["2"] == personal["2"]
+    # same flattened list for "2" (patch on "2" vs. on its parent), different own part: different timing
+    a = explore(None, ["2"], node_patches=SCHOLARSHIP)["exploration"]["timing"]
+    b = explore(None, ["2"], node_patches={"0": SCHOLARSHIP["2"]})["exploration"]["timing"]
+    assert a != b
+    assert warm(custom_nodes=PART_TIME, node_patches=SCHOLARSHIP) == 41
+
+
+@pytest.mark.parametrize("kw,msg", [
+    ({"custom_nodes": [{**PART_TIME[0], "node_id": "2.1"}]}, "already exists"),
+    ({"custom_nodes": PART_TIME + PART_TIME}, "already exists"),
+    ({"custom_nodes": [{**PART_TIME[0], "parent_id": "9"}]}, "not a node of the tree"),
+    ({"custom_nodes": [{**PART_TIME[0], "label": ""}]}, "label"),
+    ({"custom_nodes": [{**PART_TIME[0], "interventions": "lots"}]}, "list of interventions"),
+    ({"custom_nodes": [{**PART_TIME[0], "interventions": [{"param": "monthly_lottery", "value": 1}]}]}, "not supported"),
+    ({"custom_nodes": [{**PART_TIME[0], "interventions": [{"param": "one_off_cost", "month": 999, "value": 1}]}]}, "outside"),
+    ({"node_patches": {"7": SCHOLARSHIP["2"]}}, "unknown node_id"),
+    ({"node_patches": {"2": []}}, "non-empty"),
+    ({"node_patches": {"2": [{"param": "one_off_cost", "value": {"assumption": "nope"}}]}}, "unknown assumption"),
+    ({"node_patches": {"2": [{"param": "cancel_one_off", "label": "Nothing like this"}]}}, "no one-off"),
+])
+def test_invalid_personal_conditions_are_rejected_with_the_node_named(kw, msg):
+    with pytest.raises(ValueError, match=msg) as e:
+        expand(None, ["2"], **FAST, **kw)
+    assert "custom" in str(e.value) or "node_patches" in str(e.value)
+
+
+def test_gross_salary_in_a_custom_node_uses_the_payroll_and_is_validated():
+    gross = [{"parent_id": "1", "node_id": "1.c1", "label": "Job at CHF 6,000 gross",
+              "interventions": [{"param": "monthly_gross_income", "op": "set", "value": 6000, "from_month": 0}]}]
+    nodes = _nodes(expand(None, ["1"], custom_nodes=gross, **FAST))
+    assert nodes["1.c1"]["result"]["payroll"] is not None and nodes["1"]["result"]["payroll"] is None
+    no_age = {k: v for k, v in load_profile().items() if k != "age"}
+    with pytest.raises(ValueError, match=r"1\.c1.*age"):
+        expand(no_age, ["1"], custom_nodes=gross, **FAST)
+    with pytest.raises(ValueError, match=r"node_patches.*take_home"):
+        expand({**load_profile(), "income_basis": "take_home"}, ["1"], **FAST,
+               node_patches={"1": gross[0]["interventions"]})
+
+
+def test_personal_args_absent_change_nothing():
+    from core.tree import personalize
+    t = load_tree()
+    assert personalize(t) is t and personalize(t, [], {}) is t
+    n = _nodes(expand(None, ["2"], **FAST))
+    assert all(not v["custom"] and not v["patched"] and not v["inherits_patch"] for v in n.values())
