@@ -608,6 +608,17 @@ All deterministic, judged with the same constraints and `plan_check.level` as a 
 - `core.smallest_change(profile, path, target="no_funding_gap"|"feasible"|"holds", levers=None)` → `{node_id, target, target_means, now: cell, already_holds, changes: [{lever, label, param, unit, direction, status, value, result?: cell, ...}]}`. Per lever, the smallest change from month 0 to the horizon that reaches the target, to the cent. Default levers: `more_income`, `lower_rent`, `lower_living_costs` (monthly, today's prices) and `cash_now` (one-off in month 0). A custom lever is `{name, label, param, sign (+1 increase / -1 decrease), high, low?, from_month?, to_month?, month? (one-offs), unit}`. `status` as in `goal_seek` (`threshold_found`, `already_satisfied`, `not_reached_within_bounds`, ...).
 - `core.timing_scan(profile, path, delays=[0, 6, ..., 36])` → `{node_id, status: "evaluated" | "no_own_decision", rows: [{delay_months, ...cell}], latest_start_that_holds, holds_from_now_until}`: the node's own decision started later (ancestors keep their dates, the horizon end is fixed).
 
+### Profile-aware tree (core-1.3, #77, additive)
+
+The tree file is written for its reference profile (`tree.profile_id`, Alexia). With any other `profile`, every entry point (`expand`, `explore`, `simulate`, `report_data`, `warm`, `combine`, `surface`, `smallest_change`, `timing_scan`) first applies `core.tree.for_profile(tree, profile)`. No new request field: the API already passes `profile`.
+
+- **Root narration.** The root `label` and `description` are written from the profile, e.g. `Today: apprentice in Geneva` / `Sam keeps the current life: net income of CHF 2,000 a month and CHF 2,200 of monthly costs (rent CHF 1,300), starting with CHF 3,000 in cash.` The root node has `generated_from_profile: true` (false on every other node and for the reference profile). Text is English; translate it like other engine text.
+- **Person-specific amounts.** In the tree data, an intervention or assumption marked `"relative_to": "monthly_net_income" | "monthly_rent" | "monthly_other_expenses"` describes the person's own life. For another profile it moves by the difference between that profile's and the reference profile's current amount, floored at 0; EUR amounts convert the difference at `AS-eurchf`. A gross salary counts as its payslip net.
+  - Marked today: the income kept while studying (`AS-alexia-student-job`), the student room rent, and every living-cost level (student, worker, abroad).
+  - Not marked, so unchanged: market figures (salaries after a degree or abroad, flat rents, tuition, loans, one-offs) and explicit decisions (invest CHF 500 a month).
+- **Output.** A moved intervention keeps the tree's figure in `reference_value`; a moved assumption has `profile_adjusted: true` and `reference_value`, and its `range` moves with it. `changes` already shows the moved amounts. A user override of a moved assumption still wins. `expand` returns `profile_basis`: `{reference_profile_id, is_reference}` plus, for another profile, `baseline`, `deltas_vs_reference` and `adjusted_assumptions`.
+- **Reference profile.** A profile with the reference's current income, rent, living costs, name, status, city and cash gets the tree file untouched: same numbers to the cent (`core/tests/test_profile_tree.py` pins all 40 nodes). Interventions in the output now carry the `relative_to` marker, so trace ids differ from before #77.
+
 ## API (thread 2) — routes
 
 | Method | Route | Purpose |

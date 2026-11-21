@@ -51,6 +51,7 @@
     {
       "id": "AS-alexia-student-job",
       "param": "student_job_income",
+      "relative_to": "monthly_net_income",
       "label": "Student job income during the master's",
       "value": 1200,
       "unit": "CHF/month",
@@ -410,7 +411,9 @@
             "op": "set",
             "value": 1900,
             "from_month": 0,
-            "label": "Living costs as a worker"
+            "label": "Living costs as a worker",
+
+            "relative_to": "monthly_other_expenses"
           }
         ],
         "children": [
@@ -678,7 +681,9 @@
             "value": 900,
             "from_month": 0,
             "to_month": 24,
-            "label": "Student room"
+            "label": "Student room",
+
+            "relative_to": "monthly_rent"
           },
           {
             "param": "monthly_other_expenses",
@@ -686,7 +691,9 @@
             "value": 1200,
             "from_month": 0,
             "to_month": 24,
-            "label": "Student living costs"
+            "label": "Student living costs",
+
+            "relative_to": "monthly_other_expenses"
           },
           {
             "param": "one_off_cost",
@@ -727,7 +734,9 @@
             "op": "set",
             "value": 2000,
             "from_month": 24,
-            "label": "Living costs as a worker"
+            "label": "Living costs as a worker",
+
+            "relative_to": "monthly_other_expenses"
           }
         ],
         "children": [
@@ -784,7 +793,9 @@
                     "value": 900,
                     "from_month": 24,
                     "to_month": 36,
-                    "label": "Student room, year 3"
+                    "label": "Student room, year 3",
+
+                    "relative_to": "monthly_rent"
                   },
                   {
                     "param": "monthly_other_expenses",
@@ -792,7 +803,9 @@
                     "value": 1200,
                     "from_month": 24,
                     "to_month": 36,
-                    "label": "Student living costs, year 3"
+                    "label": "Student living costs, year 3",
+
+                    "relative_to": "monthly_other_expenses"
                   },
                   {
                     "param": "one_off_cost",
@@ -921,7 +934,9 @@
                 "value": 900,
                 "from_month": 0,
                 "to_month": 36,
-                "label": "Student room"
+                "label": "Student room",
+
+                "relative_to": "monthly_rent"
               },
               {
                 "param": "monthly_other_expenses",
@@ -929,7 +944,9 @@
                 "value": 1300,
                 "from_month": 0,
                 "to_month": 36,
-                "label": "Living costs while working part-time"
+                "label": "Living costs while working part-time",
+
+                "relative_to": "monthly_other_expenses"
               },
               {
                 "param": "one_off_cost",
@@ -1026,7 +1043,9 @@
                     "op": "set",
                     "value": 1900,
                     "from_month": 12,
-                    "label": "Living costs as a worker"
+                    "label": "Living costs as a worker",
+
+                    "relative_to": "monthly_other_expenses"
                   },
                   {
                     "param": "cancel_one_off",
@@ -1076,7 +1095,9 @@
             "value": 1843,
             "from_month": 0,
             "label": "Living costs abroad",
-            "currency": "EUR"
+            "currency": "EUR",
+
+            "relative_to": "monthly_other_expenses"
           },
           {
             "param": "one_off_cost",
@@ -1268,7 +1289,9 @@
                 "op": "set",
                 "value": 1900,
                 "from_month": 36,
-                "label": "Living costs in Lausanne"
+                "label": "Living costs in Lausanne",
+
+                "relative_to": "monthly_other_expenses"
               },
               {
                 "param": "one_off_cost",
@@ -1317,7 +1340,9 @@
                     "value": 900,
                     "from_month": 36,
                     "to_month": 60,
-                    "label": "Student room"
+                    "label": "Student room",
+
+                    "relative_to": "monthly_rent"
                   },
                   {
                     "param": "monthly_other_expenses",
@@ -1325,7 +1350,9 @@
                     "value": 1200,
                     "from_month": 36,
                     "to_month": 60,
-                    "label": "Student living costs"
+                    "label": "Student living costs",
+
+                    "relative_to": "monthly_other_expenses"
                   },
                   {
                     "param": "one_off_cost",
