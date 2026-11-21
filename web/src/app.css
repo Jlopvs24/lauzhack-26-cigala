@@ -420,3 +420,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* an option pinned to the screen edge (its branch is off screen) */
 .tag.edge .card { border-style: dashed; }
 #stage { transition: right 0.5s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* chat panel reflow (#34): Lumi and the bubble stay inside the area the scene keeps */
+.narration { max-width: min(560px, calc(100vw - var(--chat-panel-w, 0px) - 56px)); bottom: calc(28px + var(--chat-panel-h, 0px)); }
+.narration.right { right: calc(28px + var(--chat-panel-w, 0px)); }
+.nav-back { left: 28px; }
+.leaf-cta { left: calc((100vw - var(--chat-panel-w, 0px)) / 2); }
+.loading, .error-toast { left: calc((100vw - var(--chat-panel-w, 0px)) / 2); }
+@media (max-width: 720px) { .narration { bottom: calc(84px + var(--chat-panel-h, 0px)); max-width: calc(100vw - 32px); } }

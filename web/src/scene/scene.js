@@ -133,21 +133,48 @@ export async function createScene({ world, labels, onTagClick }) {
       placed.push({ t, x, y });
     }
     if (avoid.narration && obstacles.narration) chooseSide(placed, obstacles, narrow);
-    for (const p of placed) {
-      // still under Lumi, the bubble or the dock? lift the card above it; if it cannot fit, fade it
-      let { x, y } = p, hidden = false;
-      for (const o of obstacles.list) {
-        if (!hits(x, y, p.t, o)) continue;
-        const up = o.top - p.t.h / 2 - 10;
-        if (o.height < 180 && up >= 70 && !obstacles.list.some((q) => q !== o && hits(x, up, p.t, q))) y = up; else hidden = true;
-      }
-      hidden = hidden || !!p.t.off;
+    for (const p of layoutLabels(placed, obstacles.list)) {
+      const hidden = p.hidden || !!p.t.off;
       if (p.t.occluded !== hidden) { p.t.occluded = hidden; p.t.el.classList.toggle('occluded', hidden); }
       if (p.t.edgeShown !== !!p.t.edge) { p.t.edgeShown = !!p.t.edge; p.t.el.classList.toggle('edge', !!p.t.edge); }
-      p.t.el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+      p.t.el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0) translate(-50%, -50%)`;
     }
     raf = requestAnimationFrame(frame);
   }
+  // ---------- label layout: no card over another card, Lumi, the bubble or the dock ----------
+  // Priority: options you can click > grey alternatives > pruned names. Each card tries its own place,
+  // then vertical offsets (keeping last frame's choice first, so nothing flickers); a lower-priority
+  // card that finds no free slot fades, an option stays visible at the least-overlapping slot.
+  const PRIORITY = { child: 0, sibling: 1, pruned: 2 };
+  const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  const rectAt = (x, y, t) => ({ left: x - t.w / 2 - 4, right: x + t.w / 2 + 4, top: y - t.h / 2 - 4, bottom: y + t.h / 2 + 4 });
+  function layoutLabels(placed, fixed) {
+    const order = [...placed].sort((a, b) => (PRIORITY[a.t.status] ?? 3) - (PRIORITY[b.t.status] ?? 3) || a.y - b.y);
+    const taken = [], minY = 70, maxY = VH() - 40;
+    for (const p of order) {
+      p.hidden = false;
+      if (p.t.off || !p.t.w) { continue; }
+      const step = p.t.h * 0.6 + 6;
+      const offsets = [0];
+      for (let k = 1; k <= 4; k++) offsets.push(-k * step, k * step);
+      if (p.t.slot != null) offsets.unshift(p.t.slot);
+      let best = null;
+      for (const dy of offsets) {
+        const y = p.y + dy;
+        if (y < minY || y > maxY) continue;
+        const r = rectAt(p.x, y, p.t);
+        const cost = taken.reduce((c, q) => c + overlap(r, q), 0) + fixed.reduce((c, q) => c + overlap(r, q), 0);
+        if (cost === 0) { best = { dy, r, cost }; break; }
+        if (!best || cost < best.cost) best = { dy, r, cost };
+      }
+      if (!best) { p.hidden = true; continue; }
+      if (best.cost > 0 && (PRIORITY[p.t.status] ?? 3) > 0) { p.hidden = true; p.t.slot = null; continue; }
+      p.t.slot = best.dy; p.y += best.dy;
+      taken.push(best.r);
+    }
+    return placed;
+  }
+
   // ---------- collision avoidance: Lumi + bubble + dock vs branch cards (screen space) ----------
   const avoid = { narration: null, others: [] }; // refreshed every frame from the getters
   let getAvoid = () => ({ narration: null, others: [] });
