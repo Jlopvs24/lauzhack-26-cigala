@@ -302,7 +302,7 @@ function App() {
     {started && cur && !busy && !tree.nodes.some((n) => n.status === 'child') && path.length > 0 && !pathReport &&
       <button className="leaf-cta" onClick={() => { setPanel(null); setPathReport(true); }}>
         <span className="leaf-cta-kicker">{t(lang, 'leafEnd')}</span><span>{t(lang, 'openReport')}</span></button>}
-    {pathReport && <PathReport lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} startProfile={profile || demoProfile} path={path} assumptions={overrides} onClose={() => setPathReport(false)} />}
+    {pathReport && <PathReport lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} startProfile={profile || demoProfile} path={path} assumptions={overrides} lens={lens} onClose={() => setPathReport(false)} />}
 
     {busy && started && <div className="loading" role="status">{t(lang, 'loading')}</div>}
     {error && <div className="error-toast" role="alert">{error}<button onClick={() => { setError(''); go(path, { force: true }); }}>{t(lang, 'retry')}</button></div>}
