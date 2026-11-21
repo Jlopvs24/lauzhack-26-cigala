@@ -57,8 +57,61 @@ class Usage:
 USAGE = Usage()
 
 
+# ------------------------------------------------------------------ hard spend guard
+# The OpenRouter key has a small budget. Every paid call (this process and the other uvicorn workers, which all
+# append to usage.jsonl) counts towards today's spend; past LLM_DAILY_BUDGET_USD every LLM call raises
+# BudgetExceeded, and callers fall back to templates / clarifying questions. Engine routes are unaffected.
+DAILY_BUDGET_USD = float(os.environ.get("LLM_DAILY_BUDGET_USD", "2.0"))
+_spent_cache = {"at": 0.0, "day": "", "usd": 0.0}
+_spent_lock = threading.Lock()
+
+
+class BudgetExceeded(RuntimeError):
+    pass
+
+
+def spent_today(max_age_s: float = 5.0) -> float:
+    """USD spent today (local date) by all API processes, from usage.jsonl (re-read at most every few seconds)."""
+    day = time.strftime("%Y-%m-%d")
+    with _spent_lock:
+        if _spent_cache["day"] == day and time.time() - _spent_cache["at"] < max_age_s:
+            return _spent_cache["usd"]
+        total = 0.0
+        try:
+            with USAGE_LOG.open(encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if time.strftime("%Y-%m-%d", time.localtime(rec.get("ts", 0))) == day:
+                        total += float(rec.get("cost_usd") or 0.0)
+        except OSError:
+            total = USAGE.cost_usd  # no log file: this process's own spend
+        _spent_cache.update(at=time.time(), day=day, usd=total)
+        return total
+
+
+def budget() -> dict:
+    spent = spent_today()
+    return {"daily_limit_usd": DAILY_BUDGET_USD, "spent_today_usd": round(spent, 6),
+            "remaining_usd": round(max(DAILY_BUDGET_USD - spent, 0.0), 6), "exceeded": spent >= DAILY_BUDGET_USD}
+
+
+def _check_budget() -> None:
+    if spent_today() >= DAILY_BUDGET_USD:
+        raise BudgetExceeded(f"daily LLM budget of USD {DAILY_BUDGET_USD:.2f} reached; answering from templates")
+
+
 def available() -> bool:
-    return bool(os.environ.get("OPENROUTER_API_KEY"))
+    """Key present and today's budget not exhausted (so callers go straight to their template fallback)."""
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        return False
+    try:
+        _check_budget()
+    except BudgetExceeded:
+        return False
+    return True
 
 
 def models() -> list[str]:
@@ -77,6 +130,7 @@ def chat(messages: list[dict], tools: list[dict] | None = None, model: str | Non
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
+    _check_budget()
     chain = [model] if model else models()
     body = {"model": chain[0], "messages": messages, "usage": {"include": True}, **params}
     if len(chain) > 1:
@@ -110,6 +164,7 @@ def chat_stream(messages: list[dict], tools: list[dict] | None = None, model: st
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
+    _check_budget()
     chain = [model] if model else models()
     body = {"model": chain[0], "messages": messages, "usage": {"include": True}, "stream": True, **params}
     if len(chain) > 1:

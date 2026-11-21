@@ -676,3 +676,55 @@ def test_agent_tool_returns_a_proposal(monkeypatch):
     box = agent.Toolbox({"profile": engine.default_profile(), "path": ["2"]})
     out = box.propose_personalization("2", "I'd get a CHF 600/month scholarship")
     assert out["proposal"]["interventions"][0]["value"] == 600 and box.proposal["proposal"]["mode"] == "patch"
+
+
+@pytest.mark.parametrize("text,iv", [
+    ("I'd move to Zurich after the master's", {"param": "tax_residence", "city": "Zurich", "from_month": 24}),
+    ("I'd get married next year", {"param": "tax_residence", "household": "couple", "from_month": 12}),
+    ("Ich würde nach Genf ziehen, ab nächstem Jahr", {"param": "tax_residence", "city": "Geneva", "from_month": 12}),
+    ("Me iría a vivir a Alemania", {"param": "tax_residence", "country": "DE", "from_month": 0}),
+    ("Après le master je trouverais un job à 6500 francs brut par mois",
+     {"param": "monthly_gross_income", "op": "set", "value": 6500, "from_month": 24, "to_month": 120}),
+])
+def test_personalize_tax_residence_and_gross(monkeypatch, text, iv):
+    _fake_parser(monkeypatch, {"understood": True, "mode": "patch", "label": "x", "interventions": [iv],
+                               "explanation": "", "clarifying_question": None})
+    j = c.post("/tree/personalize", json={"path": ["2"], "text": text}).json()
+    assert j["proposal"] and j["proposal"]["interventions"][0]["param"] == iv["param"], j
+    assert j["explanation_template"].startswith("If ")
+
+
+@pytest.mark.parametrize("iv,err", [
+    ({"param": "tax_residence", "from_month": 0}, "needs city"),
+    ({"param": "tax_residence", "household": "polycule", "from_month": 0}, "household must be"),
+    ({"param": "tax_residence", "canton": "XX", "from_month": 0}, "canton must be"),
+])
+def test_personalize_tax_residence_validation(monkeypatch, iv, err):
+    _fake_parser(monkeypatch, {"understood": True, "mode": "patch", "label": "x", "interventions": [iv],
+                               "explanation": "", "clarifying_question": None})
+    j = c.post("/tree/personalize", json={"path": ["2"], "text": "I'd move somewhere"}).json()
+    assert j["proposal"] is None and any(err in e for e in j["validation"]["errors"])
+
+
+def test_personalize_gross_needs_age_and_not_take_home(monkeypatch):
+    iv = {"param": "monthly_gross_income", "op": "set", "value": 6500, "from_month": 0, "to_month": 120}
+    _fake_parser(monkeypatch, {"understood": True, "mode": "patch", "label": "x", "interventions": [iv],
+                               "explanation": "", "clarifying_question": None})
+    prof = {**engine.default_profile(), "income_basis": "take_home"}
+    j = c.post("/tree/personalize", json={"path": ["2"], "profile": prof, "text": "6500 gross"}).json()
+    assert j["proposal"] is None and any("take_home" in e for e in j["validation"]["errors"])
+    prof = {k: v for k, v in engine.default_profile().items() if k != "age"}
+    j = c.post("/tree/personalize", json={"path": ["2"], "profile": prof, "text": "6500 gross"}).json()
+    assert j["proposal"] is None and any("age" in e for e in j["validation"]["errors"])
+
+
+def test_llm_daily_budget_guard(monkeypatch):
+    from api import agent, llm
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key-not-real")
+    monkeypatch.setattr(llm, "spent_today", lambda *a, **k: llm.DAILY_BUDGET_USD + 0.01)
+    assert llm.available() is False and llm.budget()["exceeded"] is True
+    with pytest.raises(llm.BudgetExceeded):
+        llm.chat([{"role": "user", "content": "hi"}])
+    j = agent.ask("Why does the master's run out of cash?", {"profile": None, "path": ["2"]})
+    assert j["mode"] == "template" and j["cost_usd"] == 0  # falls back, no paid call
+    assert c.get("/usage").json()["budget"]["exceeded"] is True

@@ -690,6 +690,10 @@ See docs/plan.md "Personal conditions → the tree re-grows". The API proposes, 
   - Months must come from the user's words or the branch's own windows.
   - `set` is never negative, `mul` is within 0–10, `0 ≤ from_month < to_month ≤ horizon`, loan rate is within 0–0.3, assumptions must be known ids.
   - At most 6 interventions; a schema error gets one repair round.
+  - Also parsed (core #48 items 2-3): `tax_residence` (moving: `city` / `canton` / `country`, or a household
+    change such as getting married: `household` single|shared_housing|couple|family, from `from_month`; no amount
+    needed) and `monthly_gross_income` (only when the user says "gross"; needs the profile's `age`, never with
+    `income_basis: "take_home"`, never overlapping a net `set`). "Next year" in EN/ES/FR/DE counts as month 12.
 - Never applied by the API. The intervention schema is the one in "Decision tree → Intervention" above.
 
 **2. Apply (client):** merge `proposal.apply` into the request's `node_patches` (append to that node's list) or `custom_nodes`, and send it on `POST /tree/expand`, `/tree/explore`, `/simulate`, `/report`, `/report/summary` and in `context` of `/agent/ask` and `/agent/ask/stream`. The API forwards both fields to core and includes them in cache keys. `/tree/expand` echoes `personal_conditions: {custom_nodes: n, patched_nodes: [ids]}`. Until core supports them (`GET /health` → `personal_conditions_supported`), a request that uses them gets **501**; requests without them are unchanged.
