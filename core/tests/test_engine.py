@@ -442,7 +442,8 @@ def test_timing_delays_only_the_current_decision():
 def test_exploration_wording_is_conditional_not_predictive():
     import re
     blob = json.dumps(simulate(None, "2")).lower()
-    for banned in (r"you will", r"expected", r"forecast", r"predict"):
+    blob = re.sub(r"\bnot (?:a |an )?(?:forecast|prediction)s?\b", "", blob)  # disclaimers say what it is not
+    for banned in (r"\byou will\b", r"\bexpected\b", r"\bforecast", r"\bpredict"):
         assert not re.search(banned, blob), banned
 
 
@@ -708,9 +709,10 @@ def test_perf_fast_expand_and_lazy_explore():
 def test_live_validation_passes_with_evidence():
     from core import validation
     r = validation()
-    assert r["all_passed"] and r["passed"] == r["total"] == 6, [c for c in r["checks"] if not c["passed"]]
+    assert r["all_passed"] and r["passed"] == r["total"] == 10, [c for c in r["checks"] if not c["passed"]]
     ids = [c["id"] for c in r["checks"]]
-    assert ids == ["accounting_identities", "reproducibility", "monotonicity", "isolation", "ubs_starter_kit", "search_verified"]
+    assert ids == ["accounting_identities", "reproducibility", "monotonicity", "isolation", "ubs_starter_kit", "search_verified",
+                   "personal_identities", "personal_isolation", "personal_monotonicity", "personal_reproducibility"]
     assert r["checks"][0]["evidence"]["nodes"] == 40
     assert all(c["detail"] and c["evidence"] for c in r["checks"])
 
@@ -897,3 +899,31 @@ def test_cards_show_how_a_macro_outlook_moves_them():
         assert b["metric"] == "final_net_worth_real" and b["basis"] == "weather"
         want = nodes["1"]["result"]["metrics"]["final_net_worth_real"] - plain["1"]["result"]["metrics"]["final_net_worth_real"]
         assert b["vs_neutral"] == pytest.approx(want, abs=0.02) and sign * b["vs_neutral"] > 1000, (level, b)
+
+
+def test_personal_branch_checks_catch_a_leak(monkeypatch):
+    """The personal checks are not vacuous: a patch that leaked into an unrelated branch would fail isolation."""
+    import importlib
+    v = importlib.import_module("core.validation")
+    real = v._p
+
+    def leaky(node, custom=None, patches=None, **kw):
+        if patches and node == "3":  # pretend the patch on 2 / 1.2 reached 'Move abroad'
+            return real("3", None, {"3": [{"param": "monthly_rent", "op": "add", "value": 50, "from_month": 0,
+                                           "to_month": 120, "label": "leak"}]}, **kw)
+        return real(node, custom, patches, **kw)
+    monkeypatch.setattr(v, "_p", leaky)
+    ok, detail, ev = v._personal_isolated()
+    assert not ok and "patch->3" in ev["leaks"]
+
+
+def test_validation_details_never_show_node_ids():
+    """The Verified panel shows `detail` to the user: branch names, never node ids ("1.2.3", "2.c1")."""
+    import re
+    from core import validation
+    from core.tree import _index, load_tree
+    ids = [i for i in _index(load_tree()) if "." in i] + ["2.c1"]
+    r = validation()
+    for c in r["checks"]:
+        for nid in ids:
+            assert not re.search(rf"(?<![\d.,]){re.escape(nid)}(?![\d])", c["detail"]), (nid, c["detail"])
