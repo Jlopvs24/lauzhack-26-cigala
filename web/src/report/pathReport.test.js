@@ -45,13 +45,20 @@ test('stage 2: exploration per step is merged without touching the rest', async 
   assert.equal(mergeExploration(d, failed).steps[0], d.steps[0]);
 });
 
-test('stage 3: only the summary text is taken from POST /report; errors reject (the page keeps its template)', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => ({ sections: { summary: { text: 'Wenn…', mode: 'llm' }, validation: { test_evidence: [{ file: 'a', test: 'b' }] } }, model: 'm' }) }));
+test('stage 3: the summary comes from POST /report/summary, or from POST /report on an older API', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (url) => ({ ok: true, json: async () => ({ text: 'Wenn…', mode: 'llm', model: 'm' }) }));
   const s = await loadSummary({ path: ['2'], lang: 'de' });
   assert.equal(s.text, 'Wenn…');
   assert.equal(s.mode, 'llm');
-  assert.equal(s.testEvidence.length, 1);
+  assert.match(globalThis.fetch.mock.calls[0].arguments[0], /\/report\/summary$/);
   assert.equal(JSON.parse(globalThis.fetch.mock.calls[0].arguments[1].body).language, 'de');
+  // no /report/summary yet: take the worded summary from /report
+  globalThis.fetch.mock.mockImplementation(async (url) => (/summary$/.test(url) ? { ok: false, status: 404 }
+    : { ok: true, json: async () => ({ sections: { summary: { text: 'If…', mode: 'template' }, validation: { test_evidence: [{ file: 'a', test: 'b' }] } } }) }));
+  const old = await loadSummary({ path: ['2'] });
+  assert.equal(old.text, 'If…');
+  assert.equal(old.testEvidence.length, 1);
+  // a server error rejects: the page keeps its own template
   globalThis.fetch.mock.mockImplementation(async () => ({ ok: false, status: 500 }));
   await assert.rejects(loadSummary({ path: ['2'] }), /500/);
 });

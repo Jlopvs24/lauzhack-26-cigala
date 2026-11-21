@@ -3,8 +3,8 @@
 //     Enough for the hero, the stepper, every chart, the stress rows and the constraints.
 //  2. loadExploration: /tree/explore per step, in parallel (~0.2-0.4 s): "what would have to be true"
 //     and the tornado.
-//  3. loadSummary: POST /report in the background, only for the language model's wording of the summary
-//     (seconds). The page shows a deterministic template until it arrives and never blocks on it.
+//  3. loadSummary: POST /report/summary in the background, only for the language model's wording of the
+//     summary (seconds). The page shows a deterministic template until it arrives and never blocks on it.
 import { apiRequest } from '../api.js';
 
 export function summary(r) {
@@ -90,10 +90,18 @@ export function mergeExploration(data, explored) {
   return { ...data, steps, explored: true };
 }
 
-// Stage 3: the plain-language summary. The API words a deterministic template with the language model and
-// rejects any number that is not in it; we only take its text. Never awaited by the first render.
+// Stage 3: the plain-language summary, worded by the language model. POST /report/summary (#43) rewords or
+// translates the deterministic template and returns the template if any number is not in it; we only take
+// its text. Older APIs without that route still word it inside POST /report. Never awaited by the first render.
 export async function loadSummary({ profile, path, assumptions = [], uncertainty = false, lang = 'en', signal }) {
-  const r = await apiRequest('/report', { body: { path, assumptions, uncertainty, language: lang, ...(profile ? { profile } : {}) }, signal });
+  const body = { path, assumptions, uncertainty, language: lang, ...(profile ? { profile } : {}) };
+  try {
+    const s = await apiRequest('/report/summary', { body, signal });
+    if (s?.text) return { text: s.text, mode: s.mode || 'template', model: s.model, lang, testEvidence: [] };
+  } catch (e) {
+    if (!/ 40[45]\b/.test(e.message)) throw e; // only "route not there" falls back
+  }
+  const r = await apiRequest('/report', { body, signal });
   const s = r?.sections?.summary || r?.summary;
   if (!s?.text) return null;
   return { text: s.text, mode: s.mode || 'template', model: s.model || r.model, lang, testEvidence: r?.sections?.validation?.test_evidence || [] };
