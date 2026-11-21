@@ -64,12 +64,13 @@ export function normalizeProposal(raw, ctx = {}) {
     return { status: 'unsupported', message: r.message || r.reason || '', source: r.source || 'api' };
   }
   const branch = ['branch', 'new_branch', 'custom_node'].includes(p.mode) || (!p.mode && p.custom_node && !p.node_patch);
+  const apiBranch = p.mode === 'new_branch' && p.parent_id; // API: node_id is the new child, parent_id the node
   return {
     status: 'proposal', question: null, source: r.source || p.source || 'api',
     proposal: {
       id: p.id || newId(), mode: branch ? 'branch' : 'patch',
-      node_id: p.node_id || p.target_node_id || p.node_patch?.node_id || p.custom_node?.based_on || ctx.node_id,
-      parent_id: p.parent_id ?? p.custom_node?.parent_id ?? ctx.parent_id ?? null,
+      node_id: apiBranch ? p.parent_id : p.node_id || p.target_node_id || p.node_patch?.node_id || p.custom_node?.parent_id || ctx.node_id,
+      parent_id: ctx.parent_id ?? null, custom_id: apiBranch ? p.node_id : p.custom_node?.node_id || null,
       label: p.label || p.custom_node?.label || p.node_patch?.label || ctx.text || '',
       description: p.description || p.summary || '',
       interventions: interventions.map((x) => ({ ...x })),
@@ -79,24 +80,22 @@ export function normalizeProposal(raw, ctx = {}) {
   };
 }
 
-// Custom branch ids: a sibling of the target, e.g. "2" -> "u1", "2.1" -> "2.u1". Unique in the store.
-export function customNodeId(parentId, taken = []) {
-  const base = !parentId || parentId === '0' ? '' : `${parentId}.`;
+// Custom option ids (contracts.md): a child of the personalized node, "<node>.c<n>", unique in the session.
+export function customNodeId(nodeId, taken = []) {
   let n = 1;
-  while (taken.includes(`${base}u${n}`)) n++;
-  return `${base}u${n}`;
+  while (taken.includes(`${nodeId}.c${n}`)) n++;
+  return `${nodeId}.c${n}`;
 }
 
-// The stored item for a confirmed proposal. Patch: {node_id, interventions} applied on top of that node.
-// Branch: a new sibling `based_on` the target (its interventions first, then the user's).
+// The stored item for a confirmed proposal. Patch: interventions appended to that node (its subtree inherits
+// them). Branch: a new child option of that node, inheriting its path, plus the user's interventions.
 export function buildItem(proposal, { mode = proposal.mode, label = proposal.label, takenIds = [], nodeLabel = '' } = {}) {
   const base = { id: proposal.id || newId(), mode, node_id: proposal.node_id, label: (label || '').trim() || nodeLabel, text: proposal.text || '', interventions: proposal.interventions, conditions: proposal.conditions || [], created_at: new Date().toISOString(), node_label: nodeLabel };
   if (mode === 'branch') {
-    const parent = proposal.parent_id ?? parentOf(proposal.node_id);
-    const node_id = customNodeId(parent, takenIds);
-    return { ...base, custom_node: { node_id, parent_id: parent || '0', based_on: proposal.node_id, label: base.label, description: proposal.description || base.text, interventions: proposal.interventions, custom: true, origin: 'user' } };
+    const node_id = proposal.custom_id && !takenIds.includes(proposal.custom_id) ? proposal.custom_id : customNodeId(proposal.node_id, takenIds);
+    return { ...base, custom_node: { node_id, parent_id: proposal.node_id, label: base.label, description: proposal.description || base.text, interventions: proposal.interventions, custom: true } };
   }
-  return { ...base, node_patch: { node_id: proposal.node_id, label: base.label, interventions: proposal.interventions, origin: 'user', id: base.id } };
+  return { ...base, node_patch: { node_id: proposal.node_id, interventions: proposal.interventions.map((iv) => ({ source: 'user', ...iv })) } };
 }
 export const parentOf = (id) => (!id || id === '0' ? null : id.includes('.') ? id.slice(0, id.lastIndexOf('.')) : '0');
 
