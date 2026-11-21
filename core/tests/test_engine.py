@@ -271,11 +271,11 @@ def test_batched_run_matches_single_runs():
 
 
 def test_tornado_fast():
-    simulate(None, "2")  # warm-up
+    simulate(None, "2", exploration=False)  # warm-up
     best = float("inf")
     for _ in range(3):
         t = time.perf_counter()
-        simulate(None, "2", sensitivity=True)
+        simulate(None, "2", sensitivity=True, exploration=False)
         best = min(best, time.perf_counter() - t)
     assert best < 0.4  # node (~0.05-0.09 s) + tornado (~0.1 s), with margin for a busy machine
 
@@ -546,3 +546,99 @@ def test_cancel_one_off_removes_a_planned_cost():
 def test_drop_out_pays_only_the_first_year_of_tuition():
     r = simulate(None, "2.3.3", sensitivity=False, exploration=False)
     assert [e["label"] for e in r["events"]] == ["Tuition year 1"]
+
+
+# --- plan check, constraints, headlines, report data (#27) ----------------------
+
+def test_funding_gap_makes_the_plan_need_financing_whatever_the_score():
+    r = simulate(None, "2", sensitivity=False, exploration=False)
+    gap = next(c for c in r["constraints"] if c["name"] == "no_funding_gap")
+    assert not gap["passed"] and gap["first_breach_month"] == r["metrics"]["first_negative_month"] == 6
+    assert gap["months_in_breach"] == sum(1 for c in r["deterministic"]["cash"][1:] if c < -0.01)
+    pc = r["plan_check"]
+    assert pc["level"] == "needs_financing" and not pc["feasible"] and pc["score_is_secondary"]
+    assert r["headline"]["slot_a"]["kind"] == "funding_gap"
+    assert r["headline"]["slot_a"]["text"] == "Funding gap CHF 18,835 from month 7"
+
+
+def test_debt_within_the_limit_scores_full_so_a_loan_that_closes_a_gap_never_looks_worse():
+    prof = base_profile(cash=500, horizon_months=24, monthly_net_income=1800)  # breaks even each month
+    loan = {"param": "new_liability", "month": 0, "label": "L",
+            "liability": {"label": "L", "principal": 3000, "annual_rate": 0.0, "monthly_payment": 50,
+                          "payment_start_month": 12}}
+    gap = simulate_node(prof, [{"param": "one_off_cost", "month": 0, "value": 2000, "label": "x"}], assumptions=ZERO)
+    closed = simulate_node(prof, [{"param": "one_off_cost", "month": 0, "value": 2000, "label": "x"}, loan], assumptions=ZERO)
+    assert gap["plan_check"]["level"] == "needs_financing" and closed["metrics"]["first_negative_month"] is None
+    debt = closed["health"]["components"]["debt"]
+    assert debt["passed"] and debt["score"] == 1.0 and debt["margin"] > 0
+    dsl = next(c for c in closed["constraints"] if c["name"] == "debt_service_limit")
+    assert dsl["passed"] and dsl["source"] == "AS-debt-service-limit"
+
+
+def test_missed_goal_is_infeasible_and_named_in_the_headline():
+    prof = base_profile(monthly_net_income=1800, goals=[{"name": "Trip", "target": 20000, "target_date": "2026-06-30"}])
+    r = simulate_node(prof, [], assumptions=ZERO)
+    assert r["plan_check"]["level"] == "infeasible" and "goal:Trip" in r["plan_check"]["failed"]
+    a = r["headline"]["slot_a"]
+    assert a["kind"] == "goal_missed" and a["text"] == f"Trip missed by CHF {a['value']:,.0f}"
+
+
+def test_resilience_counts_named_weather_scenarios_deterministically():
+    r = simulate(None, "1.1", sensitivity=False, exploration=False)
+    res = r["weather_resilience"]
+    assert res["of"] == 4 and [w["type"] for w in res["by_weather"]] == ["recession", "inflation", "market_crash", "job_loss"]
+    for w in res["by_weather"]:
+        alone = simulate(None, "1.1", None, [w["type"]], sensitivity=False, exploration=False)
+        assert w["holds"] == (alone["plan_check"]["level"] in ("holds", "holds_below_target"))
+    assert r["health"]["components"]["resilience"]["value"] == res["holds_in"] == r["plan_check"]["resilience"]["holds_in_weather"]
+
+
+def test_headline_slot_b_picks_a_material_difference_among_siblings():
+    nodes = {n["node_id"]: n for n in expand(None, ["1"], sensitivity=False, exploration=False)["nodes"]}
+    b = nodes["1.2"]["result"]["headline"]["slot_b"]
+    assert b["metric"] == "final_net_worth_real" and b["basis"] == "siblings"
+    assert b["vs_parent"] == pytest.approx(nodes["1.2"]["result"]["metrics"]["final_net_worth_real"]
+                                          - nodes["1"]["result"]["metrics"]["final_net_worth_real"], abs=0.01)
+    # cached results are shared between calls: the headline must not leak into another expand
+    again = {n["node_id"]: n for n in expand(None, [], sensitivity=False, exploration=False)["nodes"]}
+    assert again["1"]["result"]["headline"]["slot_b"]["basis"] == "siblings"
+
+
+def test_assumptions_introduced_carry_kind_source_and_verified():
+    nodes = {n["node_id"]: n for n in expand(None, ["2", "2.2"], sensitivity=False, exploration=False)["nodes"]}
+    intro = nodes["2.2"]["assumptions_introduced"]
+    assert [a["id"] for a in intro] == ["AS-alexia-study-loan-rate"]
+    assert intro[0]["verified"] is False and intro[0]["source"] and intro[0]["kind"] == "assumption"
+
+
+def test_report_data_covers_every_step_alternatives_and_stress():
+    from core import report_data
+    r = report_data(None, ["2", "2.2", "2.2.3"])
+    assert [s["node_id"] for s in r["steps"]] == ["2", "2.2", "2.2.3"]
+    assert all("exploration" in s["result"] and s["result"]["sensitivity"] for s in r["steps"])
+    assert [a["node_id"] for a in r["steps"][0]["alternatives"]] == ["1", "3"]  # pruned in expand, simulated here
+    assert [x["weather"] for x in r["stress"]] == ["none", "recession", "inflation", "market_crash", "job_loss"]
+    assert r["baseline"]["node_id"] == "0" and r["uncertainty"] is None
+    assert all(c["passed"] for c in r["validation"]["checks"])
+    assert len(r["leaf"]["monthly_surplus"]) == r["question"]["horizon_months"]
+    assert "isolation" in " ".join(r["validation"]["tests"]["evidence"])
+
+
+@pytest.mark.parametrize("path", [["2", "2.2", "2.2.3"], ["1", "1.2", "1.2.3"], ["3", "3.3", "3.3.2"]])
+def test_report_wording_is_conditional_not_predictive(path):
+    import re
+    from core import report_data
+    blob = json.dumps(report_data(None, path)).lower().replace("not a forecast", "").replace("unexpected", "")
+    assert not re.search(r"\byou will\b|\bexpected\b|\bforecast|\bpredict", blob)
+
+
+def test_report_cites_tests_that_exist():
+    from core import report_data
+    names = [e.split(" ")[0] for e in report_data(None, ["1"])["validation"]["tests"]["evidence"]]
+    assert all(n in globals() for n in names), names
+
+
+def test_borrowed_cash_does_not_count_as_reaching_a_goal_in_the_headline():
+    nodes = {n["node_id"]: n for n in expand(None, ["2", "2.2"], sensitivity=False, exploration=False)["nodes"]}
+    b = nodes["2.2"]["result"]["headline"]["slot_b"]
+    assert not (b["metric"] == "earliest_goal_month" and b["value"] is not None and b["value"] < 24)

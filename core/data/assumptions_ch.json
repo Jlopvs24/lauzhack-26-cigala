@@ -11,7 +11,7 @@
     {"id": "AS-real-wage-growth", "param": "real_wage_growth", "label": "Real wage growth per year (on top of inflation)", "value": 0.01, "unit": "1/year",
      "range": [0.0, 0.02], "kind": "assumption", "editable": true, "verified": true, "retrieved": "2026-11-21",
      "source": "FSO Swiss Wage Index: real wages +1.6% in 2025 and +0.7% in 2024, after three years of decline (FSO release April 2026, https://www.bfs.admin.ch/bfs/en/home/statistics/work-income/wages-income-employment-labour-costs/wage-index.html). 1% is a modelling choice: economy-wide averages are lower, young workers usually progress faster"},
-    {"id": "AS-investment-return", "param": "investment_return_mean", "label": "Expected annual return of a balanced portfolio (nominal, after fees)", "value": 0.04, "unit": "1/year",
+    {"id": "AS-investment-return", "param": "investment_return_mean", "label": "Assumed annual return of a balanced portfolio (nominal, after fees)", "value": 0.04, "unit": "1/year",
      "range": [0.01, 0.07], "kind": "assumption", "editable": true, "verified": true, "retrieved": "2026-11-21",
      "source": "Pictet 'Performance of Swiss shares and bonds 1926-2024': Swiss shares 7.7%/year, Swiss bonds 4.0%/year nominal; a 60/40 mix about 6% since 1900 (https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf). We use a more prudent 4% for a 50/50 mix after ~0.5% fees, because CHF bond yields are now near zero; past returns do not guarantee future ones"},
     {"id": "AS-investment-vol", "param": "investment_return_vol", "label": "Annual volatility of the balanced portfolio", "value": 0.10, "unit": "1/year",

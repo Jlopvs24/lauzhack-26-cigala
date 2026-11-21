@@ -195,9 +195,10 @@ Engine `core-1.1` (issue #21, exploration first). The primary result is the dete
       "liquidity": {"score": 0.0, "value": -8.8, "unit": "months of expenses at the tightest month", "worst_month": 23,
                     "today_value": 3.81, "weight": 0.3,
                     "explanation": "At the tightest point (month 24) the plan is short by 8.8 months of living expenses (unfunded); 3 months counts as healthy."},
-      "debt": {"score": 1.0, "value": 0.0, "unit": "max debt payments / income", "weight": 0.2, "explanation": "No debt payments."},
-      "resilience": {"score": 0.0, "value": 1.0, "unit": "deterministic cash-shortfall indicator (0 or 1)", "weight": 0.2,
-                     "explanation": "Under these assumptions, cash runs out in this scenario."},
+      "debt": {"score": 1.0, "value": 0.0, "unit": "max debt payments / income", "passed": true, "limit": 0.33, "margin": 0.33,
+               "weight": 0.2, "explanation": "No debt payments."},
+      "resilience": {"score": 0.0, "value": 0, "unit": "named weather scenarios (of 4) in which the plan holds", "weight": 0.2,
+                     "explanation": "Under these assumptions the plan holds (no funding gap and every dated goal met) in 0 of 4 weather scenarios: recession breaks, inflation breaks, market crash breaks, job loss breaks."},
       "goals": {"score": 1.0, "value": 1.0, "unit": "priority-weighted share of deterministic goals met", "weight": 0.3,
                 "explanation": "Under these assumptions: Emergency savings: met; Career transition: met"}
     },
@@ -388,6 +389,139 @@ Meaning of the main fields:
   - Threshold statuses: `threshold_found` (`value` within `tolerance` 0.01), `already_satisfied` (holds at the lower bound: `value` = that bound, or `null` for `salary_threshold`), `not_reached_within_bounds`, `lever_has_no_effect`, `non_monotone` (the search assumes an increasing margin checked on a 9-point grid and returns no value rather than a wrong one), `already_broken` (reverse stress with no extra cost). `margin_at_bounds` = margin at both bounds in CHF (reverse stress: positive = broken). Income/cost searches stop at CHF 1,000,000, an explicit search bound, not a plausible value.
 - `checks`: accounting identities verified on every run; the UI can show them as a "verified" badge.
 - `trace_id`: hash of all inputs (profile, interventions, assumptions, weather, seed); same inputs = same result.
+
+### Plan check, constraints and branch headline (core-1.1, #27, additive)
+
+Every SimulationResult also carries the fields below (spec: `docs/report-spec.md`). Real values for node 2.2 (study loan), seen from `expand(path=["2","2.2"])`:
+
+```json
+{
+  "headline": {
+    "slot_a": {
+      "kind": "funding_gap",
+      "value": 3819.6,
+      "month": 19,
+      "text": "Funding gap CHF 3,820 from month 20"
+    },
+    "slot_b": {
+      "metric": "final_net_worth_real",
+      "label": "Net worth after 10 years (today's prices)",
+      "unit": "CHF",
+      "higher_is_better": true,
+      "value": 109035.28,
+      "basis": "siblings",
+      "normalised_gap": 0.092,
+      "vs_parent": -1163.09,
+      "text": "Net worth after 10 years (today's prices): CHF 109,035",
+      "vs_parent_text": "-CHF 1,163 vs before this choice"
+    },
+    "metric_key": "final_net_worth_real"
+  },
+  "constraints": [
+    {
+      "name": "no_funding_gap",
+      "label": "Cash never goes negative (no unfunded financing need)",
+      "kind": "hard",
+      "defined_by": "engine",
+      "source": "UBS starter-kit convention: negative cash is an unfunded need",
+      "threshold": 0.0,
+      "unit": "CHF",
+      "value": -3819.6,
+      "margin": -3819.6,
+      "passed": false,
+      "first_breach_month": 19,
+      "months_in_breach": 9
+    },
+    {
+      "name": "debt_service_limit",
+      "label": "Debt payments stay within the limit of income",
+      "kind": "hard",
+      "defined_by": "assumption",
+      "source": "AS-debt-service-limit",
+      "threshold": 0.33,
+      "unit": "debt payments / income",
+      "value": 0.0601,
+      "margin": 0.2699,
+      "passed": true,
+      "first_breach_month": null,
+      "months_in_breach": 0
+    },
+    {
+      "name": "liquidity_buffer",
+      "label": "Cash plus investments cover 3 months of living costs",
+      "kind": "target",
+      "defined_by": "assumption",
+      "source": "AS-liquidity-target",
+      "threshold": 3.0,
+      "unit": "months of living costs",
+      "value": -1.78,
+      "margin": -4.78,
+      "passed": false,
+      "first_breach_month": 12,
+      "months_in_breach": 26
+    }
+  ],
+  "weather_resilience": {
+    "holds_in": 0,
+    "of": 4,
+    "by_weather": [
+      {
+        "type": "recession",
+        "already_applied": false,
+        "holds": false,
+        "first_negative_month": 19,
+        "min_cash": -3885.92,
+        "final_net_worth": 113735.66,
+        "missed_goals": []
+      }
+    ],
+    "holds_means": "no funding gap and every dated goal met"
+  },
+  "plan_check": {
+    "level": "needs_financing",
+    "feasible": false,
+    "label": "Needs financing: funding gap of CHF 3,820 from month 20",
+    "failed": [
+      "no_funding_gap",
+      "liquidity_buffer"
+    ],
+    "resilience": {
+      "holds_in_weather": 0,
+      "of": 4,
+      "shock_buffer_chf": null,
+      "shock_buffer_status": null,
+      "shock_buffer_means": "smallest extra one-off cost in month 0 that breaks the plan"
+    },
+    "score": 50.0,
+    "score_is_secondary": true,
+    "score_method": "Weighted average of component scores (0-1) x 100. Weights are a value judgement and shown openly.",
+    "condition": "Under these assumptions; not a forecast and not advice."
+  }
+}
+```
+
+- `constraints[]`: every check the plan is judged by. `kind`: `hard` (`no_funding_gap`: cash never below -0.01 CHF; `debt_service_limit`: debt payments / income <= `AS-debt-service-limit` every month), `target` (`liquidity_buffer`: cash + investments cover `AS-liquidity-target` months of living costs), `goal` (one per profile goal, `goal:<name>`). Each has `threshold`, `value` (worst month, or the goal-date value), `margin` (value - threshold for floors, limit - value for the debt limit; negative = breached), `passed`, `first_breach_month` (0-based), `months_in_breach` (`null` for goals), `defined_by` (`engine` / `assumption` / `user`) and `source` (assumption id or text).
+- `plan_check`: feasibility first. `level` = `needs_financing` (funding gap, whatever the score) > `infeasible` (another hard constraint or a goal breached) > `holds_below_target` (only the liquidity buffer missed) > `holds`. `feasible` = holds or holds_below_target. `label` is a ready sentence; `failed` lists constraint names. `resilience.holds_in_weather` / `of` comes from `weather_resilience`; `resilience.shock_buffer_chf` = `exploration.reverse_stress.value` (0 when already broken, `null` when exploration was not computed). `score` = `health.score`, kept only as a secondary number (`score_is_secondary: true`).
+- `weather_resilience`: the same plan under each named weather (recession, inflation, market crash, job loss) on top of the request's weather, deterministically. `holds` = no funding gap and every dated goal met; `holds: null`, `status: "outside_horizon"` when the scenario does not fit a short horizon (not counted in `of`).
+- `headline` = `{slot_a, slot_b, metric_key}` for the branch card. `slot_a` ("does it hold?"): `kind` = `funding_gap` ("Funding gap CHF x from month m"), `goal_missed` ("<goal> missed by CHF x", highest priority then earliest) or `tightest_buffer` ("Tightest buffer: N months (month m)"); `text` + `value` + `month` (0-based). `slot_b` ("what it trades"): `metric` among `final_net_worth_real`, `min_cash`, `liquidity_months`, `final_debt`, `earliest_goal_month`, chosen as the largest gap to the sibling median over the sibling spread, ignoring differences below CHF 1,000 / 0.5 months / 3 months (the normalised gap alone is scale-free); `basis` = `siblings`, or `default` (real net worth) when no sibling differs materially or none is visible. `vs_parent` / `vs_parent_text` = the same metric vs the parent ("+CHF 12,195 vs before this choice"). `slot_b` is filled by `expand` (siblings = the visible nodes with the same parent) and by `report_data`; a bare `/simulate` returns `slot_b: null`.
+- `health` changes (still returned, now secondary): `components.debt` is pass/fail with margin (`passed`, `limit`, `margin`; score 1 whenever debt payments stay within the limit, so a loan that closes a gap never scores worse); with the lens off `components.resilience` = holds in N of 4 named weather scenarios (`value` = N, `score` = N / 4) instead of a 0/1 indicator. `health.level` keeps its strong/ok/fragile values; show `plan_check.level` first.
+
+Nodes in `expand` also get `assumptions_introduced`: for each id in `assumptions_ref` (values, loan terms and node-level `assumption` interventions), `{id, label, value, unit, range, kind, source, verified, retrieved, user_edited?}`.
+
+### Path report data — `core.report_data(profile, path, assumptions=None, weather=None, uncertainty=False)`
+
+Engine side of `POST /report` (thread 2 aggregates and words it; every sentence must be checked against these fields). For `path` (as in `expand`):
+
+- `question`: tree, profile, `as_of`, horizon, currency, jurisdiction, nominal vs real, the path as labels.
+- `starting_state[]`: profile fields with `label` = `synthetic` / `observed` / `user-entered` / `assumption` from the profile's `provenance`.
+- `baseline`: the root (status quo) summary and headline.
+- `steps[]`: one per decision on the path: `changes`, `interventions`, `assumptions_introduced`, `delta_vs_parent`, `headline`, full `result` (exploration and tornado for EVERY step, flows included), and `alternatives[]` = all its siblings, simulated here even when pruned in `expand`, each with `summary` and `headline`.
+- `leaf`: `constraints`, `plan_check`, `weather_resilience`, `monthly_surplus[]` (change in cash each month).
+- `stress[]`: the leaf under `none` and each named weather, side by side (`summary` per scenario).
+- `uncertainty`: `null`, or with `uncertainty=True` the lens (bands, p10/p50/p90, seed, n_paths, "not real-world probabilities").
+- `validation`: leaf `checks`, `seed`, `engine_version`, `trace_id`, a `reproduce` payload; `limitations[]`; `condition`.
+
+`summary` = `{final_net_worth_real, final_net_worth, min_cash, first_negative_month, final_debt, liquidity_months, goals_met, goals_total, plan_check, plan_check_label}`. A 3-level path takes about 0.6 s.
 
 ## API (thread 2) — routes
 

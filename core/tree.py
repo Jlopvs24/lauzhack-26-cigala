@@ -16,6 +16,7 @@ from typing import Any
 
 from .assumptions import AssumptionSet, build_assumptions
 from .models import Profile
+from . import plan as pl
 from .simulate import DEFAULT_PATHS, DEFAULT_SEED, simulate_node, trace_id
 from .weather import weather_catalog
 
@@ -177,6 +178,31 @@ def describe_intervention(iv: dict, values: dict[str, float]) -> str:
     return str(iv)
 
 
+def assumption_refs(ivs: list[dict]) -> list[str]:
+    """Ids of the assumptions a node's own interventions use (values, loan terms, node-level sets)."""
+    refs = set()
+    for iv in ivs:
+        if iv.get("param") == "assumption":
+            refs.add(iv["id"])
+        for v in [iv.get("value"), iv.get("monthly_payment"), iv.get("annual_rate"),
+                  *(iv.get("liability") or {}).values()]:
+            if isinstance(v, dict) and "assumption" in v:
+                refs.add(v["assumption"])
+    return sorted(refs)
+
+
+INTRODUCED_KEYS = ("id", "label", "value", "unit", "range", "kind", "source", "verified", "retrieved", "user_edited")
+
+
+def assumptions_introduced(ivs: list[dict], aset: AssumptionSet) -> list[dict]:
+    """The assumptions a decision introduces, with kind, source and whether the source is verified."""
+    out = []
+    for ref in assumption_refs(ivs):
+        a = aset.get(ref)
+        out.append({k: a[k] for k in INTRODUCED_KEYS if k in a})
+    return out
+
+
 DELTA_KEYS = ("final_net_worth", "final_net_worth_p50", "min_cash", "shortfall_probability", "final_cash")
 
 
@@ -217,6 +243,9 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
                                         sensitivity=sensitivity and is_cur, include_flows=include_flows or is_cur,
                                         uncertainty=uncertainty, exploration=exploration and is_cur)
 
+    group: dict[str | None, list[tuple[str, str | None]]] = {}
+    for node, _, parent in vis:
+        group.setdefault(parent, []).append((str(node["node_id"]), parent))
     nodes = []
     for node, status, parent in vis:
         nid = str(node["node_id"])
@@ -239,11 +268,13 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
             "has_children": bool(node.get("children")),
             "interventions": ivs,
             "changes": [describe_intervention(iv, values) for iv in ivs],
-            "assumptions_ref": sorted({iv["value"]["assumption"] for iv in ivs
-                                       if isinstance(iv.get("value"), dict) and "assumption" in iv["value"]}
-                                      | {iv["id"] for iv in ivs if iv.get("param") == "assumption"}),
+            "assumptions_ref": assumption_refs(ivs),
+            "assumptions_introduced": assumptions_introduced(ivs, aset),
             "delta_vs_parent": delta,
-            "result": res,
+            # copy: cached results are shared, the headline depends on which siblings are visible
+            "result": {**res, "headline": pl.headline(res, [results[o] for o, p in group.get(parent, [])
+                                                            if o != nid and o in results],
+                                                      results.get(parent))},
         })
     return {
         "tree_id": tree.get("tree_id"),
