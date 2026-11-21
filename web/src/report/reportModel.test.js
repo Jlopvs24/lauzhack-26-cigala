@@ -181,3 +181,11 @@ test('outlook: macro perspective + factors in plain words, internal assumptions 
   assert.equal(weatherName('recession', 'fr', data.outlook.options), 'Récession');
   assert.equal(weatherName('chf_strengthens', 'en', data.outlook.options), 'CHF strengthens');
 });
+
+test('outlook lists each assumption note once when the catalog and the applied event repeat it', async () => {
+  const { outlook } = await import('./reportModel.js');
+  const note = { label: 'Annual inflation', value: 0.04, unit: '1/year' };
+  const o = outlook({ outlook: { selected: [{ type: 'inflation', level: 'high' }], options: { 'inflation:high': { assumptions: [note] } },
+    applied: [{ type: 'inflation', level: 'high', assumptions: [note] }] } }, 'en');
+  assert.deepEqual(o.items[0].assumptions, ['Annual inflation: 0.04 1/year']);
+});

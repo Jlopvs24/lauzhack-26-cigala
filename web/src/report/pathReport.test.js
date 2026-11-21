@@ -46,6 +46,7 @@ test('stage 2: exploration per step is merged without touching the rest', async 
 });
 
 test('stage 3: the summary comes from POST /report/summary, or from POST /report on an older API', async (t) => {
+  const { clearSummaryCache } = await import('./pathReport.js'); clearSummaryCache();
   t.mock.method(globalThis, 'fetch', async (url) => ({ ok: true, json: async () => ({ text: 'Wenn…', mode: 'llm', model: 'm' }) }));
   const s = await loadSummary({ path: ['2'], lang: 'de' });
   assert.equal(s.text, 'Wenn…');
@@ -53,12 +54,14 @@ test('stage 3: the summary comes from POST /report/summary, or from POST /report
   assert.match(globalThis.fetch.mock.calls[0].arguments[0], /\/report\/summary$/);
   assert.equal(JSON.parse(globalThis.fetch.mock.calls[0].arguments[1].body).language, 'de');
   // no /report/summary yet: take the worded summary from /report
+  clearSummaryCache();
   globalThis.fetch.mock.mockImplementation(async (url) => (/summary$/.test(url) ? { ok: false, status: 404 }
     : { ok: true, json: async () => ({ sections: { summary: { text: 'If…', mode: 'template' }, validation: { test_evidence: [{ file: 'a', test: 'b' }] } } }) }));
   const old = await loadSummary({ path: ['2'] });
   assert.equal(old.text, 'If…');
   assert.equal(old.testEvidence.length, 1);
   // a server error rejects: the page keeps its own template
+  clearSummaryCache();
   globalThis.fetch.mock.mockImplementation(async () => ({ ok: false, status: 500 }));
   await assert.rejects(loadSummary({ path: ['2'] }), /500/);
 });
@@ -77,4 +80,20 @@ test('stage 2b: fix / surface / timing in parallel with the session conditions; 
   assert.equal(fixTarget('holds'), null);
   const held = await loadAnalyses({ path: ['2'], level: 'holds', request: async (r) => ({ r }) });
   assert.equal(held.fix, null);
+});
+
+test('the worded summary is fetched once per (path, conditions, weather, language) in a session', async () => {
+  const { loadSummary, clearSummaryCache } = await import('./pathReport.js');
+  clearSummaryCache();
+  let n = 0;
+  const request = async (route, { body }) => { n++; return { text: `t-${body.language}`, mode: 'llm' }; };
+  assert.equal((await loadSummary({ path: ['2'], lang: 'en', request })).text, 't-en');
+  assert.equal((await loadSummary({ path: ['2'], lang: 'en', request })).text, 't-en');
+  assert.equal(n, 1);
+  await loadSummary({ path: ['2'], lang: 'de', request });
+  await loadSummary({ path: ['2'], lang: 'en', weather: [{ type: 'scenario', level: 'pessimistic' }], request });
+  await loadSummary({ path: ['2', '2.1'], lang: 'en', request });
+  assert.equal(n, 4);
+  const fail = async () => { throw new Error('The API returned 500.'); };
+  await assert.rejects(loadSummary({ path: ['3'], lang: 'en', request: fail }), /500/); // failures are not cached
 });

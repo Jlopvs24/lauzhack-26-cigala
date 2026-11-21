@@ -97,18 +97,32 @@ export function mergeExploration(data, explored) {
 // Stage 3: the plain-language summary, worded by the language model. POST /report/summary (#43) rewords or
 // translates the deterministic template and returns the template if any number is not in it; we only take
 // its text. Older APIs without that route still word it inside POST /report. Never awaited by the first render.
-export async function loadSummary({ profile, path, assumptions = [], uncertainty = false, lang = 'en', signal }) {
-  const body = { path, assumptions, uncertainty, language: lang, ...(profile ? { profile } : {}), ...personalFields() };
+const SUMMARY_KEY = 'cigala.summary.v1';
+const summaryCache = new Map();
+const readCache = () => { try { return JSON.parse(sessionStorage.getItem(SUMMARY_KEY) || '{}'); } catch { return {}; } };
+function remember(key, value) {
+  summaryCache.set(key, value);
+  try { const all = readCache(); all[key] = value; const keys = Object.keys(all); if (keys.length > 40) delete all[keys[0]]; sessionStorage.setItem(SUMMARY_KEY, JSON.stringify(all)); } catch { /* blocked or full */ }
+  return value;
+}
+export const clearSummaryCache = () => { summaryCache.clear(); try { sessionStorage.removeItem(SUMMARY_KEY); } catch { /* no storage */ } };
+
+export async function loadSummary({ profile, path, assumptions = [], uncertainty = false, weather = [], lang = 'en', signal, request = apiRequest }) {
+  const body = { path, assumptions, uncertainty, language: lang, ...(weather?.length ? { weather } : {}), ...(profile ? { profile } : {}), ...personalFields() };
+  // the same report re-opened in this session never calls the language model again
+  const key = JSON.stringify(body);
+  const hit = summaryCache.get(key) ?? readCache()[key];
+  if (hit) return hit;
   try {
-    const s = await apiRequest('/report/summary', { body, signal });
-    if (s?.text) return { text: s.text, mode: s.mode || 'template', model: s.model, lang, testEvidence: [] };
+    const s = await request('/report/summary', { body, signal });
+    if (s?.text) return remember(key, { text: s.text, mode: s.mode || 'template', model: s.model, lang, testEvidence: [] });
   } catch (e) {
     if (!/ 40[45]\b/.test(e.message)) throw e; // only "route not there" falls back
   }
-  const r = await apiRequest('/report', { body, signal });
+  const r = await request('/report', { body, signal });
   const s = r?.sections?.summary || r?.summary;
   if (!s?.text) return null;
-  return { text: s.text, mode: s.mode || 'template', model: s.model || r.model, lang, testEvidence: r?.sections?.validation?.test_evidence || [] };
+  return remember(key, { text: s.text, mode: s.mode || 'template', model: s.model || r.model, lang, testEvidence: r?.sections?.validation?.test_evidence || [] });
 }
 
 export const loadLiveValidation = ({ signal } = {}) => apiRequest('/validation', { method: 'GET', signal });

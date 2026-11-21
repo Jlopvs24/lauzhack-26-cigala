@@ -70,7 +70,7 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
     const ac = new AbortController();
     let on = true;
     setSummary(null);
-    const t = setTimeout(() => loadSummary({ profile, path, assumptions, lang, signal: ac.signal })
+    const t = setTimeout(() => loadSummary({ profile, path, assumptions, weather, lang, signal: ac.signal })
       .then((s) => on && setSummary(s || { failed: true })).catch(() => on && setSummary({ failed: true })), 200);
     return () => { on = false; clearTimeout(t); ac.abort(); };
   }, [key, lang]); // eslint-disable-line react-hooks/exhaustive-deps
