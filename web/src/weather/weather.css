@@ -1,0 +1,37 @@
+/* Weather control (#65). Theme tokens come from app.css (--card-*); light and dark follow data-theme. */
+.wx {
+  --wx-on: #3e6b3a;
+  --wx-on-ink: #f7f4ec;
+  position: fixed; top: 76px; left: 28px; z-index: 5;
+  width: min(380px, calc(100vw - 56px));
+  padding: 12px 14px; border-radius: 16px;
+  background: var(--card-bg); color: var(--card-ink);
+  border: 1px solid var(--card-line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+  font-size: 13px;
+}
+:root[data-theme="dark"] .wx { --wx-on: #c6e3a3; --wx-on-ink: #14201a; }
+.wx-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.wx-title { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--card-muted); }
+.wx-clear, .wx-chip {
+  font: inherit; color: inherit; cursor: pointer;
+  border: 1px solid var(--card-line); background: transparent; border-radius: 999px;
+  transition: background-color 160ms ease, color 160ms ease, transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.wx-clear { padding: 3px 10px; font-size: 12px; color: var(--card-muted); }
+.wx-clear[aria-pressed="true"] { color: var(--card-ink); border-color: currentColor; }
+.wx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.wx-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; min-height: 32px; }
+.wx-chip svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.wx-chip[aria-pressed="true"] { background: var(--wx-on); color: var(--wx-on-ink); border-color: var(--wx-on); }
+.wx-chip:active, .wx-clear:active { transform: scale(0.97); }
+.wx-chip:focus-visible, .wx-clear:focus-visible, .wx-range input:focus-visible { outline: 2px solid var(--card-ink); outline-offset: 2px; }
+.wx-sliders { display: grid; gap: 6px; margin-top: 10px; }
+.wx-range { display: grid; gap: 2px; color: var(--card-muted); font-variant-numeric: tabular-nums; }
+.wx-range input { width: 100%; accent-color: var(--wx-on); }
+.wx-line { margin: 10px 0 0; color: var(--card-ink); font-weight: 500; }
+@media (max-width: 720px) {
+  .wx { top: 64px; left: 16px; width: calc(100vw - 32px - var(--chat-panel-w, 0px)); padding: 10px 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .wx-chip, .wx-clear { transition: none; } }

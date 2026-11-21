@@ -17,6 +17,8 @@ import { cardHeadline } from './scene/headline.js';
 import PathReport from './report/PathReport.jsx';
 import Verified from './Verified.jsx';
 import { MakeItMine, YourConditions, personalFields, personalStore, PROPOSAL_EVENT, CHANGE_EVENT } from './personalize/index.js';
+import WeatherControl from './weather/WeatherControl.jsx';
+import { eventDetail, stormLine, stormSummary } from './weather/weatherModel.js';
 import { UI, LANGS } from './scene/i18n.js';
 import './app.css';
 
@@ -64,13 +66,14 @@ function App() {
   const [convOpen, setConvOpen] = useState(false);
   const [pathReport, setPathReport] = useState(false);
   const [cost, setCost] = useState(0);
+  const [weather, setWeather] = useState([]); // #65: things the user does not choose, on every visible node
 
   const worldRef = useRef(null), labelsRef = useRef(null), lumiRef = useRef(null), introRef = useRef(null);
   const scene = useRef(null), lumi = useRef(null), voice = useRef(null);
   const narrator = useMemo(() => createNarrator(), []);
   const seen = useRef(new Map());
   const state = useRef({}); // latest values for imperative callbacks
-  state.current = { tree, lang, profile, overrides, lens, busy, panel, pathReport };
+  state.current = { tree, lang, profile, overrides, lens, busy, panel, pathReport, weather };
 
   // dev-only hook for the browser check (visits every node directly); stripped from production builds
   if (import.meta.env?.DEV) window.__cigala = { go: (p) => go(p, { force: true }), begin: () => begin(null), get busy() { return state.current.busy; } };
@@ -135,7 +138,8 @@ function App() {
   const target = useRef([]); // the path being navigated to (Back and clicks act on it, not on stale data)
   async function fetchTree(p, opts = {}, signal) {
     const s = state.current;
-    const body = { path: p, assumptions: opts.assumptions ?? s.overrides, uncertainty: opts.lens ?? s.lens, exploration: !!opts.exploration, ...engineFields() };
+    const body = { path: p, assumptions: opts.assumptions ?? s.overrides, uncertainty: opts.lens ?? s.lens, exploration: !!opts.exploration, ...engineFields(),
+      weather: opts.weather ?? s.weather };
     const prof = opts.profile !== undefined ? opts.profile : s.profile;
     if (prof) body.profile = prof;
     const data = validateTree(await apiRequest('/tree/expand', { body, signal }));
@@ -159,7 +163,11 @@ function App() {
       setTree(data);
       const vis = visibleNodes(data, seen.current);
       const l = state.current.lang;
-      narrateNode(data, l); // labels and narration arrive with the data; the flight continues underneath
+      const w = opts.weather ?? state.current.weather;
+      // weather:change (#65) for the visual layer: which visible options hold under this weather
+      if (opts.weatherChanged || w.length) dispatchEvent(new CustomEvent('weather:change', { detail: eventDetail(w, data, false) }));
+      if (opts.weatherChanged && w.length) say(stormLine(l, w, stormSummary(data)));
+      else narrateNode(data, l); // labels and narration arrive with the data; the flight continues underneath
       await scene.current?.dress({ grey: greyCodes(vis), tagItems: tagItems(data, l), childIds: data.nodes.filter((n) => n.status === 'child').map((n) => n.node_id) });
       if (opts.regrow && !ctl.signal.aborted) scene.current?.regrow();
     } catch (e) {
@@ -171,6 +179,11 @@ function App() {
     const p = target.current;
     if (status === 'child') go([...p, id]);
     else if (status === 'sibling') go([...p.slice(0, -1), id]); // switch sideways, same level
+  }
+  function onWeather(w) {
+    setWeather(w);
+    dispatchEvent(new CustomEvent('weather:change', { detail: eventDetail(w, null, true) }));
+    go(target.current, { weather: w, weatherChanged: true, force: true });
   }
   function back() { const p = target.current; if (state.current.tree && p.length) go(p.slice(0, -1)); }
 
@@ -215,10 +228,10 @@ function App() {
     if (panel !== 'report' || !tree || busy) return;
     const cur = tree.nodes.find((n) => n.node_id === tree.current);
     if (cur?.result?.exploration) return; // already there (API without the fast path)
-    const key = JSON.stringify([path, overrides, lens, engineFields()]);
+    const key = JSON.stringify([path, overrides, lens, engineFields(), weather]);
     if (explored?.key === key) return;
     const ctl = new AbortController();
-    const body = { path, assumptions: overrides, ...(profile ? { profile } : {}), ...engineFields() };
+    const body = { path, assumptions: overrides, weather, ...(profile ? { profile } : {}), ...engineFields() };
     apiRequest('/tree/explore', { body, signal: ctl.signal })
       .then((x) => setExplored({ key, data: { ...tree, nodes: tree.nodes.map((n) => (n.node_id === tree.current
         ? { ...n, result: { ...n.result, exploration: x.exploration, sensitivity: x.sensitivity ?? n.result?.sensitivity } } : n)) } }))
@@ -228,7 +241,7 @@ function App() {
       });
     return () => ctl.abort();
   }, [panel, tree, busy]); // eslint-disable-line react-hooks/exhaustive-deps
-  const exploredKey = JSON.stringify([path, overrides, lens, engineFields()]);
+  const exploredKey = JSON.stringify([path, overrides, lens, engineFields(), weather]);
   const reportTree = explored?.key === exploredKey ? explored.data : tree;
 
   // a lever's "try" button: recompute the whole visible tree with that one assumption overridden
@@ -312,6 +325,7 @@ function App() {
       </div>
     </aside>
 
+    {started && tree && <WeatherControl lang={lang} tree={tree} busy={busy} onChange={onWeather} />}
     {started && <ChatPanel lang={lang} disabled={!tree} callUrl={CALL_URL} onOpenChange={setConvOpen}
       context={{ profile, path, node_id: tree?.current, assumptions: overrides, weather: tree?.weather || [], ...engineFields() }}
       onAnswer={(text, d) => { say(text); if (d?.personalize) dispatchEvent(new CustomEvent(PROPOSAL_EVENT, { detail: { node_id: tree?.current, ...d.personalize } })); }} onCost={addCost} onUnlock={() => voice.current?.unlock()}
