@@ -1,6 +1,7 @@
 // What Lumi says about a node, from engine numbers only (no LLM), and the memory that keeps it from
 // re-reading a bubble it already spoke.
 import { STORY, NODES, UI } from './i18n.js';
+import { planCheck } from './headline.js';
 
 // Node text in the UI language; `known` = false when we only have the engine's English text.
 // The description is translated only while the engine's English text still matches the table.
@@ -20,7 +21,7 @@ export function storyFor(data, lang, who = 'Alexia') {
   const c = translateNode(cur, lang);
   // say only what we can say in this language (unknown engine text stays on screen, not in the voice)
   const kids = data.nodes.filter((n) => n.status === 'child').map((n) => translateNode(n, lang)).filter((x) => x.known).map((x) => x.label);
-  const n = { who, label: c.known ? c.label : '', desc: c.known && c.descKnown ? c.desc.replace(/([^.])$/, '$1.') : '', score: Math.round(h.score ?? 0) };
+  const n = { who, label: c.known ? c.label : '', desc: c.known && c.descKnown ? c.desc.replace(/([^.])$/, '$1.') : '', score: Math.round(h.score ?? 0), check: (planCheck(cur.result, lang)?.label || '').replace(/^./, (x) => x.toLowerCase()) };
   if (data.current === '0') return S.root(n, cash, kids);
   const dh = cur.delta_vs_parent?.health_score;
   return S.node(n, cash, kids, dh == null ? '' : S.delta(dh)).replace(/^\. /, '');

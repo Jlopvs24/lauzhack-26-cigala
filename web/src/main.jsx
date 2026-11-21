@@ -13,17 +13,23 @@ import { visibleNodes, greyCodes } from './scene/geometry.js';
 import { createVoice } from './scene/voice.js';
 import { createNarrator, translateNode, t } from './scene/narration.js';
 import { renderReport } from './scene/report.js';
+import { cardHeadline } from './scene/headline.js';
+import PathReport from './report/PathReport.jsx';
 import { UI, LANGS } from './scene/i18n.js';
 import './app.css';
 
 const CALL_URL = import.meta.env?.VITE_CALL_URL || 'http://127.0.0.1:8000/call';
 const store = { get: (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
 
+// Two slots per card (docs/report-spec.md §1): A "does it hold?", B "what it trades" + vs before this choice.
+const escHTML = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 function tagMeta(n, lang) {
-  const m = n.result?.metrics, h = n.result?.health;
-  if (!m || !(n.status === 'child' || n.status === 'sibling')) return '';
-  const cash = m.first_negative_month != null ? `<span class="warn">${t(lang, 'tagShort')(m.first_negative_month + 1)}</span>` : t(lang, 'tagOk');
-  return `${t(lang, 'tagHealth')} <b>${Math.round(h?.score ?? 0)}</b> · ${cash}`;
+  if (!n.result || !(n.status === 'child' || n.status === 'sibling')) return '';
+  const h = cardHeadline(n.result, lang);
+  if (!h) return '';
+  const a = h.a ? `<span class="slot-a ${h.a.kind}">${escHTML(h.a.text)}</span>` : '';
+  const b = h.b ? `<span class="slot-b">${escHTML(h.b.text)}${h.b.vs ? `<i>${escHTML(h.b.vs)}</i>` : ''}</span>` : '';
+  return a + b;
 }
 
 function App() {
@@ -44,6 +50,7 @@ function App() {
   const [lensPending, setLensPending] = useState(false);
   const [messages, setMessages] = useState([]); // the session's conversation, never reset by navigation
   const [convOpen, setConvOpen] = useState(false);
+  const [pathReport, setPathReport] = useState(false);
   const [cost, setCost] = useState(0);
 
   const worldRef = useRef(null), labelsRef = useRef(null), lumiRef = useRef(null), introRef = useRef(null);
@@ -254,6 +261,11 @@ function App() {
       <div className="drawer-inline"><Assumptions assumptions={tree.assumptions} busy={busy} onApply={(next) => go(path, { assumptions: next, force: true })} /></div>
       <p className="note">{t(lang, 'sessionCost')} USD {cost.toFixed(4)}</p>
     </aside>}
+
+    {started && cur && !busy && !tree.nodes.some((n) => n.status === 'child') && path.length > 0 && !pathReport &&
+      <button className="leaf-cta" onClick={() => { setPanel(null); setPathReport(true); }}>
+        <span className="leaf-cta-kicker">{t(lang, 'leafEnd')}</span><span>{t(lang, 'openReport')}</span></button>}
+    {pathReport && <PathReport lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} path={path} assumptions={overrides} onClose={() => setPathReport(false)} />}
 
     {busy && started && <div className="loading" role="status">{t(lang, 'loading')}</div>}
     {error && <div className="error-toast" role="alert">{error}<button onClick={() => { setError(''); go(path, { force: true }); }}>{t(lang, 'retry')}</button></div>}

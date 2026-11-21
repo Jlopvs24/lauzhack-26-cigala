@@ -8,6 +8,7 @@ export const SPEECH_LANG = { en: "en-GB", es: "es-ES", fr: "fr-FR", de: "de-DE" 
 
 export const UI = {
   en: {
+    leafEnd: "You reached the end of this branch", openReport: "Open your report",
     slow: "The engine is taking longer than usual. Try again in a moment.",
     conversation: "Conversation", openConv: "Open conversation", closeConv: "Close conversation", convEmpty: "Ask Lumi anything about this tree. Your questions and the answers stay here for this session.", you: "You", sources: "Calculation sources", record: "Record a voice note (sends when you stop)", stopRec: "Stop and send", recording: "Recording… press stop to send", preparing: "Preparing your voice note…", send: "Send",
     chat: "Conversation", call: "Call Lumi (live voice)", retry: "Retry", sessionCost: "Session API cost:",
@@ -36,6 +37,7 @@ export const UI = {
     noVoice: "No voice for this language on this device, so I'll stay silent. The text is all here.",
   },
   es: {
+    leafEnd: "Has llegado al final de esta rama", openReport: "Abrir tu informe",
     slow: "El motor tarda más de lo normal. Inténtalo de nuevo en un momento.",
     conversation: "Conversación", openConv: "Abrir la conversación", closeConv: "Cerrar la conversación", convEmpty: "Pregunta a Lumi lo que quieras sobre este árbol. Tus preguntas y las respuestas se quedan aquí durante la sesión.", you: "Tú", sources: "Fuentes del cálculo", record: "Grabar una nota de voz (se envía al parar)", stopRec: "Parar y enviar", recording: "Grabando… pulsa parar para enviar", preparing: "Preparando tu nota de voz…", send: "Enviar",
     chat: "Conversación", call: "Llamar a Lumi (voz en directo)", retry: "Reintentar", sessionCost: "Coste de API de la sesión:",
@@ -64,6 +66,7 @@ export const UI = {
     noVoice: "Este dispositivo no tiene voz en este idioma, así que me quedo en silencio. Todo está en el texto.",
   },
   fr: {
+    leafEnd: "Vous êtes au bout de cette branche", openReport: "Ouvrir votre rapport",
     slow: "Le moteur met plus de temps que d’habitude. Réessayez dans un instant.",
     conversation: "Conversation", openConv: "Ouvrir la conversation", closeConv: "Fermer la conversation", convEmpty: "Posez à Lumi toute question sur cet arbre. Vos questions et les réponses restent ici pendant la session.", you: "Vous", sources: "Sources du calcul", record: "Enregistrer une note vocale (envoyée à l’arrêt)", stopRec: "Arrêter et envoyer", recording: "Enregistrement… appuyez sur stop pour envoyer", preparing: "Préparation de votre note vocale…", send: "Envoyer",
     chat: "Conversation", call: "Appeler Lumi (voix en direct)", retry: "Réessayer", sessionCost: "Coût API de la session :",
@@ -92,6 +95,7 @@ export const UI = {
     noVoice: "Pas de voix pour cette langue sur cet appareil, je reste silencieux. Tout est dans le texte.",
   },
   de: {
+    leafEnd: "Du bist am Ende dieses Astes", openReport: "Deinen Bericht öffnen",
     slow: "Die Engine braucht länger als üblich. Versuch es gleich noch einmal.",
     conversation: "Gespräch", openConv: "Gespräch öffnen", closeConv: "Gespräch schließen", convEmpty: "Frag Lumi alles zu diesem Baum. Deine Fragen und die Antworten bleiben während der Sitzung hier.", you: "Du", sources: "Rechenquellen", record: "Sprachnachricht aufnehmen (wird beim Stoppen gesendet)", stopRec: "Stoppen und senden", recording: "Aufnahme… zum Senden stoppen", preparing: "Sprachnachricht wird vorbereitet…", send: "Senden",
     chat: "Gespräch", call: "Lumi anrufen (Live-Stimme)", retry: "Erneut versuchen", sessionCost: "API-Kosten der Sitzung:",
@@ -126,29 +130,29 @@ const fmtList = (a, or) => (a.length <= 1 ? a.join("") : a.slice(0, -1).join(", 
 const lower = (s) => s.replace(/^./, (c) => c.toLowerCase());
 export const STORY = {
   en: {
-    root: (n, cash, kids) => `This is ${n.who} today. ${n.desc} The health score is ${n.score} out of 100. ${cash} Three paths grow from here: ${fmtList(kids.map(lower), "or")}. Choose one and I'll show you what it changes.`,
-    node: (n, cash, kids, dh) => `${n.label}. ${n.desc} Health ${n.score} out of 100${dh}. ${cash} ${kids.length ? `From here: ${fmtList(kids.map(lower), "or")}.` : "This is the end of this branch; open the report for the details."} The other branches stay in grey so you can compare.`,
+    root: (n, cash, kids) => `This is ${n.who} today. ${n.desc} Plan check: ${n.check}. ${cash} Three paths grow from here: ${fmtList(kids.map(lower), "or")}. Choose one and I'll show you what it changes.`,
+    node: (n, cash, kids, dh) => `${n.label}. ${n.desc} Plan check: ${n.check}. ${cash} ${kids.length ? `From here: ${fmtList(kids.map(lower), "or")}.` : "This is the end of this branch; open the report for the details."} The other branches stay in grey so you can compare.`,
     delta: (d) => `, ${Math.abs(d).toFixed(1)} points ${d >= 0 ? "higher" : "lower"} than the branch it grows from`,
     short: (m) => `In this scenario the cash runs short from month ${m}.`, ok: "In this scenario the cash never runs out.",
     back: (l) => `Back at ${l}.`,
   },
   es: {
-    root: (n, cash, kids) => `Esta es la situación de ${n.who} hoy. ${n.desc} Su salud financiera es ${n.score} sobre 100. ${cash} De aquí salen tres caminos: ${fmtList(kids.map(lower), "o")}. Elige uno y te enseño qué cambia.`,
-    node: (n, cash, kids, dh) => `${n.label}. ${n.desc} Salud ${n.score} sobre 100${dh}. ${cash} ${kids.length ? `Desde aquí: ${fmtList(kids.map(lower), "o")}.` : "Aquí termina esta rama; abre el informe para ver los detalles."} Las demás ramas quedan en gris para que compares.`,
+    root: (n, cash, kids) => `Esta es la situación de ${n.who} hoy. ${n.desc} Revisión del plan: ${n.check}. ${cash} De aquí salen tres caminos: ${fmtList(kids.map(lower), "o")}. Elige uno y te enseño qué cambia.`,
+    node: (n, cash, kids, dh) => `${n.label}. ${n.desc} Revisión del plan: ${n.check}. ${cash} ${kids.length ? `Desde aquí: ${fmtList(kids.map(lower), "o")}.` : "Aquí termina esta rama; abre el informe para ver los detalles."} Las demás ramas quedan en gris para que compares.`,
     delta: (d) => `, ${Math.abs(d).toFixed(1).replace(".", ",")} puntos ${d >= 0 ? "más" : "menos"} que la rama de la que sale`,
     short: (m) => `En este escenario la liquidez se agota a partir del mes ${m}.`, ok: "En este escenario nunca falta liquidez.",
     back: (l) => `De vuelta en ${l}.`,
   },
   fr: {
-    root: (n, cash, kids) => `Voici la situation de ${n.who} aujourd'hui. ${n.desc} Sa santé financière est de ${n.score} sur 100. ${cash} Trois chemins partent d'ici : ${fmtList(kids.map(lower), "ou")}. Choisissez-en un et je vous montre ce qu'il change.`,
-    node: (n, cash, kids, dh) => `${n.label}. ${n.desc} Santé ${n.score} sur 100${dh}. ${cash} ${kids.length ? `À partir d'ici : ${fmtList(kids.map(lower), "ou")}.` : "Cette branche s'arrête ici ; ouvrez le rapport pour les détails."} Les autres branches restent en gris pour comparer.`,
+    root: (n, cash, kids) => `Voici la situation de ${n.who} aujourd'hui. ${n.desc} Contrôle du plan : ${n.check}. ${cash} Trois chemins partent d'ici : ${fmtList(kids.map(lower), "ou")}. Choisissez-en un et je vous montre ce qu'il change.`,
+    node: (n, cash, kids, dh) => `${n.label}. ${n.desc} Contrôle du plan : ${n.check}. ${cash} ${kids.length ? `À partir d'ici : ${fmtList(kids.map(lower), "ou")}.` : "Cette branche s'arrête ici ; ouvrez le rapport pour les détails."} Les autres branches restent en gris pour comparer.`,
     delta: (d) => `, ${Math.abs(d).toFixed(1).replace(".", ",")} points de ${d >= 0 ? "plus" : "moins"} que la branche d'où elle part`,
     short: (m) => `Dans ce scénario, la trésorerie manque dès le mois ${m}.`, ok: "Dans ce scénario, la trésorerie ne manque jamais.",
     back: (l) => `De retour à ${l}.`,
   },
   de: {
-    root: (n, cash, kids) => `Das ist ${n.who} heute. ${n.desc} Die Finanzgesundheit liegt bei ${n.score} von 100. ${cash} Von hier wachsen drei Wege: ${fmtList(kids, "oder")}. Wähle einen, und ich zeige dir, was er verändert.`,
-    node: (n, cash, kids, dh) => `${n.label}. ${n.desc} Gesundheit ${n.score} von 100${dh}. ${cash} ${kids.length ? `Von hier aus: ${fmtList(kids, "oder")}.` : "Hier endet dieser Ast; öffne den Bericht für die Details."} Die anderen Äste bleiben grau, damit du vergleichen kannst.`,
+    root: (n, cash, kids) => `Das ist ${n.who} heute. ${n.desc} Plan-Check: ${n.check}. ${cash} Von hier wachsen drei Wege: ${fmtList(kids, "oder")}. Wähle einen, und ich zeige dir, was er verändert.`,
+    node: (n, cash, kids, dh) => `${n.label}. ${n.desc} Plan-Check: ${n.check}. ${cash} ${kids.length ? `Von hier aus: ${fmtList(kids, "oder")}.` : "Hier endet dieser Ast; öffne den Bericht für die Details."} Die anderen Äste bleiben grau, damit du vergleichen kannst.`,
     delta: (d) => `, ${Math.abs(d).toFixed(1).replace(".", ",")} Punkte ${d >= 0 ? "mehr" : "weniger"} als der Ast, aus dem er wächst`,
     short: (m) => `In diesem Szenario fehlt ab Monat ${m} Liquidität.`, ok: "In diesem Szenario reicht die Liquidität immer.",
     back: (l) => `Zurück bei ${l}.`,
