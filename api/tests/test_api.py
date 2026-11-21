@@ -193,6 +193,7 @@ def test_extract_wires_multimodal(monkeypatch):
     assert r.status_code == 200 and j["extractor"] == "fake" and j["profile"]["provenance"]["cash"]
     assert {"profile", "extractor", "cost_usd", "latency_ms", "missing_fields"} <= set(j)
     assert seen == {"files": ["payslip.jpg"], "text": "I pay 900 rent", "audio": b"RIFF", "audio_format": "wav"}
+    assert j["profile"]["income_basis"] == "net_before_tax"  # payslip net: income tax still charged (core #49)
 
 
 def test_extract_falls_back_to_mock_without_deps(monkeypatch):
@@ -559,3 +560,14 @@ def test_report_never_calls_the_llm_and_summary_route(monkeypatch):
     again = c.post("/report/summary", json={"path": ["1", "1.1"]}).json()
     assert again["cached"] is True and again["cost_usd"] == 0 and len(calls) == 1
     assert c.post("/report/summary", json={"path": ["9.9"]}).status_code == 422
+
+
+
+def test_income_basis_passes_through_to_the_engine():
+    if engine.ENGINE_NAME != "core":
+        return
+    p = engine.default_profile()
+    base = c.post("/simulate", json={"node": {"node_id": "1"}, "profile": p}).json()["result"]
+    th = c.post("/simulate", json={"node": {"node_id": "1"}, "profile": {**p, "income_basis": "take_home"}}).json()["result"]
+    assert base.get("income_basis") == "net_before_tax" and th.get("income_basis") == "take_home"
+    assert th["metrics"]["final_net_worth"] > base["metrics"]["final_net_worth"]  # no income tax charged again
