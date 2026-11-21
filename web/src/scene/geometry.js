@@ -22,6 +22,8 @@ export function createGeometry(meta) {
   function viewRect(id) {
     if (!id || id === '0') return { x: 0, y: 0, w: W, h: H };
     if (hasStill(ownStill(id))) return rectOf(ownStill(id));
+    const f = meta.frames?.[id]; // a still-less node framed on foliage inside its parent's still (precomputed)
+    if (f) return { x: f[0], y: f[1], w: f[2], h: f[3] };
     const base = viewRect(parentId(id));
     const [fx, fy] = DEEP[(parts(id).at(-1) - 1) % 3] || [0.5, 0.5];
     const w = base.w * 0.58, h = base.h * 0.58;

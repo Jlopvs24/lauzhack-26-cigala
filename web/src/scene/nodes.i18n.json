@@ -97,10 +97,10 @@
     "de": ["Nur der Studentenjob", "Wie im UBS-Starterkit: CHF 1'200 im Monat aus einem Studentenjob."]
   },
   "Get a scholarship": {
-    "en": ["Get a scholarship", "CHF 500 a month during the two years."],
-    "es": ["Conseguir una beca", "CHF 500 al mes durante los dos años."],
-    "fr": ["Obtenir une bourse", "CHF 500 par mois pendant les deux ans."],
-    "de": ["Ein Stipendium bekommen", "CHF 500 im Monat während der zwei Jahre."]
+    "en": ["Get a scholarship", "About CHF 740 a month during the two years (median Swiss study aid, away from parents)."],
+    "es": ["Conseguir una beca", "Unos CHF 740 al mes durante los dos años (ayuda al estudio mediana en Suiza, fuera de casa de los padres)."],
+    "fr": ["Obtenir une bourse", "Environ CHF 740 par mois pendant les deux ans (bourse d'études médiane en Suisse, hors du foyer parental)."],
+    "de": ["Ein Stipendium bekommen", "Etwa CHF 740 im Monat während der zwei Jahre (mittleres Schweizer Stipendium, nicht bei den Eltern wohnend)."]
   },
   "Graduate one year late": {
     "en": ["Graduate one year late", "Three years of studies: one more year of student life and tuition."],
@@ -109,16 +109,16 @@
     "de": ["Ein Jahr später abschließen", "Drei Jahre Studium: ein Jahr mehr Studentenleben und Studiengebühren."]
   },
   "Paid internship in year 2": {
-    "en": ["Paid internship in year 2", "CHF 2,500 a month for the 12 months of year 2."],
-    "es": ["Prácticas pagadas el segundo año", "CHF 2.500 al mes durante los 12 meses del segundo año."],
-    "fr": ["Stage rémunéré la 2e année", "CHF 2 500 par mois pendant les 12 mois de la 2e année."],
-    "de": ["Bezahltes Praktikum im 2. Jahr", "CHF 2'500 im Monat während der 12 Monate des 2. Jahres."]
+    "en": ["Paid internship in year 2", "CHF 2,000 a month (the EPFL recommended minimum) for the 12 months of year 2."],
+    "es": ["Prácticas pagadas el segundo año", "CHF 2.000 al mes (el mínimo recomendado por la EPFL) durante los 12 meses del segundo año."],
+    "fr": ["Stage rémunéré la 2e année", "CHF 2 000 par mois (le minimum recommandé par l'EPFL) pendant les 12 mois de la 2e année."],
+    "de": ["Bezahltes Praktikum im 2. Jahr", "CHF 2'000 im Monat (das von der EPFL empfohlene Minimum) während der 12 Monate des 2. Jahres."]
   },
   "Study loan of CHF 15,000": {
-    "en": ["Study loan of CHF 15,000", "Borrows CHF 15,000 at 2%, repaid at CHF 300 a month once she works (month 25)."],
-    "es": ["Préstamo de estudios de CHF 15.000", "Pide CHF 15.000 al 2 %, que devuelve a CHF 300 al mes cuando trabaje (mes 25)."],
-    "fr": ["Prêt d'études de CHF 15 000", "Elle emprunte CHF 15 000 à 2 %, remboursés à CHF 300 par mois dès qu'elle travaille (mois 25)."],
-    "de": ["Studienkredit über CHF 15'000", "Sie leiht CHF 15'000 zu 2 %, zurückgezahlt mit CHF 300 im Monat, sobald sie arbeitet (Monat 25)."]
+    "en": ["Study loan of CHF 15,000", "Borrows CHF 15,000 interest-free (Vaud study loan), repaid at CHF 300 a month once she works (month 25)."],
+    "es": ["Préstamo de estudios de CHF 15.000", "Pide CHF 15.000 sin intereses (préstamo de estudios de Vaud), que devuelve a CHF 300 al mes cuando trabaje (mes 25)."],
+    "fr": ["Prêt d'études de CHF 15 000", "Elle emprunte CHF 15 000 sans intérêts (prêt d'études vaudois), remboursés à CHF 300 par mois dès qu'elle travaille (mois 25)."],
+    "de": ["Studienkredit über CHF 15'000", "Sie leiht CHF 15'000 zinslos (Waadtländer Studiendarlehen), zurückgezahlt mit CHF 300 im Monat, sobald sie arbeitet (Monat 25)."]
   },
   "Repay over about 5 years": {
     "en": ["Repay over about 5 years", "CHF 300 a month from graduation."],
@@ -133,10 +133,10 @@
     "de": ["Schnell zurückzahlen", "CHF 600 im Monat ab dem Abschluss."]
   },
   "Rate rises to 5%": {
-    "en": ["Rate rises to 5%", "The variable rate rises to 5% at graduation."],
-    "es": ["El tipo sube al 5 %", "El tipo variable sube al 5 % al graduarse."],
-    "fr": ["Le taux monte à 5 %", "Le taux variable passe à 5 % au moment du diplôme."],
-    "de": ["Der Zins steigt auf 5 %", "Der variable Zins steigt beim Abschluss auf 5 %."]
+    "en": ["Rate rises to 5%", "Stress case: the loan charges 5% from graduation (Vaud charges 5% only on late repayment)."],
+    "es": ["El tipo sube al 5 %", "Caso de estrés: el préstamo cobra un 5 % desde la graduación (Vaud solo cobra el 5 % si se devuelve tarde)."],
+    "fr": ["Le taux monte à 5 %", "Scénario de stress : le prêt coûte 5 % dès le diplôme (Vaud ne facture 5 % qu'en cas de remboursement tardif)."],
+    "de": ["Der Zins steigt auf 5 %", "Stressfall: Das Darlehen kostet ab dem Abschluss 5 % (die Waadt verlangt 5 % nur bei verspäteter Rückzahlung)."]
   },
   "Part-time master's with a 60% job": {
     "en": ["Part-time master's with a 60% job", "Three years instead of two, with a 60% job; the better-paid job starts in month 37."],

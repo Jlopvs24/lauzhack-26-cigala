@@ -48,7 +48,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tag:focus-visible .card { box-shadow: 0 0 0 2px var(--ink); }
 .tag.sibling .dot, .tag.pruned .dot { background: rgba(255, 255, 255, 0.55); box-shadow: none; }
 .tag.sibling .dot::after, .tag.pruned .dot::after, .tag.chosen .dot::after { display: none; }
-.tag.sibling .card { background: rgba(40, 44, 42, 0.32); }
+.tag.sibling .card { background: rgba(34, 38, 36, 0.62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .tag.sibling .name { color: var(--ink-soft); }
 .tag.pruned { pointer-events: none; }
 .tag.pruned .card { background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; min-width: 0; }
@@ -89,6 +89,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #lumi .guide-say { display: none !important; }
 .say-card { pointer-events: auto; margin-bottom: 18px; padding: 16px 20px; border-radius: 18px 18px 18px 6px; background: rgba(250, 248, 242, 0.92); color: #1d2420; border: 1px solid rgba(255, 255, 255, 0.6); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); font-size: 15px; line-height: 1.5; transform-origin: 0 100%; }
 .say-card p { margin: 0; }
+.say-card .voice-note { display: inline-block; margin-top: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11px; letter-spacing: 0.04em; color: var(--card-muted, #5d6660); border: 1px solid currentColor; opacity: 0.8; }
 
 
 /* ---------- report ---------- */
@@ -248,10 +249,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .drawer input:not([type=checkbox]):not([type=file]), .drawer textarea, .drawer select { font-size: 16px; }
 }
 @media (max-width: 720px) {
+  /* phones: every header button stays reachable; the actions wrap onto a second row instead of scrolling */
   .top { align-items: flex-start; }
-  .top-actions { flex-wrap: nowrap !important; overflow-x: auto; max-width: calc(100vw - 120px); gap: 6px; scrollbar-width: none; justify-content: flex-start !important; }
-  .top-actions::-webkit-scrollbar { display: none; }
-  .ghost-btn { padding: 6px 11px; font-size: 12px; white-space: nowrap; flex: none; }
+  .top-actions { flex: 1; min-width: 0; flex-wrap: wrap !important; justify-content: flex-end !important; gap: 6px; }
+  .ghost-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; flex: none; }
+  .wx { top: calc(var(--top-h, 76px) + 6px) !important; left: 12px !important; width: calc(100vw - 24px) !important; padding: 8px 10px !important; }
+  .wx-head { margin-bottom: 4px !important; }
+  .wx-chips { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
+  .wx-chips::-webkit-scrollbar { display: none; }
+  .wx-chip { flex: none; min-height: 28px !important; padding: 3px 9px !important; font-size: 12px; }
   .seg { flex: none; }
   .say-card { font-size: 13px; padding: 12px 14px; max-height: 28vh; overflow-y: auto; margin-bottom: 8px; }
   .tag .meta { font-size: 11px; }
@@ -269,7 +275,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .narration { transition: opacity 0.25s ease; }
 .narration.right { left: auto; right: 28px; bottom: var(--dock-h, 110px); flex-direction: row-reverse; }
 .narration.right .say-card { border-radius: 18px 18px 6px 18px; transform-origin: 100% 100%; }
-.tag.occluded { opacity: 0.12 !important; pointer-events: none; }
+.tag.occluded { opacity: 0.4 !important; pointer-events: none; }
+.tag.compact .meta { display: none; }
+.tag.compact .card { padding: 6px 12px; }
 
 /* branch cards: slot A "does it hold?", slot B "what it trades" */
 .tag .meta { display: flex; flex-direction: column; gap: 3px; }
@@ -418,3 +426,22 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #stage.regrowing::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2;
   background: radial-gradient(60% 50% at 50% 55%, rgba(190, 235, 150, 0.32), transparent 70%); animation: regrow-glow 1.6s var(--ease) forwards; }
 @keyframes regrow-glow { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---------- weather (#65): sky tint, rain, lightning, dimmed branches (scene.js setWeather) ---------- */
+.still .dim { opacity: 0; filter: brightness(0.5) saturate(0.45) contrast(0.9); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-composite: source-over; mask-composite: add; }
+.wx-sky, .wx-rain, .wx-flash { position: absolute; inset: 0; pointer-events: none; }
+.wx-sky { opacity: 0; transition: opacity 1.6s ease, background 1.6s ease; mix-blend-mode: multiply; }
+#stage.wx-on .wx-sky { opacity: calc(0.35 + 0.55 * var(--wx-k, 0)); }
+#stage.wx-on .still > img:first-child { filter: saturate(calc(1 - 0.5 * var(--wx-k, 0))) brightness(calc(1 - 0.12 * var(--wx-k, 0))); transition: filter 1.6s ease; }
+/* the heaviest weather sets the cast (later rules win) */
+#stage[data-wx~="chf_weakens"] .wx-sky { background: linear-gradient(180deg, rgba(232, 214, 190, 0.7), rgba(250, 240, 226, 0.2)); }
+#stage[data-wx~="chf_strengthens"] .wx-sky { background: linear-gradient(180deg, rgba(206, 220, 236, 0.7), rgba(236, 242, 248, 0.2)); }
+#stage[data-wx~="inflation"] .wx-sky { background: radial-gradient(120% 80% at 50% 0%, rgba(236, 190, 120, 0.85), rgba(244, 222, 190, 0.35) 70%); }
+#stage[data-wx~="job_loss"] .wx-sky { background: linear-gradient(180deg, rgba(150, 176, 210, 0.95), rgba(196, 214, 232, 0.55)); }
+#stage[data-wx~="market_crash"] .wx-sky { background: linear-gradient(180deg, rgba(92, 96, 118, 0.95), rgba(150, 154, 168, 0.6) 60%, rgba(120, 124, 140, 0.7)); }
+#stage[data-wx~="recession"] .wx-sky { background: linear-gradient(180deg, rgba(118, 126, 136, 0.95), rgba(170, 176, 182, 0.6) 60%, rgba(140, 146, 152, 0.7)); }
+.wx-flash { opacity: 0; background: radial-gradient(90% 70% at 60% 10%, rgba(255, 255, 255, 0.95), rgba(220, 230, 255, 0.4) 50%, transparent 80%); mix-blend-mode: screen; }
+.tag.breaking .card { opacity: 0.62; filter: saturate(0.4); }
+.tag.breaking .name { text-decoration: line-through; text-decoration-color: rgba(220, 120, 100, 0.8); text-decoration-thickness: 1.5px; }
+.tag.holding .card { box-shadow: 0 0 0 1px rgba(198, 227, 163, 0.75), 0 0 22px rgba(198, 227, 163, 0.35); }
+@media (prefers-reduced-motion: reduce) { .wx-rain, .wx-flash { display: none; } .wx-sky { transition: none; } }
