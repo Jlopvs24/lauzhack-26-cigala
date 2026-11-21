@@ -17,6 +17,6 @@ const speak = (text, l) => {
   speechSynthesis.speak(u);
 };
 createRoot(document.getElementById('root')).render(
-  <ChatPanel lang={lang} speak={speak} callUrl="http://127.0.0.1:8000/call"
+  <ChatPanel lang={lang} onAnswer={(text) => speak(text, lang)} replay={speak} callUrl="http://127.0.0.1:8000/call"
     context={{ path: ['2'], node_id: '2', assumptions: [], weather: [], language: lang }} />,
 );

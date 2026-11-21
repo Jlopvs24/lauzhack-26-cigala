@@ -16,7 +16,7 @@
 
 /* ---------- buttons ---------- */
 .chatp-btn {
-  display: inline-grid; place-items: center; position: relative;
+  flex: none; display: inline-grid; place-items: center; position: relative;
   min-width: 40px; height: 40px; padding: 0 10px; border-radius: 999px;
   border: 1px solid var(--chatp-line); background: rgba(255, 255, 255, 0.06); color: inherit;
   font: inherit; font-size: 16px; line-height: 1; text-decoration: none; cursor: pointer;
@@ -38,10 +38,18 @@
 }
 
 /* ---------- dock (collapsed) ---------- */
+.chatp-dock-wrap {
+  position: fixed; right: 28px; bottom: 28px; z-index: 40; width: min(520px, calc(100vw - 56px));
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+}
+.chatp-bubble { margin: 0; max-width: 100%; padding: 8px 12px; border-radius: 12px; background: var(--chatp-bg); color: var(--chatp-soft);
+  font-size: 12.5px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.chatp-bubble.is-error { background: rgba(196, 81, 58, 0.92); color: #fff; }
+.chatp-btn.is-rec { background: var(--chatp-warn); color: #14201a; border-color: transparent; }
+.chatp-msg.is-pending { opacity: 0.65; }
 .chatp-dock {
-  position: fixed; right: 16px; bottom: 16px; z-index: 40;
   display: flex; align-items: center; gap: 8px; padding: 8px;
-  width: min(560px, calc(100vw - 32px));
+  width: 100%; box-sizing: border-box;
   border: 1px solid var(--chatp-line); border-radius: 999px; background: var(--chatp-bg);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
@@ -51,18 +59,13 @@
   border: 1px solid transparent; background: rgba(255, 255, 255, 0.07); color: inherit; font: inherit; font-size: 14px;
 }
 .chatp-dock-input::placeholder, .chatp textarea::placeholder { color: var(--chatp-faint); }
-.chatp-dock-voice .voice-note { max-width: none; }
-.chatp-dock-voice .voice-note small { display: none; } /* help text lives in the open panel */
-.chatp-dock-voice .voice-note [role="alert"] { position: absolute; bottom: calc(100% + 8px); right: 0; max-width: 280px;
-  margin: 0; padding: 8px 12px; border-radius: 12px; background: var(--chatp-bg); font-size: 12px; }
-.chatp-dock-voice .back, .chatp-compose .back {
+.chatp-compose .back {
   height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--chatp-line);
   background: rgba(255, 255, 255, 0.06); color: inherit; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
   transition: transform 160ms var(--chatp-ease-out), background-color 160ms ease;
 }
-.chatp-dock-voice .back:active:not(:disabled), .chatp-compose .back:active:not(:disabled) { transform: scale(0.96); }
-.chatp-dock-voice .back[aria-pressed="true"], .chatp-compose .back[aria-pressed="true"] { background: var(--chatp-warn); color: #14201a; }
-.chatp-dock-status { position: absolute; bottom: calc(100% + 8px); right: 16px; font-size: 12px; color: var(--chatp-soft); }
+.chatp-compose .back:active:not(:disabled) { transform: scale(0.96); }
+.chatp-compose .back[aria-pressed="true"] { background: var(--chatp-warn); color: #14201a; }
 
 /* ---------- panel (open) ---------- */
 .chatp-panel {
@@ -117,13 +120,14 @@
 
 /* phones: the dock keeps the four actions, the input shrinks */
 @media (max-width: 719px) {
-  .chatp-dock { right: 8px; left: 8px; bottom: 8px; width: auto; }
-  .chatp-dock-voice .back { padding: 0 10px; font-size: 12px; }
+  .chatp-dock-wrap { right: 12px; left: 12px; bottom: 12px; width: auto; }
+  .chatp-dock { gap: 6px; padding: 6px; }
+  .chatp-btn { min-width: 38px; height: 38px; padding: 0 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .chatp[data-side] .chatp-panel, .chatp.is-open .chatp-panel { transform: none; transition: opacity 160ms ease, visibility 0s linear 160ms; }
   .chatp.is-open .chatp-panel { transition: opacity 160ms ease, visibility 0s; }
-  .chatp-btn, .chatp-dock-voice .back, .chatp-compose .back { transition: background-color 160ms ease; }
+  .chatp-btn, .chatp-compose .back { transition: background-color 160ms ease; }
   .chatp-btn:active:not(:disabled) { transform: none; }
 }

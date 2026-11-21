@@ -1,6 +1,6 @@
 // One conversation for the whole session: typed questions go to /agent/ask, voice notes to
 // /voice/ask (the transcript becomes the user's message). The last 10 turns travel as history.
-// An answer the backend could not ground in the engine is rejected (Lluc's rule from Chat.jsx).
+// An answer the backend could not ground in the engine is rejected. Used by ChatPanel.jsx (#34).
 import { apiRequest } from './api.js';
 
 export async function askLumi({ question, audio, context, messages = [], signal }) {

@@ -6,7 +6,7 @@ import '../assets/character/guide/guide.css';
 import { apiRequest } from './api.js';
 import { pathToNode, validateTree } from './tree.js';
 import Roots from './Roots.jsx';
-import Dock from './Dock.jsx';
+import ChatPanel from './ChatPanel.jsx';
 import { Assumptions } from './NodeDetail.jsx';
 import { createScene } from './scene/scene.js';
 import { visibleNodes, greyCodes } from './scene/geometry.js';
@@ -48,7 +48,6 @@ function App() {
   const [muted, setMuted] = useState(false);
   const [lens, setLens] = useState(false);
   const [lensPending, setLensPending] = useState(false);
-  const [messages, setMessages] = useState([]); // the session's conversation, never reset by navigation
   const [convOpen, setConvOpen] = useState(false);
   const [pathReport, setPathReport] = useState(false);
   const [cost, setCost] = useState(0);
@@ -272,9 +271,10 @@ function App() {
       {bubble && !convOpen && <div className="say-card"><p>{bubble}</p></div>}
     </aside>
 
-    {started && <Dock t={(k) => t(lang, k)} lang={lang} messages={messages} setMessages={setMessages} open={convOpen} setOpen={setConvOpen}
-      disabled={!tree} context={{ profile, path, node_id: tree?.current, assumptions: overrides, weather: tree?.weather || [] }}
-      onAnswer={(text) => say(text)} onCost={addCost} callUrl={CALL_URL} onUnlock={() => voice.current?.unlock()} />}
+    {started && <ChatPanel lang={lang} disabled={!tree} callUrl={CALL_URL} onOpenChange={setConvOpen}
+      context={{ profile, path, node_id: tree?.current, assumptions: overrides, weather: tree?.weather || [] }}
+      onAnswer={(text) => say(text)} onCost={addCost} onUnlock={() => voice.current?.unlock()}
+      replay={(text, l) => voice.current?.speak(text, l)} />}
 
     {panel === 'report' && cur && <aside className="report drawer" aria-label="Report">
       <button className="close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
