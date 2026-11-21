@@ -48,26 +48,59 @@ TOOLS = [
 ]
 
 
+def _refs(node: dict) -> list[str]:
+    """Assumption ids a node's interventions reference (core: {"assumption": id}, mock: {"ref": id})."""
+    if node.get("assumptions_ref"):
+        return list(node["assumptions_ref"])
+    out = []
+    for iv in node.get("interventions") or []:
+        v = iv.get("value")
+        if isinstance(v, dict):
+            out.append(v.get("assumption") or v.get("ref"))
+    return sorted({r for r in out if r})
+
+
+def _sens(item: dict) -> dict:
+    keep = ("assumption_id", "label", "unit", "base_value", "low_value", "high_value", "change",
+            "final_net_worth_low", "final_net_worth_high", "delta_final_net_worth")
+    return {k: item[k] for k in keep if k in item}
+
+
 def _summary(res: dict, node: dict) -> dict:
+    """Engine-agnostic digest of a SimulationResult (works for contracts v0 mock and v1 core)."""
     m = res["metrics"]
     fnm = m.get("first_negative_month")
     p = res["bands"]["net_worth"]
-    return {
+    comps = res["health"].get("components", {})
+    out = {
         "node_id": res["node_id"], "label": node.get("label"), "trace_id": res["trace_id"],
-        "engine": res.get("engine"), "weather": res.get("weather", []),
-        "final_net_worth_p10": p["p10"][-1], "final_net_worth_p50": p["p50"][-1], "final_net_worth_p90": p["p90"][-1],
+        "engine": res.get("engine") or res.get("engine_version"),
+        "weather": [w.get("type") if isinstance(w, dict) else w for w in res.get("weather") or []],
+        "final_net_worth_p10": m.get("final_net_worth_p10", p["p10"][-1]),
+        "final_net_worth_p50": m.get("final_net_worth_p50", p["p50"][-1]),
+        "final_net_worth_p90": m.get("final_net_worth_p90", p["p90"][-1]),
         "final_cash_deterministic": res["deterministic"]["cash"][-1],
         "min_cash": m["min_cash"],
         "first_negative_month": None if fnm is None else fnm + 1,  # 1-indexed for humans
         "goal_probability": m.get("goal_probability", {}),
         "liquidity_months": m.get("liquidity_months"),
-        "health_score": res["health"]["score"], "health_components": res["health"]["components"],
-        "top_sensitivities": res.get("sensitivity", [])[:3],
+        "health_score": res["health"]["score"],
+        "health_components": {k: (v.get("score") if isinstance(v, dict) else v) for k, v in comps.items()},
+        "top_sensitivities": [_sens(x) for x in (res.get("sensitivity") or [])[:3]],
         "checks_passed": all(c["passed"] for c in res.get("checks", [])),
-        "assumptions_used": node.get("assumptions_ref", []),
-        "interventions": node.get("interventions", []),
+        "assumptions_used": _refs(node),
+        "changes": node.get("changes") or None,
+        "description": node.get("description") or None,
         "horizon_months": res.get("horizon_months"), "n_paths": res.get("n_paths"),
     }
+    for k in ("shortfall_probability", "final_debt", "total_one_off_costs"):
+        if k in m:
+            out[k] = m[k]
+    if "health" in res and res["health"].get("level"):
+        out["health_level"] = res["health"]["level"]
+    if out["changes"] is None:
+        out["interventions"] = node.get("interventions", [])
+    return {k: v for k, v in out.items() if v is not None or k == "first_negative_month"}
 
 
 class Toolbox:
@@ -78,19 +111,23 @@ class Toolbox:
         self.cache: dict[str, dict] = {}
         self.calls: list[dict] = []
 
+    def _key(self, node_id: str, overrides=None) -> str:
+        return node_id + json.dumps(overrides if overrides is not None else self.overrides, sort_keys=True)
+
     def _node(self, node_id: str, overrides=None) -> tuple[dict, dict]:
-        node = engine.node_info(node_id)
-        key = node_id + json.dumps(overrides or [], sort_keys=True)
+        key = self._key(node_id, overrides)
         if key not in self.cache:
-            self.cache[key] = engine.simulate(self.profile, {"node_id": node_id},
-                                              overrides if overrides is not None else self.overrides, self.weather)
-        return self.cache[key], node
+            node = engine.node_info(node_id)
+            res = engine.simulate(self.profile, {"node_id": node_id},
+                                  overrides if overrides is not None else self.overrides, self.weather)
+            self.cache[key] = (res, node)
+        return self.cache[key]
 
     def get_node(self, node_id: str) -> dict:
         res, node = self._node(str(node_id))
         out = _summary(res, node)
         vals = {a["id"]: a for a in engine.assumptions(self.overrides)}
-        out["assumption_values"] = {i: {"value": vals[i]["value"], "unit": vals[i]["unit"]}
+        out["assumption_values"] = {i: {"value": vals[i]["value"], "unit": vals[i].get("unit")}
                                     for i in out["assumptions_used"] if i in vals}
         return out
 
@@ -115,18 +152,20 @@ class Toolbox:
                 "delta_min_cash": round(after["min_cash"] - before["min_cash"], 2)}
 
     def preload(self, node_id: str) -> list[dict]:
-        """Current node + siblings, computed by the engine (free) so most questions need one LLM call.
+        """Current node + siblings + children via one engine expand (free) so most questions need one LLM call.
         Recorded as a tool call so grounding and traces include it."""
-        from api.mock_engine import children_ids, parent_of
-        par = parent_of(node_id)
-        siblings = [s for s in children_ids(par) if s != node_id] if par is not None else []
-        ids = [node_id] + siblings + children_ids(node_id)
-        rows = []
-        for i in ids:
-            try:
-                rows.append(self.get_node(i))
-            except Exception:  # noqa: BLE001
-                pass
+        try:
+            tree = engine.expand(self.profile, engine.path_to(node_id), self.overrides, self.weather)
+        except Exception as e:  # noqa: BLE001
+            log.warning("preload failed: %s", e)
+            return []
+        for n in tree["nodes"]:
+            self.cache[self._key(n["node_id"])] = (n["result"], n)
+        order = {"chosen": 1, "sibling": 2, "child": 3}
+        vis = sorted((n for n in tree["nodes"] if n["node_id"] == node_id or n["status"] in ("sibling", "child")),
+                     key=lambda n: (n["node_id"] != node_id, order.get(n["status"], 9)))
+        ids = [n["node_id"] for n in vis]
+        rows = [{**self.get_node(i), "status": n["status"]} for i, n in zip(ids, vis)]
         self.calls.append({"tool": "preload", "args": {"node_ids": ids}, "result": {"nodes": rows}})
         return rows
 
@@ -216,21 +255,21 @@ _T = {
         "main": "{label}: after {years} years the median net worth is CHF {p50} (10–90% range CHF {p10} to CHF {p90}). ",
         "neg": "Cash goes below zero in month {m}, so this path needs extra funding. ",
         "noneg": "Cash never goes below zero (lowest point CHF {min}). ",
-        "sens": "The assumption that moves the result most is {a}: +10% changes final net worth by CHF {d}. ",
+        "sens": "The assumption that moves the result most is {a} (final net worth swings by CHF {d}). ",
         "end": "These are conditional simulations, not forecasts; you decide which trade-off fits you. (node {node}, trace {trace})",
     },
     "es": {
         "main": "{label}: a {years} años el patrimonio mediano es CHF {p50} (rango 10–90%: CHF {p10} a CHF {p90}). ",
         "neg": "La caja cae por debajo de cero en el mes {m}: este camino necesita financiación extra. ",
         "noneg": "La caja nunca baja de cero (punto más bajo CHF {min}). ",
-        "sens": "El supuesto que más mueve el resultado es {a}: +10% cambia el patrimonio final en CHF {d}. ",
+        "sens": "El supuesto que más mueve el resultado es {a} (el patrimonio final varía CHF {d}). ",
         "end": "Son simulaciones condicionales, no previsiones; tú decides qué equilibrio te encaja. (nodo {node}, traza {trace})",
     },
     "fr": {
         "main": "{label} : après {years} ans, le patrimoine médian est de CHF {p50} (fourchette 10–90 % : CHF {p10} à CHF {p90}). ",
         "neg": "La trésorerie passe sous zéro au mois {m} : ce chemin demande un financement supplémentaire. ",
         "noneg": "La trésorerie ne passe jamais sous zéro (point le plus bas CHF {min}). ",
-        "sens": "L'hypothèse qui pèse le plus est {a} : +10 % change le patrimoine final de CHF {d}. ",
+        "sens": "L'hypothèse qui pèse le plus est {a} (le patrimoine final varie de CHF {d}). ",
         "end": "Ce sont des simulations conditionnelles, pas des prévisions ; c'est toi qui choisis le compromis. (nœud {node}, trace {trace})",
     },
 }
@@ -250,7 +289,7 @@ def template_answer(ctx: dict, lang: str, box: Toolbox) -> str:
         t["noneg"].format(min=_fmt(s["min_cash"]))
     if s["top_sensitivities"]:
         top = s["top_sensitivities"][0]
-        txt += t["sens"].format(a=top["assumption_id"], d=_fmt(top["delta_final_net_worth"]))
+        txt += t["sens"].format(a=top.get("label") or top["assumption_id"], d=_fmt(abs(top["delta_final_net_worth"])))
     txt += t["end"].format(node=s["node_id"], trace=s["trace_id"])
     return txt
 
