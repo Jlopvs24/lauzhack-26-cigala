@@ -26,3 +26,12 @@ test("a child's prefetched opening is exactly how its narration starts", () => {
     assert.ok(story.startsWith(first2), `${lang}: "${story.slice(0, 60)}" vs "${first2}"`);
   }
 });
+
+test('mouth level: silence is 0, a loud wave saturates at 1', async () => {
+  const { levelFromSamples } = await import('./voice.js');
+  assert.equal(levelFromSamples(new Uint8Array(64).fill(128)), 0);
+  const loud = Uint8Array.from({ length: 64 }, (_, i) => (i % 2 ? 255 : 0));
+  assert.equal(levelFromSamples(loud), 1);
+  const soft = Uint8Array.from({ length: 64 }, (_, i) => (i % 2 ? 138 : 118));
+  assert.ok(levelFromSamples(soft) > 0.2 && levelFromSamples(soft) < 0.6);
+});

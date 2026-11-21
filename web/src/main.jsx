@@ -70,6 +70,9 @@ function App() {
   const [lens, setLens] = useState(false);
   const [lensPending, setLensPending] = useState(false);
   const [convOpen, setConvOpen] = useState(false);
+  const [docked, setDocked] = useState(false); // a docked Lumi (bottom-right, thread 10) shows the narration instead
+  const sayOut = useRef({ text: '', lang: 'en', speaking: false });
+  const emitSay = () => dispatchEvent(new CustomEvent('lumi:say', { detail: { ...sayOut.current } }));
   const [pathReport, setPathReport] = useState(false);
   const [cost, setCost] = useState(0);
   const [noVoice, setNoVoice] = useState(''); // language with no voice at all on this device
@@ -92,7 +95,10 @@ function App() {
     let disposed = false;
     lumi.current = createGuide(lumiRef.current, { mood: 70 });
     voice.current = createVoice({
-      onTalking: (on) => lumi.current?.setTalking(on),
+      // Lumi's voice -> the character and the docked Lumi (thread 10): 'lumi:say' {text, lang, speaking},
+      // 'lumi:level' {level 0..1, ~30 fps}. A dock announces itself with 'lumi:dock' {mounted}.
+      onTalking: (on) => { lumi.current?.setTalking(on); sayOut.current.speaking = on; emitSay(); },
+      onLevel: (level) => { lumi.current?.setMouthLevel?.(level); dispatchEvent(new CustomEvent('lumi:level', { detail: { level } })); },
       onNoVoice: (l) => setNoVoice(l), // a discreet "DE: text only" note, not a sentence in the bubble
     });
     createScene({ world: worldRef.current, labels: labelsRef.current, onTagClick: (id, status) => onTag(id, status) }).then(async (s) => {
@@ -117,6 +123,12 @@ function App() {
     return () => { disposed = true; ro?.disconnect(); removeEventListener('resize', onResize); removeEventListener('panel:open', onPanel); removeEventListener('panel:close', onPanelClose); scene.current?.destroy(); voice.current?.dispose(); lumi.current?.destroy?.(); };
   }, []);
 
+  useEffect(() => { sayOut.current.text = bubble; sayOut.current.lang = lang; emitSay(); }, [bubble, lang]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const on = (e) => { setDocked(!!e.detail?.mounted); if (e.detail?.mounted) emitSay(); };
+    addEventListener('lumi:dock', on);
+    return () => removeEventListener('lumi:dock', on);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { document.documentElement.lang = lang; store.set('cigala.lang', lang); }, [lang]);
   useEffect(() => { document.documentElement.dataset.theme = theme; store.set('cigala.theme', theme); }, [theme]);
   useEffect(() => { voice.current?.setMuted(muted); }, [muted]);
@@ -335,7 +347,7 @@ function App() {
         : <p>{t(lang, 'noEngine')}</p>}
     </section>}
 
-    <aside className="narration">
+    <aside className={`narration${docked ? ' docked' : ''}`}>
       <div id="lumi" ref={lumiRef} />
       <div className="say-col">
         {bubble && !convOpen && <div className="say-card" aria-live="polite"><p>{bubble}</p>
