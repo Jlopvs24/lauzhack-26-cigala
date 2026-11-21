@@ -233,6 +233,10 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
         zones_at = [np.unique(zone_rows[:, t]) for t in range(H)]
     tax_scale = P["income_tax_scale"]
     r_cash = _monthly(P["cash_interest_rate"]) - 1.0
+    cash_shifts = np.stack([w.cash_rate_shift if w.cash_rate_shift is not None else np.zeros(H) for w in wl])
+    if cash_shifts.any():
+        cash_shifts = np.repeat(cash_shifts, n, axis=0) if len(wl) == K else np.broadcast_to(cash_shifts, (N, H))
+        r_cash = _monthly(np.maximum(P["cash_interest_rate"][:, None] + cash_shifts, 0.0)) - 1.0
     auto_liq = P["auto_liquidate_investments"] >= 0.5
 
     cash = np.empty((N, H + 1))
@@ -281,7 +285,7 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
         cost = cost_plan[:, t] * price_t[:, t] + unexpected[:, t]
         extra = extra_plan[:, t] * price_t[:, t]
         inv_ret = I * (gross[:, t] - 1.0)
-        c_int = np.maximum(C, 0.0) * r_cash
+        c_int = np.maximum(C, 0.0) * (r_cash[:, t] if r_cash.ndim == 2 else r_cash)
 
         pre = C + income - tax - living - cost + extra - d_pay[:, t] + d_new[:, t] + c_int
         # pillar 3a first (when cash allows, up to what is left of this calendar year's cap); the

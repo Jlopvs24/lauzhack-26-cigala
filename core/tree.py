@@ -517,7 +517,7 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
         "pruned_nodes": pruned_nodes(tree, path),
         "profile_basis": tree.get("profile_basis") or {"reference_profile_id": tree.get("profile_id"), "is_reference": True},
         "weather": wx,
-        "weather_options": {w["type"]: w["description"] for w in weather_catalog()},
+        "weather_options": {w.get("id", w["type"]): (w if "level" in w else w["description"]) for w in weather_catalog()},
         "assumptions": aset.to_list(),
     }
 

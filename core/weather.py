@@ -48,8 +48,75 @@ CATALOG = {
 }
 
 
+
+# These are conditional stress choices, not estimates or forecasts. Sources provide
+# context for the channels and scale; the exact scenario magnitudes are not verified.
+SOURCES = {
+    "inflation": "https://dam-api.bfs.admin.ch/hub/api/dam/assets/30525764/master",
+    "markets": "https://www.pictet.com/content/dam/www/documents/publications/shares-and-bonds-in-switzerland/2025/PWM_Performance-Swiss-shares-and-bonds-EN.pdf",
+    "macro": "https://www.snb.ch/en/publications/communication/summaries/zus_20251023",
+    "fx": "https://data.ecb.europa.eu/data/datasets/EXR/EXR.D.CHF.EUR.SP00.A",
+}
+
+QUALITATIVE = {
+    "scenario": {
+        "pessimistic": ("Pessimistic", "Prices rise faster, pay grows less and markets face headwinds.",
+                        {"inflation_override": 0.03, "real_wage_override": 0.0, "return_shift": -0.05, "job_loss_multiplier": 2.0}),
+        "neutral": ("Neutral", "Keep the current assumptions without a macro shift.", {}),
+        "optimistic": ("Optimistic", "Prices rise slowly, pay grows faster and markets have a tailwind.",
+                       {"inflation_override": 0.005, "real_wage_override": 0.02, "return_shift": 0.03, "job_loss_multiplier": 0.5}),
+    },
+    "inflation": {
+        "high": ("High inflation", "Prices rise faster while pay keeps its usual pace.", {"inflation_override": 0.03}),
+        "low": ("Low inflation", "Prices stay level while pay keeps its usual pace.", {"inflation_override": 0.0}),
+    },
+    "fx": {
+        "chf_strong": ("Strong franc", "Income and costs in euros are worth fewer francs.", {"fx_factor": 0.9}),
+        "chf_weak": ("Weak franc", "Income and costs in euros are worth more francs.", {"fx_factor": 1.1}),
+    },
+    "markets": {
+        "crash": ("Market crash", "Invested savings fall at the start, then returns follow the usual assumptions.", {"return_shock": 0.7, "return_shift": 0.0}),
+        "boom": ("Market boom", "Invested savings earn more during the scenario.", {"return_shift": 0.05}),
+    },
+    "jobs": {
+        "weak": ("Weak job market", "Real pay stops growing and simulated job losses are more frequent.",
+                 {"real_wage_override": 0.0, "job_loss_multiplier": 2.0}),
+        "strong": ("Strong job market", "Real pay grows faster and simulated job losses are less frequent.",
+                   {"real_wage_override": 0.02, "job_loss_multiplier": 0.5}),
+    },
+    "rates": {
+        "up": ("Rates rise", "Cash savings earn more; existing fixed-rate loans keep their terms.", {"cash_rate_shift": 0.01}),
+        "down": ("Rates fall", "Cash savings earn less, with a floor at zero; fixed-rate loans keep their terms.", {"cash_rate_shift": -0.01}),
+    },
+}
+
+
+
+ASSUMPTION_LABELS = {
+    "inflation_override": ("Annual price growth", 100, "%"),
+    "real_wage_override": ("Annual real wage growth", 100, "%"),
+    "return_shift": ("Annual portfolio return change", 100, "percentage points"),
+    "job_loss_multiplier": ("Simulated job-loss hazard", 1, "times the base assumption"),
+    "fx_factor": ("EURCHF during the scenario", 1, "times the base rate"),
+    "return_shock": ("Invested balance after the initial shock", 1, "times the opening invested balance"),
+    "cash_rate_shift": ("Annual cash-savings rate change", 100, "percentage points, floored at zero"),
+}
+
+def qualitative_option(typ: str, level: str) -> dict:
+    label, description, assumptions = QUALITATIVE[typ][level]
+    source_keys = ["macro", "inflation", "markets"] if typ == "scenario" else [typ if typ in SOURCES else "macro"]
+    notes = [{"label": ASSUMPTION_LABELS[k][0], "value": round(v * ASSUMPTION_LABELS[k][1], 4),
+              "unit": ASSUMPTION_LABELS[k][2]} for k, v in assumptions.items()]
+    return {"id": f"{typ}:{level}", "type": typ, "level": level, "label": label, "description": description,
+            "defaults": {"start_month": 0, "duration_months": 1200 if typ == "fx" else 24},
+            "assumptions": notes, "verified": False,
+            "source": "Team-defined conditional scenario; sources provide context, not a calibrated joint forecast.",
+            "sources": [SOURCES[k] for k in source_keys]}
+
+
 def weather_catalog() -> list[dict]:
-    return [{"type": k, **v} for k, v in CATALOG.items()]
+    return ([{"type": k, **v} for k, v in CATALOG.items()] +
+            [qualitative_option(typ, level) for typ, levels in QUALITATIVE.items() for level in levels])
 
 
 @dataclass
@@ -62,6 +129,7 @@ class WeatherArrays:
     forced_unemployment: np.ndarray  # (H,) bool
     applied: list[dict]
     fx_factor: np.ndarray | None = None  # (H,) multiplies EURCHF (#48 item 5), 1 = assumption
+    cash_rate_shift: np.ndarray | None = None  # (H,) savings-rate shift; fixed loans are unchanged
 
 
 def build_weather(events: list[dict] | None, H: int) -> WeatherArrays:
@@ -74,11 +142,40 @@ def build_weather(events: list[dict] | None, H: int) -> WeatherArrays:
         forced_unemployment=np.zeros(H, dtype=bool),
         applied=[],
         fx_factor=np.ones(H),
+        cash_rate_shift=np.zeros(H),
     )
-    for i, ev in enumerate(events or []):
-        ev = {"type": ev} if isinstance(ev, str) else ev
+    events = [{"type": ev} if isinstance(ev, str) else ev for ev in events or []]
+    if any(not isinstance(ev, dict) for ev in events):
+        raise ValueError("weather events must be objects or known type strings")
+    seen = set()
+    # Explicit factors override the macro perspective, independent of request order.
+    ordered = sorted(enumerate(events), key=lambda pair: pair[1].get("type") != "scenario")
+    for i, ev in ordered:
         typ = ev.get("type")
+        if not isinstance(typ, str):
+            raise ValueError(f"weather[{i}].type must be a string")
         typ = "inflation" if typ == "high_inflation" else typ
+        if "level" in ev or typ in QUALITATIVE and typ != "inflation":
+            level = ev.get("level")
+            if typ not in QUALITATIVE or not isinstance(level, str) or level not in QUALITATIVE[typ]:
+                raise ValueError(f"weather[{i}] has an unknown qualitative type or level")
+            if typ in seen:
+                raise ValueError(f"weather has more than one qualitative {typ} factor")
+            seen.add(typ)
+            if set(ev) - {"type", "level", "start_month", "duration_months"}:
+                raise ValueError("qualitative weather accepts only type, level and an optional time window")
+            option = qualitative_option(typ, level)
+            p = {**option["defaults"], **ev}
+            start = month_int(p["start_month"], f"weather[{i}].start_month", H)
+            duration = num(p["duration_months"], f"weather[{i}].duration_months", minimum=1)
+            if not duration.is_integer():
+                raise ValueError("weather duration must be an integer")
+            duration = int(duration)
+            end = min(H, start + duration)
+            for field, value in QUALITATIVE[typ][level][2].items():
+                getattr(w, field)[start:start + 1 if field == "return_shock" else end] = value
+            w.applied.append({**option, **p, "end_month": end})
+            continue
         if typ not in CATALOG:
             raise ValueError(f"weather[{i}].type must be one of {list(CATALOG)}")
         p = {**CATALOG[typ]["defaults"], **{k: v for k, v in ev.items() if k != "type"}}

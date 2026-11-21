@@ -66,10 +66,46 @@ test('event detail for the visual layer', () => {
   assert.equal(intensity([{ type: 'recession' }, { type: 'market_crash' }]), 1);
   assert.equal(intensity([{ type: 'inflation' }]), 0.5);
   const p = eventDetail([{ type: 'inflation', start_month: 0 }], null, true);
-  assert.deepEqual(p, { weather: [{ type: 'inflation', start_month: 0 }], intensity: 0.5, clear: false, pending: true,
+  assert.deepEqual(p, { weather: [{ type: 'inflation', start_month: 0 }], selected_weather: [{ type: 'inflation', start_month: 0 }], intensity: 0.5, clear: false, pending: true,
     start_month: 0, holds: null, holding_node_ids: [], breaking_node_ids: [] });
   const d = eventDetail(TREE.weather, TREE, false);
   assert.deepEqual(d.holds, { held: 2, of: 3 });
   assert.deepEqual(d.breaking_node_ids, ['2.1']);
   assert.equal(eventDetail([], TREE, false).clear, true);
+});
+
+test('macro controls send only qualitative levels; reset and opposing factors are exclusive', async () => {
+  const { MACRO_CLEAR, selectScenario, toggleFactor, buildMacroWeather } = await import('./weatherModel.js');
+  assert.deepEqual(buildMacroWeather(MACRO_CLEAR), []);
+  let s = selectScenario('pessimistic');
+  s = toggleFactor(s, 'inflation', 'high');
+  s = toggleFactor(s, 'inflation', 'low');
+  assert.deepEqual(buildMacroWeather(s), [{ type: 'scenario', level: 'pessimistic' }, { type: 'inflation', level: 'low' }]);
+  assert.deepEqual(buildMacroWeather(toggleFactor(s, 'inflation', 'low')), [{ type: 'scenario', level: 'pessimistic' }]);
+  assert.deepEqual(selectScenario('neutral'), MACRO_CLEAR);
+});
+
+test('macro options and labels are complete in every language, without magnitudes', async () => {
+  const { macroOptions } = await import('./weatherModel.js');
+  const { M_I18N } = await import('./weatherI18n.js');
+  const ids = ['scenario:pessimistic', 'scenario:neutral', 'scenario:optimistic', 'inflation:high', 'inflation:low',
+    'fx:chf_strong', 'fx:chf_weak', 'markets:crash', 'markets:boom', 'jobs:weak', 'jobs:strong', 'rates:up', 'rates:down'];
+  for (const L of Object.values(M_I18N)) for (const id of ids) {
+    assert.ok(L.labels[id]); assert.doesNotMatch(L.labels[id], /[0-9%]/);
+  }
+  const tree = { weather_options: { recession: 'old', 'scenario:neutral': { type: 'scenario', level: 'neutral' } } };
+  assert.equal(macroOptions(tree, 'scenario').length, 1);
+  assert.equal(weatherOptions(tree).length, 1);
+  for (const lang of Object.keys(M_I18N)) assert.doesNotMatch(stormLine(lang, [{ type: 'scenario', level: 'optimistic' }]), /[0-9%]/);
+});
+
+test('qualitative events retain the legacy visual layer and expose the actual selected weather', () => {
+  const request = [{ type: 'scenario', level: 'pessimistic' }, { type: 'markets', level: 'crash' }];
+  const d = eventDetail(request, TREE, false);
+  assert.deepEqual(d.selected_weather, request);
+  assert.deepEqual(d.weather.map((w) => w.type), ['recession', 'inflation', 'market_crash']);
+  assert.equal(d.intensity, 1);
+  const override = eventDetail([{ type: 'scenario', level: 'pessimistic' }, { type: 'inflation', level: 'low' }], TREE, false);
+  assert.ok(!override.weather.some((w) => w.type === 'inflation'));
+  assert.deepEqual(d.breaking_node_ids, ['2.1']);
 });
