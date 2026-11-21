@@ -33,6 +33,9 @@ Keys are read from `.env.local` at the repo root (`OPENROUTER_API_KEY`, `TOGETHE
 | POST | `/agent/ask/stream` | same as `/agent/ask` | Server-Sent Events: `start` at once, `sentence` (each checked before sending), `replace` (fallback text), `done` (same fields as `/agent/ask` + `first_sentence_ms`) |
 | POST | `/report` | `{profile?, path, assumptions?, uncertainty?, language?}` | path report: 12 structured sections, numbers only from the engine; summary is the deterministic template (no LLM call, ~1 s cold, cached) |
 | POST | `/report/summary` | same body | grounded LLM rewording/translation of the summary (frugal model, ~3-4 s, cached); falls back to the template if any number is not in it |
+| POST | `/tree/personalize` | `{profile?, path, node_id?, text? or audio_b64?, language?, mode?}` | the user's own condition → a proposed patch or new branch (`proposal.apply` to send back as `node_patches` / `custom_nodes`), or one clarifying question; amounts must be in the user's words |
+
+All engine routes (and `/agent/ask*` via `context`) accept optional `custom_nodes` and `node_patches`, forwarded to core (501 until core supports them).
 | POST | `/voice/stt` | multipart `audio` (WAV/MP3), `language?` | `{text, language, cost_usd, model}` |
 | POST | `/voice/ask` | multipart `audio`, `context` (JSON string), `language?` | `/agent/ask` response + `transcript`, `stt` |
 | POST | `/voice/tts` | `{text, language?, voice?}` | `audio/wav` (local Kokoro, cost 0; headers `X-Model`, `X-Cost-USD`, `X-Audio-Seconds`), or 503 → use browser `speechSynthesis` |

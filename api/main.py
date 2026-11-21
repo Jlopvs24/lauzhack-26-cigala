@@ -37,7 +37,15 @@ class Loose(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-class ExpandReq(Loose):
+class Personal(BaseModel):
+    """Personal conditions (docs/plan.md "Personal conditions -> the tree re-grows"), forwarded to core."""
+    custom_nodes: list[dict[str, Any]] = Field(default_factory=list, description=(
+        "User-added branches: [{parent_id, node_id, label, description?, interventions[]}] (from /tree/personalize)"))
+    node_patches: dict[str, list[dict[str, Any]]] = Field(default_factory=dict, description=(
+        "Conditions added to existing nodes: {node_id: [interventions]}; inherited by the subtree"))
+
+
+class ExpandReq(Loose, Personal):
     profile: dict[str, Any] | None = Field(None, description="Profile (contracts.md). Omit to use Alexia.")
     path: list[str] = Field(default_factory=list, description='Chosen node ids, e.g. ["1", "1.2"]. [] = root.')
     assumptions: list[dict[str, Any]] = Field(default_factory=list, description="Overrides: [{id, value}]")
@@ -52,7 +60,7 @@ class ExpandReq(Loose):
                                                  "/tree/explore returns it.")
 
 
-class SimulateReq(Loose):
+class SimulateReq(Loose, Personal):
     profile: dict[str, Any] | None = None
     node: dict[str, Any]
     assumptions: list[dict[str, Any]] = Field(default_factory=list)
@@ -99,7 +107,8 @@ def _warm_up() -> None:
 
 @app.get("/health")
 def health():
-    return {"ok": True, "engine": engine.ENGINE_NAME, "engine_version": engine.version(), "llm": agent.llm_status(),
+    return {"ok": True, "engine": engine.ENGINE_NAME, "engine_version": engine.version(),
+            "personal_conditions_supported": engine.supports_extras(), "llm": agent.llm_status(),
             "voice": voice.status(), "cache": cache.CACHE.stats(), "pid": __import__("os").getpid()}
 
 
@@ -115,10 +124,33 @@ def demo_profile():
 
 
 def _engine_body(req: Loose, *fields: str) -> dict:
-    return {f: getattr(req, f) for f in fields}
+    body = {f: getattr(req, f) for f in fields}
+    for f in ("custom_nodes", "node_patches"):  # personal conditions change every number: part of the key
+        if getattr(req, f, None):
+            body[f] = getattr(req, f)
+    return body
+
+
+def with_extras(route):
+    """Run the route with the request's custom_nodes / node_patches applied to every engine call;
+    501 if this core cannot take them yet."""
+    import functools
+
+    @functools.wraps(route)
+    def wrapper(*args, **kwargs):
+        req = kwargs.get("req")
+        src = req.context if isinstance(getattr(req, "context", None), dict) else req
+        get = (lambda k: src.get(k)) if isinstance(src, dict) else (lambda k: getattr(src, k, None))
+        try:
+            with engine.using_extras(get("custom_nodes"), get("node_patches")):
+                return route(*args, **kwargs)
+        except engine.ExtrasNotSupported as e:
+            raise HTTPException(501, str(e)) from e
+    return wrapper
 
 
 @app.post("/tree/expand")
+@with_extras
 def tree_expand(req: ExpandReq):
     """Visible tree. Cached by request (deterministic engine): repeated or concurrent identical calls are instant."""
     t0 = time.perf_counter()
@@ -130,10 +162,12 @@ def tree_expand(req: ExpandReq):
     except (KeyError, ValueError) as e:
         raise HTTPException(422, f"bad path: {e}") from e
     return {**out, "engine": engine.ENGINE_NAME, "uncertainty": req.uncertainty, "exploration": req.exploration,
+            "personal_conditions": {"custom_nodes": len(req.custom_nodes), "patched_nodes": sorted(req.node_patches)},
             "uncertainty_flag_supported": engine.supports_uncertainty_flag(), "cached": hit, **_meta(t0)}
 
 
 @app.post("/tree/explore")
+@with_extras
 def tree_explore(req: ExpandReq):
     """Exploration of the current node only (levers, break-even, goal-seek, reverse stress, timing, tornado),
     for clients that expand with exploration=false. Cached like /tree/expand."""
@@ -160,6 +194,7 @@ def tree_explore(req: ExpandReq):
 
 
 @app.post("/simulate")
+@with_extras
 def simulate(req: SimulateReq):
     t0 = time.perf_counter()
     try:
@@ -262,7 +297,7 @@ def _warm_profile(profile: dict | None) -> None:
     threading.Thread(target=run, name="warm-profile", daemon=True).start()
 
 
-class ReportReq(Loose):
+class ReportReq(Loose, Personal):
     profile: dict[str, Any] | None = Field(None, description="Profile; omit to use Alexia.")
     path: list[str] = Field(default_factory=list, description='Chosen node ids from the root, e.g. ["2", "2.1"].')
     assumptions: list[dict[str, Any]] = Field(default_factory=list, description="Overrides: [{id, value}]")
@@ -271,6 +306,7 @@ class ReportReq(Loose):
 
 
 @app.post("/report")
+@with_extras
 def report(req: ReportReq):
     """Path report (docs/report-spec.md §3): 12 structured sections, numbers only from the engine."""
     from api.report import build_report
@@ -296,6 +332,7 @@ def _report_data(req: "ReportReq") -> dict:
 
 
 @app.post("/report/summary")
+@with_extras
 def report_summary(req: ReportReq):
     """Grounded LLM rewording of the report's template summary, for the UI to swap in when it arrives.
     Same body as /report. Returns {text, mode: llm|template, template, language, model, cost_usd, cached,
@@ -316,7 +353,51 @@ def report_summary(req: ReportReq):
     return out
 
 
+class PersonalizeReq(Loose, Personal):
+    profile: dict[str, Any] | None = None
+    path: list[str] = Field(default_factory=list, description='Chosen path, e.g. ["2"]')
+    node_id: str | None = Field(None, description="Node the condition is about (default: last of path)")
+    text: str | None = Field(None, description="The user's words, e.g. \"I'd get a CHF 600/month scholarship\"")
+    audio_b64: str | None = Field(None, description="Voice note instead of text (base64); transcribed first")
+    audio_format: str = Field("wav", description="wav | mp3 | ogg ...")
+    language: str | None = None
+    mode: str = Field("auto", description="patch | new_branch | auto")
+    assumptions: list[dict[str, Any]] = Field(default_factory=list)
+
+
+@app.post("/tree/personalize")
+@with_extras
+def tree_personalize(req: PersonalizeReq):
+    """The user's own condition on a branch -> a proposed patch or new branch (never applied here).
+    Returns {proposal: {mode, node_id | parent_id, node_id (new branch), label, description, interventions,
+    apply}, explanation, clarifying_question, transcript?, language, cost_usd, latency_ms, model, validation}.
+    Send `proposal.apply` back merged into node_patches / custom_nodes to re-grow the tree."""
+    from api.personalize import personalize
+    t0 = time.perf_counter()
+    text, transcript, stt_cost = req.text, None, 0.0
+    if req.audio_b64 and not text:
+        import base64
+        try:
+            heard = voice.stt(base64.b64decode(req.audio_b64), f"voice.{req.audio_format}", req.language)
+        except (voice.VoiceError, RuntimeError, ValueError) as e:
+            raise HTTPException(503, f"stt unavailable: {e}") from e
+        text, transcript, stt_cost = heard.get("text"), heard.get("text"), heard.get("cost_usd", 0.0)
+        req.language = req.language or heard.get("language")
+    if not text:
+        raise HTTPException(422, "send text or audio_b64")
+    try:
+        out = personalize(req.profile, req.path, req.node_id, text, req.language, req.mode, req.assumptions)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(422, f"bad node: {e}") from e
+    if transcript is not None:
+        out["transcript"] = transcript
+    out["cost_usd"] = round(out.get("cost_usd", 0.0) + stt_cost, 6)
+    out["latency_ms"] = int((time.perf_counter() - t0) * 1000)
+    return out
+
+
 @app.post("/agent/ask")
+@with_extras
 def agent_ask(req: AskReq):
     t0 = time.perf_counter()
     ctx = dict(req.context)
@@ -340,9 +421,19 @@ def agent_ask_stream(req: AskReq):
         ctx["profile"] = ALEXIA
 
     def gen():
+        # Starlette advances this generator step by step in copied contexts, so the personal conditions are
+        # applied around each step (not across yields).
+        it = agent.ask_stream(req.question, ctx)
         try:
-            for ev in agent.ask_stream(req.question, ctx):
+            while True:
+                with engine.using_extras(ctx.get("custom_nodes"), ctx.get("node_patches")):
+                    try:
+                        ev = next(it)
+                    except StopIteration:
+                        return
                 yield _sse(ev["type"], ev)
+        except engine.ExtrasNotSupported as e:
+            yield _sse("error", {"type": "error", "error": str(e)})
         except Exception as e:  # noqa: BLE001
             yield _sse("error", {"type": "error", "error": str(e)[:200]})
 

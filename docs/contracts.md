@@ -597,6 +597,7 @@ Every engine entry point — `expand`, `explore`, `simulate`, `report_data`, `wa
 | POST | `/voice/stt`, `/voice/tts` | speech in/out |
 | POST | `/report` | `{profile?, path, assumptions?, uncertainty?, language?}` → path report (12 sections, below); no LLM in the request path, ~1 s cold, ~10 ms cached |
 | POST | `/report/summary` | same body → `{text, mode: llm\|template, template, language, model, cost_usd, cached, latency_ms, rejected_llm_numbers?}`: grounded LLM rewording of the report summary, to swap in when it arrives |
+| POST | `/tree/personalize` | `{profile?, path, node_id?, text? or audio_b64?, language?, mode?}` → proposal to confirm (patch or new branch), never applied; see "Personal conditions" below |
 
 Engine functions for `api/engine.py`: `core.expand(profile, path, assumptions, weather)`, `core.simulate(profile, node, assumptions, weather)`, `core.node_info(node_id)`, `core.assumptions_list(overrides)`, `core.weather_catalog()`.
 
@@ -650,6 +651,45 @@ Implements `docs/report-spec.md` §3. Every number comes from engine calls (one 
 - `/report` never calls the LLM: `sections.summary` is always `{text, mode: "template", template, cost_usd: 0, model: "template"}` (English, deterministic).
 - `POST /report/summary` (same body; `language` picks the output language) rewords or translates that template with the frugal default model (`qwen/qwen3.7-flash`, ~3-4 s, ~USD 0.00003). `mode = "llm"` only when the rewording adds no number outside the template (0.5% tolerance); otherwise `mode = "template"` with `rejected_llm_numbers`. The UI shows `/report` at once and swaps the summary text in when this returns.
 - Both are cached per API worker by request hash (`cached: true`, cost 0). `language` is not part of the `/report` key, so a summary in another language reuses the same report data.
+
+### Personal conditions (`/tree/personalize`, `custom_nodes`, `node_patches`; API side, additive)
+
+See docs/plan.md "Personal conditions → the tree re-grows". The API proposes, the user confirms, the client re-sends.
+
+**1. Propose:** `POST /tree/personalize {profile?, path, node_id?, text? | audio_b64? + audio_format?, language?, mode?: "auto"|"patch"|"new_branch", assumptions?, custom_nodes?, node_patches?}`
+
+```json
+{
+  "proposal": {
+    "mode": "patch",
+    "node_id": "2",
+    "label": "Scholarship",
+    "description": "Scholarship (on “Do a master's”)",
+    "interventions": [{"param": "monthly_net_income", "op": "add", "value": 600, "from_month": 0, "to_month": 24,
+                       "label": "Scholarship", "source": "user"}],
+    "apply": {"node_patches": {"2": ["...the interventions above..."]}}
+  },
+  "explanation": "If you receive a CHF 600 scholarship each month during the master's (month 1 to month 24), then ...",
+  "explanation_template": "If you add “Scholarship”, then under these assumptions your monthly net income would rise by CHF 600 from month 1 to month 24.",
+  "clarifying_question": null,
+  "transcript": "only when audio was sent",
+  "language": "en", "model": "qwen/qwen3.7-flash", "cost_usd": 0.00003, "latency_ms": 2600,
+  "validation": {"errors": [], "numbers_not_in_your_words": [], "numbers_checked": true}
+}
+```
+
+- `mode: "new_branch"` → `{"mode": "new_branch", "parent_id": "2", "node_id": "2.c1", "label": "Do a master's: Scholarship", "interventions": [...], "custom": true, "apply": {"custom_nodes": [{parent_id, node_id, label, description, interventions, custom}]}}`. The new node is a custom **child** of `node_id`, so it inherits the branch and is compared with the branch's other children. Ids are `<node_id>.c<k>`; existing `custom_nodes` in the request are skipped.
+- No proposal (`proposal: null`) when the parser did not understand, a required amount is missing, an amount or month is not in the user's words, or the schema/ranges fail. Then `clarifying_question` holds one question in the user's language, and `validation` says why. Injection or off-topic text is refused before any LLM call (`refused: true`, cost 0).
+- Rules enforced in code:
+  - Amounts must appear in the user's words. Allowed conversions: k, %, ×12, ÷12.
+  - Months must come from the user's words or the branch's own windows.
+  - `set` is never negative, `mul` is within 0–10, `0 ≤ from_month < to_month ≤ horizon`, loan rate is within 0–0.3, assumptions must be known ids.
+  - At most 6 interventions; a schema error gets one repair round.
+- Never applied by the API. The intervention schema is the one in "Decision tree → Intervention" above.
+
+**2. Apply (client):** merge `proposal.apply` into the request's `node_patches` (append to that node's list) or `custom_nodes`, and send it on `POST /tree/expand`, `/tree/explore`, `/simulate`, `/report`, `/report/summary` and in `context` of `/agent/ask` and `/agent/ask/stream`. The API forwards both fields to core and includes them in cache keys. `/tree/expand` echoes `personal_conditions: {custom_nodes: n, patched_nodes: [ids]}`. Until core supports them (`GET /health` → `personal_conditions_supported`), a request that uses them gets **501**; requests without them are unchanged.
+
+**3. Agent:** when a chat message describes the user's own situation, the agent calls the tool `propose_personalization` and its response carries `personalize` (the same object as `/tree/personalize`, or `null`) for the UI's confirm chip. The answer says what would change *if* they confirm, or asks the clarifying question.
 
 ## Env vars
 

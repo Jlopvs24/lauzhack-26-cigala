@@ -70,6 +70,17 @@ TOOLS = [
             "kind": {"type": "string", "description": "levers | break_even | goal_seek | reverse_stress | timing"}},
             "required": ["node_id"]}}},
     {"type": "function", "function": {
+        "name": "propose_personalization",
+        "description": "When the user describes THEIR OWN situation on a branch (a scholarship, help from family, a "
+                       "cheaper flat, a part-time job, a gift, a loan...), call this with their exact words. It returns "
+                       "a proposal the user must confirm in the app (nothing changes until they confirm), or a "
+                       "clarifying question if an amount is missing. Never invent the amounts.",
+        "parameters": {"type": "object", "properties": {
+            "node_id": {"type": "string"},
+            "text": {"type": "string", "description": "the user's own words, unchanged"},
+            "mode": {"type": "string", "enum": ["auto", "patch", "new_branch"]}},
+            "required": ["node_id", "text"]}}},
+    {"type": "function", "function": {
         "name": "get_assumptions",
         "description": "All editable assumptions (levers) with value, unit, range and source.",
         "parameters": {"type": "object", "properties": {}}}},
@@ -349,6 +360,10 @@ class Toolbox:
         self.overrides = ctx.get("assumptions") or []
         self.weather = ctx.get("weather") or []
         self.uncertainty = bool(ctx.get("uncertainty"))
+        self.path = [p for p in (ctx.get("path") or []) if p and p != "0"]
+        self.language = ctx.get("language")
+        self.proposal: dict | None = None  # set by propose_personalization
+        self.cost = 0.0  # extra LLM cost from tools (personalize parser)
         self.cache: dict[str, tuple[dict, dict]] = {}
         self.fast_cache: dict[str, dict] = {}
         self.calls: list[dict] = []
@@ -557,6 +572,17 @@ class Toolbox:
                 "facts": [f["text"] for f in facts],
                 "exploration": _trim(expl, 6000)}
 
+    def propose_personalization(self, node_id: str, text: str, mode: str = "auto") -> dict:
+        from api.personalize import personalize
+        out = personalize(self.profile, self.path, str(node_id), text, self.language, mode, self.overrides)
+        self.cost += out.get("cost_usd") or 0.0
+        if out.get("proposal"):
+            self.proposal = out
+        return {"proposal": out.get("proposal") and {k: out["proposal"].get(k) for k in
+                                                     ("mode", "node_id", "parent_id", "label", "interventions")},
+                "explanation": out.get("explanation"), "clarifying_question": out.get("clarifying_question"),
+                "note": "nothing is applied until the user confirms the proposal in the app"}
+
     def get_assumptions(self) -> dict:
         return {"assumptions": engine.assumptions(self.overrides)}
 
@@ -730,6 +756,10 @@ Hard rules:
 3. Cite where numbers come from: the node (e.g. "option 1.2") and the key assumptions (levers) involved.
 4. Talk in if-then terms: "if you take X, then under these assumptions Y would…". NEVER say "you will", "expected",
    "likely", "chance" or "probability" about the future. {lens_rule}
+4a. If the user describes their OWN situation on this branch (a scholarship, help from family, a cheaper flat, a
+   part-time job, a gift, a loan...), call propose_personalization with their exact words. Then say in one sentence
+   what would change IF they confirm it in the app; it is not applied yet. If it returns a clarifying question,
+   ask exactly that question.
 4b. To say whether a plan holds, use plan_check (holds / holds below target / infeasible / needs financing) and
    its label; the health score is secondary: do not lead with it or call a plan good or bad by it.
 5. For "what would have to be true" questions (break-even, what salary or saving would be needed, what breaks the
@@ -964,12 +994,13 @@ def ask(question: str, ctx: dict) -> dict:
                          "trace_id": c["result"].get("trace_id") or c["result"].get("after", {}).get("trace_id"),
                          "node_id": c["result"].get("node_id")} for c in box.calls],
         "cited_nodes": sorted({c["result"].get("node_id") for c in box.calls if c["result"].get("node_id")}),
-        "cost_usd": round(cost, 6),
+        "cost_usd": round(cost + box.cost, 6),
         "tokens": tokens,
         "model": used_model or "template",
         "error": error,
         "history_used": len(history),
         "history_dropped": dropped,
+        "personalize": box.proposal,  # a proposal for the UI's confirm chip, or None
     }
 
 
@@ -1120,6 +1151,6 @@ def ask_stream(question: str, ctx: dict):
                             "trace_id": c["result"].get("trace_id") or c["result"].get("after", {}).get("trace_id"),
                             "node_id": c["result"].get("node_id")} for c in box.calls],
            "cited_nodes": sorted({c["result"].get("node_id") for c in box.calls if c["result"].get("node_id")}),
-           "cost_usd": round(cost, 6), "tokens": tokens, "model": used_model or "template", "error": error,
-           "history_used": len(history), "history_dropped": dropped,
+           "cost_usd": round(cost + box.cost, 6), "tokens": tokens, "model": used_model or "template", "error": error,
+           "history_used": len(history), "history_dropped": dropped, "personalize": box.proposal,
            "first_sentence_ms": first_ms, "latency_ms": int((time.perf_counter() - t0) * 1000)}

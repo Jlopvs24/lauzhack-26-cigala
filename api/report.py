@@ -483,7 +483,8 @@ def build_report(profile: dict | None, path: list[str], overrides: list[dict] | 
     body = {"path": path, "assumptions": overrides, "uncertainty": uncertainty}
     report_data = _core_report_data()
     if report_data:  # core >= #27: thin wrapper, every number from core.report_data
-        data = report_data(profile, path, overrides, [], uncertainty=uncertainty)
+        data = report_data(profile, path, overrides, [], uncertainty=uncertainty,
+                           **engine._extras_kw(report_data))  # personal conditions, if any
         rep = _sections_from_core(data, body)
         engine_version = rep.pop("_engine_version", None)
         tmpl = _template_from_core(rep)
