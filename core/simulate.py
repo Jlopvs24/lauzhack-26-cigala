@@ -14,6 +14,7 @@ from .engine import FLOW_KEYS, run, run_batch
 from .models import Profile, parse_interventions
 from .schedule import build_schedule
 from .explore import explore_node, levers
+from . import plan as pl
 from .weather import build_weather
 
 DEFAULT_SEED = 42
@@ -97,7 +98,8 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
         "avg_unemployed_months": round(float(mc.unemployed_months.mean()), 2) if uncertainty else None,
         "goal_probability": {g["name"]: g["probability"] for g in goals} if uncertainty else {},
     }
-    hl = an.health(det, mc, goals, A)
+    resilience = pl.weather_resilience(prof, sched, A, aset, weather, goals)
+    hl = an.health(det, mc, goals, A, resilience)
     metrics["liquidity_months"] = hl["components"]["liquidity"]["value"]
 
     deterministic = {
@@ -141,6 +143,10 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
     if exploration:
         result["exploration"] = explore_node(prof, interventions, own_interventions or [], aset, weather,
                                              comparators or [], levers(tornado))
+    result["constraints"] = pl.constraints(det, A, goals, aset)
+    result["weather_resilience"] = resilience
+    result["plan_check"] = pl.plan_check(result["constraints"], resilience, hl, result.get("exploration"))
+    result["headline"] = {"slot_a": pl.slot_a(metrics, goals, hl), "slot_b": None, "metric_key": None}
     if not sensitivity:
         result["sensitivity"] = None
     if not uncertainty:

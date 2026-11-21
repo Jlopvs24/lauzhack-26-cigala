@@ -54,7 +54,8 @@ def bands(arr: np.ndarray) -> dict[str, list[float]]:
     return {"p10": series(p[0]), "p50": series(p[1]), "p90": series(p[2])}
 
 
-def health(det: RunOutput, mc: RunOutput | None, goals: list[dict], A: dict[str, float]) -> dict:
+def health(det: RunOutput, mc: RunOutput | None, goals: list[dict], A: dict[str, float],
+           resilience: dict | None = None) -> dict:
     f = det.flows
     living = f["living_expenses"][0]
     liquid = det.cash[0, 1:] + det.investments[0, 1:]
@@ -71,7 +72,9 @@ def health(det: RunOutput, mc: RunOutput | None, goals: list[dict], A: dict[str,
         dsr = np.where(income > 0, pay / income, np.where(pay > 0, np.inf, 0.0))
     max_dsr = float(np.max(dsr))
     limit = A["debt_service_limit"]
-    debt_score = float(np.clip(1.0 - max_dsr / (2.0 * limit), 0.0, 1.0)) if np.isfinite(max_dsr) else 0.0
+    # pass/fail with margin: any debt within the limit scores 1, so a loan that closes a gap never looks worse
+    debt_score = (1.0 if max_dsr <= limit else float(np.clip(1.0 - (max_dsr - limit) / limit, 0.0, 1.0))) \
+        if np.isfinite(max_dsr) else 0.0
 
     min_cash = (mc if mc is not None else det).cash[:, 1:].min(axis=1)
     p_short = float(np.mean(min_cash < -TOL))
@@ -88,16 +91,24 @@ def health(det: RunOutput, mc: RunOutput | None, goals: list[dict], A: dict[str,
         },
         "debt": {
             "score": round(debt_score, 3), "value": _fin(max_dsr), "unit": "max debt payments / income",
+            "passed": bool(max_dsr <= limit), "limit": limit,
+            "margin": _fin(limit - max_dsr),
             "explanation": ("No debt payments." if max_dsr == 0 else
-                            f"Debt payments reach {_pct(max_dsr)} of income at most; above {_pct(limit)} is stretched."),
+                            f"Debt payments reach {_pct(max_dsr)} of income at most: "
+                            + ("within" if max_dsr <= limit else "above") + f" the {_pct(limit)} limit."),
         },
-        "resilience": {
+        "resilience": ({
             "score": round(1.0 - p_short, 3), "value": round(p_short, 3),
-            "unit": "share of simulated paths where cash goes negative" if mc is not None else "deterministic cash-shortfall indicator (0 or 1)",
-            "explanation": (f"Under these assumptions, cash runs out in {_pct(p_short)} of {mc.cash.shape[0]} simulated paths."
-                            if mc is not None else "Under these assumptions, " +
-                            ("cash runs out in this scenario." if p_short else "cash stays above the shortfall threshold in this scenario.")),
-        },
+            "unit": "share of simulated paths where cash goes negative",
+            "explanation": f"Under these assumptions, cash runs out in {_pct(p_short)} of {mc.cash.shape[0]} simulated paths.",
+        } if mc is not None or not resilience or not resilience["of"] else {
+            "score": round(resilience["holds_in"] / resilience["of"], 3), "value": resilience["holds_in"],
+            "unit": f"named weather scenarios (of {resilience['of']}) in which the plan holds",
+            "explanation": (f"Under these assumptions the plan holds ({resilience['holds_means']}) in "
+                            f"{resilience['holds_in']} of {resilience['of']} weather scenarios: " + ", ".join(
+                                f"{r['type'].replace('_', ' ')} {'holds' if r['holds'] else 'breaks'}"
+                                for r in resilience["by_weather"] if r["holds"] is not None) + "."),
+        }),
     }
     if goals:
         wsum = sum(PRIORITY_WEIGHT.get(g["priority"], 1.0) for g in goals)

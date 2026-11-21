@@ -65,5 +65,7 @@ Only with `uncertainty=True`: 1,000 paths, seed 42, vectorised over paths (~50-9
 | `analysis.py` | metrics, goals, health, accounting checks |
 | `simulate.py` | one node → SimulationResult, sensitivity tornado |
 | `explore.py` | levers, break-even, goal-seek, reverse stress, timing (deterministic) |
+| `plan.py` | constraints, plan check (feasibility first), weather resilience, branch headlines |
+| `report.py` | `report_data`: every number of the path report |
 | `tree.py` | lazy tree with pruning, `expand`, `simulate` |
 | `starter.py` | UBS starter-kit bridge (reproduces its results exactly) |

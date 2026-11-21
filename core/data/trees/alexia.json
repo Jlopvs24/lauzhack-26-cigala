@@ -166,7 +166,7 @@
     {
       "id": "AS-alexia-equity-return",
       "param": "equity_heavy_return",
-      "label": "Expected-return assumption for an 80% equity portfolio",
+      "label": "Assumed annual return of an 80% equity portfolio",
       "value": 0.055,
       "unit": "1/year",
       "range": [
