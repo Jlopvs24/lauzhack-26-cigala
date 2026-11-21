@@ -290,16 +290,21 @@ def _r(x):
 
 
 def simulate(profile: dict, node_id: str, interventions: list[dict], overrides=None, weather=None,
-             n_paths: int = N_PATHS, seed: int = SEED) -> dict:
+             n_paths: int = N_PATHS, seed: int = SEED, uncertainty: bool = False) -> dict:
+    """Contract #21: deterministic by default. Monte Carlo (bands, shares of paths) only with uncertainty=True;
+    otherwise n_paths=0, empty percentile arrays and null stochastic metrics."""
     weather = list(weather or [])
+    if not uncertainty:
+        n_paths = 0
     vals = assumption_values(overrides)
     s = _series(profile, interventions, vals)
     applied = _apply_weather(s, weather)
 
     det_cash, det_nw, fin, fout = _run(profile, s, vals, applied, 1, None)
     det_cash, det_nw = det_cash[0], det_nw[0]
-    rng = np.random.default_rng(seed)
-    mc_cash, mc_nw, _, _ = _run(profile, s, vals, applied, n_paths, rng)
+    if n_paths:
+        rng = np.random.default_rng(seed)
+        mc_cash, mc_nw, _, _ = _run(profile, s, vals, applied, n_paths, rng)
 
     neg = np.where(det_cash[1:] < 0)[0]
     first_neg = int(neg[0]) if len(neg) else None
@@ -307,16 +312,23 @@ def simulate(profile: dict, node_id: str, interventions: list[dict], overrides=N
     liquidity_months = float(det_cash[0] / monthly_exp0) if monthly_exp0 > 0 else 99.0
 
     as_of_year = int(str(profile.get("as_of", "2025-01-01"))[:4])
-    goal_prob = {}
+    goal_prob, goals = {}, []
     for g in profile.get("goals") or []:
         y, m = int(g["target_date"][:4]), int(g["target_date"][5:7])
         idx = min(max((y - as_of_year) * 12 + m, 0), HORIZON)
-        goal_prob[g["name"]] = round(float((mc_cash[:, idx] >= float(g["target"])).mean()), 3)
+        hit = np.where(det_cash >= float(g["target"]))[0]
+        goals.append({"name": g["name"], "target": float(g["target"]), "target_month": idx - 1,
+                      "met_deterministic": bool(det_cash[idx] >= float(g["target"])),
+                      "first_reached_month_deterministic": int(hit[0]) - 1 if len(hit) and hit[0] > 0 else None,
+                      "probability": None})
+        if n_paths:
+            goal_prob[g["name"]] = round(float((mc_cash[:, idx] >= float(g["target"])).mean()), 3)
+            goals[-1]["probability"] = goal_prob[g["name"]]
 
     debt_ratio = float(np.mean(s["monthly_debt_payment"][:12] / np.maximum(s["monthly_net_income"][:12], 1)))
     h_liq = 0.0 if first_neg is not None else min(liquidity_months / 6, 1.0)
     h_debt = max(0.0, 1 - debt_ratio / 0.35)
-    h_goals = float(np.mean(list(goal_prob.values()))) if goal_prob else 0.5
+    h_goals = float(np.mean([g["met_deterministic"] for g in goals])) if goals else 0.5
     score = round(0.4 * h_liq + 0.2 * h_debt + 0.4 * h_goals, 3)
 
     # sensitivity: +10% on each assumption used by this run (deterministic)
@@ -340,11 +352,19 @@ def simulate(profile: dict, node_id: str, interventions: list[dict], overrides=N
         {"name": "cash_flow_identity", "passed": identity_ok,
          "detail": "final_cash == opening_cash + inflows - outflows"},
         {"name": "horizon_length", "passed": len(det_cash) == HORIZON + 1},
-        {"name": "finite_values", "passed": bool(np.isfinite(mc_nw).all())},
-        {"name": "bands_ordered", "passed": True},
+        {"name": "finite_values", "passed": bool(np.isfinite(det_nw).all())},
     ]
-    p10, p50, p90 = np.percentile(mc_nw, [10, 50, 90], axis=0)
-    checks[3]["passed"] = bool((p10 <= p50 + 1e-9).all() and (p50 <= p90 + 1e-9).all())
+    if n_paths:
+        p10, p50, p90 = np.percentile(mc_nw, [10, 50, 90], axis=0)
+        checks.append({"name": "bands_ordered",
+                       "passed": bool((p10 <= p50 + 1e-9).all() and (p50 <= p90 + 1e-9).all())})
+        bands = {"net_worth": {"p10": _r(p10), "p50": _r(p50), "p90": _r(p90)}}
+        p_final = {f"final_net_worth_{k}": round(float(v[-1]), 2) for k, v in (("p10", p10), ("p50", p50), ("p90", p90))}
+        shortfall = round(float((mc_cash[:, 1:].min(axis=1) < 0).mean()), 3)
+    else:
+        bands = {"cash": {"p10": [], "p50": [], "p90": []}, "net_worth": {"p10": [], "p50": [], "p90": []}}
+        p_final = {"final_net_worth_p10": None, "final_net_worth_p50": None, "final_net_worth_p90": None}
+        shortfall = None
 
     key = json.dumps([profile, node_id, interventions, vals, weather, n_paths, seed], sort_keys=True, default=str)
     trace_id = "sim-" + hashlib.sha1(key.encode()).hexdigest()[:10]
@@ -353,13 +373,17 @@ def simulate(profile: dict, node_id: str, interventions: list[dict], overrides=N
         "engine": "mock",
         "seed": seed,
         "n_paths": n_paths,
+        "uncertainty": bool(n_paths),
+        "mode": "monte_carlo" if n_paths else "deterministic",
         "horizon_months": HORIZON,
         "weather": applied,
         "deterministic": {"cash": _r(det_cash), "net_worth": _r(det_nw)},
-        "bands": {"net_worth": {"p10": _r(p10), "p50": _r(p50), "p90": _r(p90)}},
+        "bands": bands,
         "metrics": {
-            "final_net_worth_p50": round(float(p50[-1]), 2),
-            "final_net_worth_deterministic": round(base_final, 2),
+            **p_final,
+            "final_net_worth": round(base_final, 2),
+            "final_cash": round(float(det_cash[-1]), 2),
+            "shortfall_probability": shortfall,
             "min_cash": round(float(det_cash.min()), 2),
             "first_negative_month": first_neg,
             "goal_probability": goal_prob,
@@ -367,6 +391,7 @@ def simulate(profile: dict, node_id: str, interventions: list[dict], overrides=N
         },
         "health": {"score": score,
                    "components": {"liquidity": round(h_liq, 3), "debt": round(h_debt, 3), "goals": round(h_goals, 3)}},
+        "goals": goals,
         "sensitivity": sens,
         "checks": checks,
         "trace_id": trace_id,
@@ -380,7 +405,7 @@ def node_interventions(node_id: str) -> list[dict]:
     return ivs
 
 
-def expand(profile: dict, path: list[str], overrides=None, weather=None) -> dict:
+def expand(profile: dict, path: list[str], overrides=None, weather=None, uncertainty: bool = False) -> dict:
     """Visible nodes = root + chosen path + siblings of the last chosen node + its children."""
     path = [p for p in (path or []) if p and p != "0"]
     for i, p in enumerate(path):  # path must be a chain
@@ -399,7 +424,7 @@ def expand(profile: dict, path: list[str], overrides=None, weather=None) -> dict
         n = get_node(nid)
         n["status"] = status
         n["depth"] = 0 if nid == "0" else nid.count(".") + 1
-        n["result"] = simulate(profile, nid, node_interventions(nid), overrides, weather)
+        n["result"] = simulate(profile, nid, node_interventions(nid), overrides, weather, uncertainty=uncertainty)
         nodes.append(n)
     return {"current": current, "path": ["0"] + path, "nodes": nodes,
             "assumptions": assumptions_list(overrides), "weather_options": WEATHER}

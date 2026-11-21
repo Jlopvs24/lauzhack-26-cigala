@@ -65,7 +65,6 @@ def test_expand_prunes_and_results_are_consistent():
         h = r["horizon_months"]
         assert all(ch["passed"] for ch in r["checks"]), (n["node_id"], r["checks"])
         assert len(r["deterministic"]["cash"]) == h + 1
-        assert len(r["bands"]["net_worth"]["p50"]) == h + 1
         assert r["trace_id"]
 
 
@@ -207,3 +206,93 @@ def test_extract_falls_back_to_mock_without_deps(monkeypatch):
 
 def test_extract_needs_input():
     assert c.post("/profiles/extract", data={}).status_code == 422
+
+
+def test_expand_accepts_uncertainty_flag():
+    j = expand(path=["2"], uncertainty=False)
+    assert j["uncertainty"] is False and "uncertainty_flag_supported" in j
+    assert expand(path=["2"], uncertainty=True)["uncertainty"] is True
+
+
+def test_template_speaks_if_then_not_forecast():
+    j = c.post("/agent/ask", json={"question": "what happens?", "context": {"path": ["2"]}}).json()
+    a = j["answer"].lower()
+    assert a.startswith("if you take") and "under these assumptions" in a
+    for banned in ("median", "you will", "expected", "probability", "10–90%"):
+        assert banned not in a
+
+
+def test_soften_forecasts():
+    from api.agent import soften_forecasts
+    txt, n = soften_forecasts("You will have CHF 10 and it is expected to grow; cash will drop in month 7.")
+    assert n == 3 and "will" not in txt and "expected" not in txt
+
+
+def test_what_would_have_to_be_true_is_engine_computed():
+    from api import agent
+    box = agent.Toolbox({"profile": engine.default_profile()})
+    out = box.what_would_have_to_be_true("2", "cash_never_negative")
+    assert out["target"] == "cash_never_negative" and "search" in out
+    s = out["search"]
+    if s.get("threshold_value") is not None:  # verify the threshold with an independent engine run
+        ov = [{"id": s["assumption_id"], "value": s["threshold_value"]}]
+        r = engine.simulate(None, {"node_id": "2"}, ov, [])
+        assert r["metrics"]["min_cash"] >= 0
+    bad = box.what_would_have_to_be_true("2", "match_other_node")
+    assert "error" in bad
+
+
+@pytest.mark.parametrize("unc", [False, True])
+def test_uncertainty_lens_off_and_on(unc):
+    j = expand(path=["2"], uncertainty=unc)
+    r = by_id(j)["2"]["result"]
+    assert r["metrics"]["first_negative_month"] == 6  # deterministic fields are always there
+    bands = r["bands"]["net_worth"]["p50"]
+    if engine.supports_uncertainty_flag():
+        if unc:
+            assert len(bands) == r["horizon_months"] + 1 and r["n_paths"] > 0
+        else:
+            assert bands == [] and r["n_paths"] == 0 and r["metrics"]["final_net_worth_p50"] is None
+    a = c.post("/agent/ask", json={"question": "what happens?", "context": {"path": ["2"], "uncertainty": unc}}).json()
+    assert a["mode"] == "template" and a["answer"].lower().startswith("if you take")
+    assert ("simulated paths" in a["answer"]) == (unc and bool(bands))
+
+
+# A result shaped like contract #21 (deterministic default, exploration block), independent of the engine.
+V21 = {
+    "node_id": "2", "trace_id": "sim-x", "horizon_months": 120, "n_paths": 0, "uncertainty": False,
+    "mode": "deterministic",
+    "deterministic": {"cash": [8000.0, -100.0, 500.0], "net_worth": [8000.0, -100.0, 120000.0]},
+    "bands": {"cash": {"p10": [], "p50": [], "p90": []}, "net_worth": {"p10": [], "p50": [], "p90": []}},
+    "metrics": {"final_net_worth": 120000.0, "final_cash": 500.0, "min_cash": -100.0, "min_cash_month": 0,
+                "first_negative_month": 0, "final_net_worth_p10": None, "final_net_worth_p50": None,
+                "final_net_worth_p90": None, "shortfall_probability": None, "goal_probability": {}},
+    "goals": [{"name": "Emergency savings", "target": 12800, "target_month": 59, "met_deterministic": True,
+               "first_reached_month_deterministic": 46, "probability": None}],
+    "health": {"score": 50.0, "components": {"liquidity": {"score": 0.0}}},
+    "sensitivity": [{"assumption_id": "AS-x", "label": "Salary", "delta_final_net_worth": 1000.0}],
+    "checks": [{"name": "cash_flow_identity", "passed": True}],
+    "exploration": {"levers": [{"assumption_id": "AS-x", "label": "Salary"}],
+                    "break_even": {"vs": "1", "crossover_month": 84},
+                    "goal_seek": {"goal": "Emergency savings", "extra_monthly_income": 0.0},
+                    "reverse_stress": {"one_off_cost_breaking_plan": 18835.0},
+                    "timing": [{"delay_months": 12, "final_net_worth": 118000.0}]},
+}
+
+
+def test_agent_tolerates_v21_result(monkeypatch):
+    from api import agent
+    node = {"node_id": "2", "label": "Do a master's", "interventions": []}
+    monkeypatch.setattr(agent.engine, "simulate", lambda *a, **k: V21)
+    monkeypatch.setattr(agent.engine, "node_info", lambda nid: node)
+    box = agent.Toolbox({"profile": {}})
+    s = box.get_node("2")
+    assert s["final_net_worth"] == 120000.0 and s["first_negative_month"] == 1
+    assert "uncertainty_lens" not in s and s["goals"][0]["reached_on_this_path"] is True
+    assert s["exploration"]["break_even"]["crossover_month"] == 84
+    e = box.get_exploration("2", "reverse_stress")
+    assert e["available"] and e["exploration"]["reverse_stress"]["one_off_cost_breaking_plan"] == 18835.0
+    assert box.get_exploration("2", "timing")["exploration"]["timing"][0]["delay_months"] == 12
+    t = agent.template_answer({"node_id": "2"}, "en", box)
+    assert "120'000" in t and "month 1" in t and "simulated" not in t
+    assert box.compare_nodes(["2", "2"])["differences_vs_first"]["2"]["final_net_worth_minus_first"] == 0

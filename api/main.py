@@ -40,14 +40,18 @@ class ExpandReq(Loose):
     profile: dict[str, Any] | None = Field(None, description="Profile (contracts.md). Omit to use Alexia.")
     path: list[str] = Field(default_factory=list, description='Chosen node ids, e.g. ["1", "1.2"]. [] = root.')
     assumptions: list[dict[str, Any]] = Field(default_factory=list, description="Overrides: [{id, value}]")
-    weather: list[str] = Field(default_factory=list, description="recession | inflation | market_crash | job_loss")
+    weather: list[Any] = Field(default_factory=list,
+                               description='Named stress what-ifs: "recession" | "inflation" | "market_crash" | "job_loss" or {type, ...}')
+    uncertainty: bool = Field(False, description="Optional Monte Carlo lens (bands). Off by default: results are "
+                                                 "deterministic if-then paths.")
 
 
 class SimulateReq(Loose):
     profile: dict[str, Any] | None = None
     node: dict[str, Any]
     assumptions: list[dict[str, Any]] = Field(default_factory=list)
-    weather: list[str] = Field(default_factory=list)
+    weather: list[Any] = Field(default_factory=list)
+    uncertainty: bool = False
 
 
 class AskReq(Loose):
@@ -87,17 +91,18 @@ def demo_profile():
 def tree_expand(req: ExpandReq):
     t0 = time.perf_counter()
     try:
-        out = engine.expand(req.profile, req.path, req.assumptions, req.weather)
+        out = engine.expand(req.profile, req.path, req.assumptions, req.weather, uncertainty=req.uncertainty)
     except (KeyError, ValueError) as e:
         raise HTTPException(422, f"bad path: {e}") from e
-    return {**out, "engine": engine.ENGINE_NAME, **_meta(t0)}
+    return {**out, "engine": engine.ENGINE_NAME, "uncertainty": req.uncertainty,
+            "uncertainty_flag_supported": engine.supports_uncertainty_flag(), **_meta(t0)}
 
 
 @app.post("/simulate")
 def simulate(req: SimulateReq):
     t0 = time.perf_counter()
     try:
-        res = engine.simulate(req.profile, req.node, req.assumptions, req.weather)
+        res = engine.simulate(req.profile, req.node, req.assumptions, req.weather, uncertainty=req.uncertainty)
     except (KeyError, ValueError) as e:
         raise HTTPException(422, str(e)) from e
     return {"result": res, **_meta(t0)}
