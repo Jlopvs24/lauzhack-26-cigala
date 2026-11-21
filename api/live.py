@@ -60,6 +60,17 @@ def _cfg() -> dict:
             "max_sessions": int(os.environ.get("LIVE_MAX_SESSIONS", "1"))}
 
 
+# #112: when the configured model is refused at setup (not enabled for this key, renamed preview...), try the
+# next one instead of hanging up. Override with LIVE_FALLBACK_MODELS (comma separated).
+FALLBACK_MODELS = ("gemini-3.1-flash-live-preview", "gemini-2.5-flash-native-audio-latest")
+
+
+def live_models() -> list[str]:
+    extra = os.environ.get("LIVE_FALLBACK_MODELS")
+    chain = [_cfg()["model"], *(m.strip() for m in (extra.split(",") if extra else FALLBACK_MODELS))]
+    return list(dict.fromkeys(m for m in chain if m))
+
+
 def _key() -> str:
     return os.environ.get("GEMINI_API_KEY", "").strip()
 
@@ -180,10 +191,10 @@ def move_note(ctx: dict) -> str:
             ". 'This branch' now means this node: call get_current_node for its numbers.")
 
 
-def setup_message(ctx: dict, sysmsg: str) -> dict:
+def setup_message(ctx: dict, sysmsg: str, model: str | None = None) -> dict:
     cfg = _cfg()
     return {"setup": {
-        "model": f"models/{cfg['model']}",
+        "model": f"models/{model or cfg['model']}",
         "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {
             "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": cfg["voice"]}}}},
         "systemInstruction": {"parts": [{"text": sysmsg}]},
@@ -328,20 +339,36 @@ async def _session(ws: WebSocket, item: dict, cfg: dict) -> None:
     t0 = time.perf_counter()
     st = {"last": time.monotonic(), "start": time.monotonic(), "cost": 0.0, "prompt": 0, "response": 0,
           "tools": 0, "turns": 0, "reason": "closed", "model_text": "", "user_text": "", "first_audio_ms": []}
-    try:
-        up = await connect_upstream(f"{LIVE_HOST}?key={_key()}")
-    except Exception as e:  # noqa: BLE001
-        log.warning("live connect failed: %s", _sanitize(e))
-        await _bye(ws, "error", f"could not reach the Live service: {_sanitize(e)[:200]}")
+    up, model, errors = None, cfg["model"], []
+    for model in live_models():
+        try:
+            up = await connect_upstream(f"{LIVE_HOST}?key={_key()}")
+        except Exception as e:  # noqa: BLE001  (network / key: another model would not help)
+            log.warning("live connect failed: %s", _sanitize(e))
+            await _bye(ws, "error", f"could not reach the Live service: {_sanitize(e)[:200]}")
+            return
+        try:
+            await up.send(json.dumps(setup_message(ctx, sysmsg, model)))
+            first = json.loads(await asyncio.wait_for(up.recv(), 15))
+            if "setupComplete" not in first:
+                raise RuntimeError(f"unexpected setup reply: {str(first)[:200]}")
+            break
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{model}: {_sanitize(e)[:160]}")
+            log.warning("live setup failed model=%s: %s", model, _sanitize(e))
+            try:
+                await up.close()
+            except Exception:  # noqa: BLE001
+                pass
+            up = None
+    if up is None:
+        await _bye(ws, "error", "Live setup failed. " + " | ".join(errors))
         return
+    cfg = {**cfg, "model": model}
     try:
-        await up.send(json.dumps(setup_message(ctx, sysmsg)))
-        first = json.loads(await asyncio.wait_for(up.recv(), 15))
-        if "setupComplete" not in first:
-            raise RuntimeError(f"unexpected setup reply: {str(first)[:200]}")
         setup_ms = int((time.perf_counter() - t0) * 1000)
-        log.info("live session open model=%s setup_ms=%d", cfg["model"], setup_ms)
-        await ws.send_json({"type": "ready", "model": cfg["model"], "voice": cfg["voice"], "setup_ms": setup_ms,
+        log.info("live session open model=%s setup_ms=%d fallbacks=%d", model, setup_ms, len(errors))
+        await ws.send_json({"type": "ready", "model": model, "voice": cfg["voice"], "setup_ms": setup_ms,
                             "idle_s": cfg["idle_s"], "max_s": cfg["max_s"], "language": ctx["language"]})
         # L7: Lumi opens the call
         await up.send(json.dumps({"realtimeInput": {"text": "(The call just started. Greet me briefly.)"}}))
@@ -362,8 +389,8 @@ async def _session(ws: WebSocket, item: dict, cfg: dict) -> None:
                     pass
     except Exception as e:  # noqa: BLE001
         st["reason"] = "error"
-        log.warning("live setup failed: %s", _sanitize(e))
-        await _bye(ws, "error", f"Live setup failed: {_sanitize(e)[:200]}")
+        log.warning("live call failed: %s", _sanitize(e))
+        await _bye(ws, "error", f"Live call failed: {_sanitize(e)[:200]}")
         return
     finally:
         try:
@@ -371,7 +398,7 @@ async def _session(ws: WebSocket, item: dict, cfg: dict) -> None:
         except Exception:  # noqa: BLE001
             pass
         _record(cfg["model"], st)
-    await _bye(ws, st["reason"])
+    await _bye(ws, st["reason"], st.get("error"))
 
 
 async def _from_browser(ws: WebSocket, up, tools: LiveTools, st: dict) -> None:
@@ -466,6 +493,10 @@ async def _from_upstream(ws: WebSocket, up, tools: LiveTools, st: dict) -> None:
             st["reason"] = "server_go_away"
             return
     st["reason"] = "upstream_closed"
+    code, why = getattr(up, "close_code", None), getattr(up, "close_reason", None)
+    if code not in (None, 1000):  # #112: say why Google closed it instead of a bare "stopped"
+        st["error"] = f"The Live service closed the call ({code}{': ' + _sanitize(why)[:160] if why else ''})."
+        log.warning("live upstream closed %s %s", code, _sanitize(why or ""))
 
 
 async def _watchdog(st: dict, cfg: dict) -> None:

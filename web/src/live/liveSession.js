@@ -79,9 +79,12 @@ async function openMic(ctx, onChunk) {
  *   ended(reason)}
  * Test seams: base, fetchImpl, WebSocketImpl, audio (false = no mic/player, for tests and text-only use).
  */
+const QUIET_ENDS = new Set(['user_ended', 'client_closed', 'idle', 'max_duration', 'budget', 'busy']);
+
 export function createLiveSession({ context = {}, lang = 'en', on = {}, base = apiBase(),
   fetchImpl = globalThis.fetch, WebSocketImpl = globalThis.WebSocket, audio = true } = {}) {
   let ws = null, ctx = null, player = null, mic = null, muted = false, closed = false, state = 'idle';
+  let lastError = ''; // #112: the server's own words, shown instead of a bare "stopped"
   let turn = { user: '', model: '', tools: [], interrupted: false, typed: false, t0: 0, firstAudio: null };
   const emit = (name, ...a) => { try { on[name]?.(...a); } catch (e) { console.error(e); } };
   const setState = (s, info) => { state = s; emit('state', s, info); };
@@ -95,6 +98,7 @@ export function createLiveSession({ context = {}, lang = 'en', on = {}, base = a
 
   function fail(code, msg) {
     if (closed) return;
+    if (msg) console.error(`[Lumi Live] ${code}: ${msg}`);
     emit('error', code, msg);
     setState('error', { code, message: msg });
     end('error');
@@ -123,8 +127,18 @@ export function createLiveSession({ context = {}, lang = 'en', on = {}, base = a
         resetTurn();
         break;
       case 'usage': emit('usage', m.cost_usd); break;
-      case 'error': emit('error', 'server', m.message); break;
-      case 'ended': end(m.reason || 'closed'); break;
+      case 'error':
+        lastError = String(m.message || '');
+        console.error('[Lumi Live] server:', lastError);
+        emit('error', 'server', lastError);
+        break;
+      case 'ended':
+        // an end with an error (setup refused, Google closed the socket...) is an error, with its message
+        if (!closed && (m.reason === 'error' || (lastError && !QUIET_ENDS.has(m.reason)))) {
+          setState('error', { code: m.reason === 'error' ? 'server' : m.reason, message: lastError });
+        }
+        end(m.reason || 'closed');
+        break;
       default: break;
     }
   }
@@ -140,10 +154,10 @@ export function createLiveSession({ context = {}, lang = 'en', on = {}, base = a
     try {
       const r = await fetchImpl(`${base}/live/token`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ context: { ...context, language: lang }, language: lang }) });
-      tok = r.ok ? await r.json() : { available: false, reason: `http_${r.status}` };
+      tok = r.ok ? await r.json() : { available: false, reason: `http_${r.status}`, message: `HTTP ${r.status} from /live/token` };
     } catch { return fail('unreachable', 'The API is not reachable.'); }
     if (closed) return;
-    if (!tok.available) return fail(tok.reason || 'unavailable', tok.reason);
+    if (!tok.available) return fail(tok.reason || 'unavailable', tok.message || tok.reason);
     if (audio) {
       player = createPlayer(ctx, (level, speaking) => emit('level', level, speaking));
       try {
@@ -160,7 +174,11 @@ export function createLiveSession({ context = {}, lang = 'en', on = {}, base = a
     ws.binaryType = 'arraybuffer';
     ws.onmessage = onMessage;
     ws.onerror = () => fail('socket', 'The Live connection failed.');
-    ws.onclose = () => { if (!closed) end('closed'); };
+    ws.onclose = (e) => {
+      if (closed) return;
+      if (e && e.code && e.code !== 1000 && e.code !== 1005) fail('socket', `connection closed (${e.code}${e.reason ? `: ${e.reason}` : ''})`);
+      else end('closed');
+    };
   }
 
   function end(reason = 'user_ended') {
