@@ -75,7 +75,7 @@ function App() {
     createScene({ world: worldRef.current, labels: labelsRef.current, onTagClick: (id, status) => onTag(id, status) }).then(async (s) => {
       if (disposed) { s.destroy(); return; }
       scene.current = s;
-      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.dock'), document.querySelector('.nav-back')] }));
+      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), document.querySelector('.nav-back')] }));
       await s.intro();
       if (introRef.current) gsap.from(introRef.current.children, { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: 'power3.out' });
     });

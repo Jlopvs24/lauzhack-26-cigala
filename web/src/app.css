@@ -90,14 +90,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .say-card { pointer-events: auto; margin-bottom: 18px; padding: 16px 20px; border-radius: 18px 18px 18px 6px; background: rgba(250, 248, 242, 0.92); color: #1d2420; border: 1px solid rgba(255, 255, 255, 0.6); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); font-size: 15px; line-height: 1.5; transform-origin: 0 100%; }
 .say-card p { margin: 0; }
 
-/* ---------- ask ---------- */
-.ask { display: flex; align-items: center; gap: 2px; width: 100%; padding: 6px 6px 6px 18px; border-radius: 999px; background: var(--glass); border: 1px solid var(--hair); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
-.ask input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; padding: 8px 0; }
-.ask input::placeholder { color: var(--ink-faint); }
-.icon-btn { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; border: 0; background: transparent; transition: background 0.2s; }
-.icon-btn:hover { background: rgba(255, 255, 255, 0.12); }
-.icon-btn.send { background: var(--ink); color: #14201a; }
-.icon-btn.rec { background: var(--warn); color: #14201a; }
 
 /* ---------- report ---------- */
 .report { position: fixed; right: 20px; top: 76px; bottom: 96px; width: min(400px, calc(100vw - 40px)); z-index: 7; overflow-y: auto; padding: 28px 26px; border-radius: 22px; background: rgba(250, 248, 242, 0.94); color: #1d2420; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
@@ -125,7 +117,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .nav-back { left: 16px; top: auto; bottom: 150px; transform: none; }
   .narration { left: 16px; bottom: 84px; max-width: calc(100vw - 32px); }
   #lumi { width: 64px; }
-  .dock { left: 16px; right: 16px; bottom: 16px; width: auto; }
   .tag .card { min-width: 0; max-width: 170px; padding: 8px 10px; }
   .tag .name { font-size: 17px; }
 }
@@ -213,7 +204,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* ---------- drawers: roots sheet, chat; Lluc's panels restyled inside them ---------- */
 .drawer { position: fixed; z-index: 7; overflow-y: auto; background: var(--card-bg); color: var(--card-ink); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border-radius: 22px; }
-.drawer.side { right: 20px; top: 76px; bottom: 96px; width: min(440px, calc(100vw - 40px)); padding: 26px 24px; }
 .drawer.sheet { left: clamp(16px, 6vw, 96px); top: 50%; transform: translateY(-50%); width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 120px); padding: 28px; }
 .drawer .close { position: absolute; right: 14px; top: 12px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--card-line); color: var(--card-ink); font-size: 20px; line-height: 1; z-index: 1; }
 .drawer h2.sheet-title { margin: 0 0 6px; font: 400 36px/1.05 var(--serif); }
@@ -244,29 +234,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .dictation { margin: 10px 0; }
 .dictation-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .dictation select { width: auto !important; font-size: 13px !important; }
-.chat-panel > p { font-size: 13px; }
-.chat-heading { display: flex; gap: 12px; align-items: center; }
-.chat-heading > span { display: none; }
-.chat-heading h2 { font: 400 30px/1.05 var(--serif); margin: 0; }
-.chat-messages { max-height: 42vh; overflow-y: auto; margin: 14px 0; }
-.chat-message { padding: 12px 14px; border-radius: 14px; margin: 10px 0; background: var(--card-line); font-size: 13.5px; overflow-wrap: anywhere; }
-.chat-message.user { margin-left: 15%; background: transparent; border: 1px solid var(--card-line); }
-.chat-message > p { white-space: pre-wrap; color: var(--card-ink); margin: 6px 0; }
-.chat-message small, .chat-message details { display: block; font-size: 11px; margin: 6px 0; }
-.read-toggle { flex-direction: row !important; align-items: center; }
-.read-toggle input { width: 16px; height: 16px; accent-color: var(--band-line); }
 .voice-note { display: flex; flex-direction: column; gap: 4px; max-width: 260px; }
-.audio-upload { max-width: 260px; }
 .assumptions-panel, .calculation-checks { border-top: 1px solid var(--card-line); margin-top: 18px; padding-top: 14px; font-size: 13px; }
 .assumptions-panel summary, .calculation-checks summary { cursor: pointer; color: var(--card-ink); font-weight: 500; }
 .assumption-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 12px; }
 .assumption > span { text-transform: capitalize; }
-.call-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--card-line); color: var(--card-ink); text-decoration: none; font-size: 13px; }
-.top .ghost-btn.on { background: var(--ink); color: #14201a; }
 .error-toast { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 9; padding: 10px 16px; border-radius: 12px; background: #b4542f; color: #fff; font-size: 13px; display: flex; gap: 12px; align-items: center; }
 .error-toast button { border: 1px solid rgba(255,255,255,.6); background: transparent; color: #fff; border-radius: 999px; padding: 4px 12px; }
 @media (max-width: 720px) {
-  .drawer.side { left: 12px; right: 12px; width: auto; top: 64px; bottom: 84px; }
   .drawer.sheet { left: 12px; right: 12px; width: auto; padding: 22px 16px; }
   .roots-grid, .profile-fields { grid-template-columns: 1fr; }
   .drawer input:not([type=checkbox]):not([type=file]), .drawer textarea, .drawer select { font-size: 16px; }
@@ -288,32 +263,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .lever-btn { min-height: 30px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--card-line); background: transparent; color: var(--card-ink); font-size: 12px; font-variant-numeric: tabular-nums; transition: background 0.2s; }
 .lever-btn:hover { background: var(--card-line); }
 
-/* ---------- dock: text, voice note, call, conversation ---------- */
-.dock { position: fixed; right: 28px; bottom: 28px; z-index: 6; width: min(460px, calc(100vw - 56px)); display: flex; flex-direction: column; gap: 10px; }
-.dock .icon-btn { position: relative; color: var(--ink); text-decoration: none; flex: none; }
-.dock .icon-btn:disabled { opacity: 0.4; cursor: default; }
-.dock .icon-btn.on { background: rgba(255, 255, 255, 0.18); }
-.dock .icon-btn.send { color: #14201a; }
-.dock .badge { position: absolute; right: 2px; top: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--leaf); color: #14201a; font-size: 10px; font-weight: 600; line-height: 16px; }
-.conv { display: flex; flex-direction: column; max-height: min(58vh, 560px); border-radius: 22px; background: var(--card-bg); color: var(--card-ink); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); overflow: hidden; transform-origin: 100% 100%; animation: conv-in 0.35s var(--ease); }
-@keyframes conv-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
-.conv header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px 20px; font: 400 22px/1 var(--serif); border-bottom: 1px solid var(--card-line); }
-.conv-close { width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--card-line); color: var(--card-ink); font-size: 18px; line-height: 1; }
-.conv-log { overflow-y: auto; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; }
-.conv-empty, .conv-typing { margin: 6px 4px; font-size: 13px; color: var(--card-muted); }
-.msg { max-width: 88%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.5; }
-.msg strong { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--card-muted); margin-bottom: 2px; }
-.msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.msg.user { align-self: flex-end; background: var(--card-ink); color: var(--card-bg); border-bottom-right-radius: 6px; }
-.msg.user strong { color: inherit; opacity: 0.7; }
-.msg.assistant { align-self: flex-start; background: var(--card-line); border-bottom-left-radius: 6px; }
-.msg.failed { opacity: 0.55; }
-.msg details { margin-top: 6px; font-size: 11.5px; color: var(--card-muted); }
-.msg details summary { cursor: pointer; }
-.msg details ul { margin: 4px 0 0; padding-left: 16px; }
-.dock-error { margin: 0; padding: 8px 12px; border-radius: 12px; background: rgba(196, 81, 58, 0.92); color: #fff; font-size: 12.5px; }
-@media (max-width: 720px) { .conv { max-height: 55vh; } .msg { font-size: 13.5px; } }
-@media (prefers-reduced-motion: reduce) { .conv { animation: none; } }
 
 /* collision avoidance: Lumi + bubble swap to the freer side; cards that still collide fade */
 .narration { transition: opacity 0.25s ease; }
@@ -428,3 +377,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .leaf-cta { left: calc((100vw - var(--chat-panel-w, 0px)) / 2); }
 .loading, .error-toast { left: calc((100vw - var(--chat-panel-w, 0px)) / 2); }
 @media (max-width: 720px) { .narration { bottom: calc(84px + var(--chat-panel-h, 0px)); max-width: calc(100vw - 32px); } }
+
+@keyframes conv-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+/* the header stays clear of the chat side panel */
+.top { right: var(--chat-panel-w, 0px); transition: right 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
