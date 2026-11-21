@@ -397,6 +397,90 @@ def tree_personalize(req: PersonalizeReq):
     return out
 
 
+# ------------------------------------------------------------------ combined decisions, surfaces, smallest change,
+# timing scan (core #48 item 6). Deterministic, cached like /tree/expand, personal conditions forwarded.
+class _AnalysisBase(Loose, Personal):
+    profile: dict[str, Any] | None = None
+    assumptions: list[dict[str, Any]] = Field(default_factory=list)
+    weather: list[Any] = Field(default_factory=list)
+
+
+class CombineReq(_AnalysisBase):
+    a: str = Field(..., description='First node (its whole path), e.g. "3.2"')
+    b: str = Field(..., description='Second node: its own decisions are added on top of a, e.g. "3.3"')
+
+
+class SurfaceReq(_AnalysisBase):
+    path: list[str] = Field(default_factory=list)
+    x: str | dict[str, Any] = Field(..., description='Lever: an assumption id, {"assumption": id, "values"?} or '
+                                                     '{"param", "op": "add"|"set", "range": [lo, hi] | "values", ...}')
+    y: str | dict[str, Any]
+    n: int = Field(7, ge=2, le=11)
+    compare_to: str | None = Field(None, description="Peer node: cells gain delta_vs_peer (break-even line)")
+
+
+class SmallestChangeReq(_AnalysisBase):
+    path: list[str] = Field(default_factory=list)
+    target: str = Field("no_funding_gap", description="no_funding_gap | feasible | holds")
+    levers: list[dict[str, Any]] | None = None
+
+
+class TimingScanReq(_AnalysisBase):
+    path: list[str] = Field(default_factory=list)
+    delays: list[int] | None = None
+
+
+def _lever(v):
+    return {"assumption": v} if isinstance(v, str) else v
+
+
+def _analysis(route: str, req: _AnalysisBase, name: str, call) -> dict:
+    t0 = time.perf_counter()
+    fn = engine.core_fn(name)
+    if fn is None:
+        raise HTTPException(501, f"this engine has no core.{name} (core #48 item 6)")
+    body = req.model_dump()
+    extras = {k: v for k, v in (("custom_nodes", req.custom_nodes), ("node_patches", req.node_patches)) if v}
+    try:
+        out, hit = cache.cached(route, body, engine.version(), lambda: call(fn, extras))
+    except (KeyError, ValueError) as e:
+        raise HTTPException(422, str(e)) from e
+    return {**out, "cached": hit, **_meta(t0)}
+
+
+@app.post("/tree/combine")
+def tree_combine(req: CombineReq):
+    """Path to `a` plus `b`'s own decisions (conflicts listed, later wins), with a combined / A / B comparison."""
+    return _analysis("/tree/combine", req, "combine", lambda fn, ex: fn(
+        req.profile, req.a, req.b, assumptions=req.assumptions, weather=req.weather, **ex))
+
+
+@app.post("/tree/surface")
+def tree_surface(req: SurfaceReq):
+    """2-lever grid (heatmap): cells[y][x] with plan level, net worth, min cash, optional delta_vs_peer."""
+    return _analysis("/tree/surface", req, "surface", lambda fn, ex: fn(
+        req.profile, req.path, _lever(req.x), _lever(req.y), n=req.n, compare_to=req.compare_to,
+        assumptions=req.assumptions, weather=req.weather, **ex))
+
+
+@app.post("/tree/smallest_change")
+def tree_smallest_change(req: SmallestChangeReq):
+    """What would fix this branch: per lever, the smallest change that reaches `target`, to the cent."""
+    if req.target not in ("no_funding_gap", "feasible", "holds"):
+        raise HTTPException(422, "target must be no_funding_gap, feasible or holds")
+    from api.agent import smallest_change_facts
+    out = _analysis("/tree/smallest_change", req, "smallest_change", lambda fn, ex: fn(
+        req.profile, req.path, req.target, levers=req.levers, assumptions=req.assumptions, weather=req.weather, **ex))
+    return {**out, "facts": smallest_change_facts(out)}
+
+
+@app.post("/tree/timing_scan")
+def tree_timing_scan(req: TimingScanReq):
+    """The node's own decision started 0-36 months later: level and net worth per start, latest start that holds."""
+    return _analysis("/tree/timing_scan", req, "timing_scan", lambda fn, ex: fn(
+        req.profile, req.path, delays=req.delays, assumptions=req.assumptions, weather=req.weather, **ex))
+
+
 @app.post("/agent/ask")
 @with_extras
 def agent_ask(req: AskReq):

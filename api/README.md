@@ -34,6 +34,10 @@ Keys are read from `.env.local` at the repo root (`OPENROUTER_API_KEY`, `TOGETHE
 | POST | `/report` | `{profile?, path, assumptions?, uncertainty?, language?}` | path report: 12 structured sections, numbers only from the engine; summary is the deterministic template (no LLM call, ~1 s cold, cached) |
 | POST | `/report/summary` | same body | grounded LLM rewording/translation of the summary (frugal model, ~3-4 s, cached); falls back to the template if any number is not in it |
 | POST | `/tree/personalize` | `{profile?, path, node_id?, text? or audio_b64?, language?, mode?}` | the user's own condition → a proposed patch or new branch (`proposal.apply` to send back as `node_patches` / `custom_nodes`), or one clarifying question; amounts must be in the user's words |
+| POST | `/tree/combine` | `{profile?, a, b, assumptions?, weather?}` | two decisions together (`core.combine`) |
+| POST | `/tree/surface` | `{profile?, path, x, y, n?, compare_to?}` | 2-lever heatmap (`core.surface`); a lever may be an assumption id |
+| POST | `/tree/smallest_change` | `{profile?, path, target?, levers?}` | what would fix this branch, per lever, plus `facts[]` |
+| POST | `/tree/timing_scan` | `{profile?, path, delays?}` | the decision started later |
 
 All engine routes (and `/agent/ask*` via `context`) accept optional `custom_nodes` and `node_patches`, forwarded to core (501 until core supports them).
 | POST | `/voice/stt` | multipart `audio` (WAV/MP3), `language?` | `{text, language, cost_usd, model}` |
