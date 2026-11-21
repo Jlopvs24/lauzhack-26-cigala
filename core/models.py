@@ -19,7 +19,8 @@ SERIES_PARAMS = (
     "monthly_other_expenses",
     "monthly_investment_contribution",
 )
-EVENT_PARAMS = ("one_off_cost", "one_off_income", "new_liability", "loan_change", "cancel_one_off")
+EVENT_PARAMS = ("one_off_cost", "one_off_income", "new_liability", "loan_change", "cancel_one_off",
+                "tax_residence")  # #48 item 3: where/as what income is taxed from from_month
 MODEL_PARAMS = ("assumption",)  # node-level assumption values, applied by AssumptionSet.with_node_values
 OPS = ("set", "add", "mul")
 # What "monthly_net_income" means (#48 item 1). net_before_tax: after social contributions, before
@@ -110,10 +111,21 @@ class Profile:
     monthly_gross_income: float = 0.0
     age: float | None = None  # years at as_of; needed for BVG age credits when a gross salary is used
     pension_bvg: float = 0.0  # opening BVG savings (assets of type pension_bvg), not liquid
+    city: str | None = None  # tax residence (#48 item 3)
+    canton: str | None = None
+    household_type: str | None = None  # single / couple / family / shared_housing
+    country: str = "CH"
+
+    def tax_residence(self) -> dict:
+        from . import tax
+        return tax.resolve(self.city, self.canton, self.household_type, self.country)
 
     def tax_table(self, aset) -> list[list[float]]:
-        """The income-tax table the engine applies to this profile's income."""
-        return NO_TAX if self.income_basis == "take_home" else aset.tax_table()
+        """The income-tax table the engine applies to this profile's income (at its residence)."""
+        if self.income_basis == "take_home":
+            return NO_TAX
+        from . import tax
+        return tax.table(self.tax_residence(), aset.values().get("tax_abroad_rate", 0.0))
 
     @staticmethod
     def from_dict(d: dict) -> "Profile":
@@ -171,6 +183,10 @@ class Profile:
             monthly_gross_income=num(d.get("monthly_gross_income", 0), "monthly_gross_income", minimum=0),
             age=None if d.get("age") is None else num(d.get("age"), "age", minimum=0),
             pension_bvg=pension_bvg,
+            city=None if d.get("city") in (None, "") else str(d["city"]),
+            canton=None if d.get("canton") in (None, "") else str(d["canton"]),
+            household_type=_household(d.get("household_type")),
+            country=str(d.get("country") or "CH"),
         )
 
 
@@ -185,8 +201,18 @@ class Intervention:
     label: str = ""
     liability: Liability | None = None
     loan: str = ""  # loan_change: label of the loan to change
+    residence: dict | None = None  # tax_residence: {city?, canton?, country?, household?}
     monthly_payment: float | None = None
     annual_rate: float | None = None
+
+
+def _household(value: Any, label: str = "household_type") -> str | None:
+    from .tax import HOUSEHOLDS
+    if value in (None, ""):
+        return None
+    if value not in HOUSEHOLDS:
+        raise ValueError(f"{label} must be one of {tuple(HOUSEHOLDS)}, got {value!r}")
+    return str(value)
 
 
 def resolve_value(value: Any, assumptions: dict[str, float], label: str) -> float:
@@ -248,6 +274,19 @@ def parse_interventions(items: list[dict], assumptions: dict[str, float], horizo
                     raise ValueError(f"{lab}.{name} cannot be negative")
             out.append(Intervention(param=param, month=m, loan=str(it["loan"]), monthly_payment=pay,
                                     annual_rate=rate, label=str(it.get("label", "Loan change"))))
+        elif param == "tax_residence":
+            start = month_int(it.get("from_month", 0), f"{lab}.from_month", horizon)
+            end = it.get("to_month")
+            end = horizon if end is None else month_int(min(end, horizon), f"{lab}.to_month", horizon, allow_end=True)
+            if end <= start:
+                raise ValueError(f"{lab}: to_month must be > from_month")
+            res = {k: str(it[k]) for k in ("city", "canton", "country", "household") if it.get(k) not in (None, "")}
+            if not res:
+                raise ValueError(f"{lab}: give city, canton, country and/or household")
+            if "household" in res:
+                _household(res["household"], f"{lab}.household")
+            out.append(Intervention(param=param, from_month=start, to_month=end, residence=res,
+                                    label=str(it.get("label", "Tax residence"))))
         elif param == "cancel_one_off":
             if not it.get("label"):
                 raise ValueError(f"{lab}.label (label of the one-off to cancel) is required")

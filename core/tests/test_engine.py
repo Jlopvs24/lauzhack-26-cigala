@@ -558,7 +558,7 @@ def test_funding_gap_makes_the_plan_need_financing_whatever_the_score():
     pc = r["plan_check"]
     assert pc["level"] == "needs_financing" and not pc["feasible"] and pc["score_is_secondary"]
     assert r["headline"]["slot_a"]["kind"] == "funding_gap"
-    assert r["headline"]["slot_a"]["text"] == "Funding gap CHF 18,835 from month 7"
+    assert r["headline"]["slot_a"]["text"] == "Funding gap CHF 18,553 from month 7"
 
 
 def test_debt_within_the_limit_scores_full_so_a_loan_that_closes_a_gap_never_looks_worse():

@@ -1097,6 +1097,12 @@
               "assumption": "AS-alexia-move-cost"
             },
             "label": "Moving costs"
+          },
+          {
+            "param": "tax_residence",
+            "country": "abroad",
+            "from_month": 0,
+            "label": "Taxed abroad"
           }
         ],
         "children": [
@@ -1376,6 +1382,12 @@
                     },
                     "from_month": 36,
                     "label": "Studio in Zurich"
+                  },
+                  {
+                    "param": "tax_residence",
+                    "city": "Zurich",
+                    "from_month": 36,
+                    "label": "Taxed in Zurich"
                   }
                 ]
               }

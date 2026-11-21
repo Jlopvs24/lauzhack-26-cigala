@@ -7,12 +7,15 @@ its parent's.
 """
 from __future__ import annotations
 
+from functools import lru_cache
+
 from dataclasses import dataclass, field, replace
 
 import numpy as np
 
 from .models import Intervention, Liability, Profile
 from .payroll import payroll
+from . import tax as taxmod
 
 
 @dataclass
@@ -31,10 +34,69 @@ class Schedule:
     social: np.ndarray | None = None
     bvg_employee: np.ndarray | None = None
     bvg_employer: np.ndarray | None = None
+    # tax residence (#48 item 3): zone index per month into tax_tables, None = the profile's one table
+    tax_zone: np.ndarray | None = None
+    tax_tables: list | None = None
+    tax_segments: list[dict] = field(default_factory=list)
 
     @property
     def expenses(self) -> np.ndarray:
         return self.rent + self.other_expenses
+
+
+def _tax_residence(profile: Profile, interventions: list[Intervention], A: dict | None, H: int):
+    """(zone per month or None, tables, segments). Months follow the profile's residence unless a
+    ``tax_residence`` intervention moves them; a later intervention wins. A take-home income is
+    never taxed again, wherever it is earned."""
+    if profile.income_basis == "take_home":
+        return None, None, [{"from_month": 0, "to_month": H, "taxed": False,
+                             "reason": "income_basis take_home: incomes are already after income tax"}]
+    base = profile.tax_residence()
+    moves = [iv for iv in interventions if iv.param == "tax_residence"]
+    if not moves:
+        return None, None, [{"from_month": 0, "to_month": H, "taxed": True, **base}]
+    key = (tuple(base.items()), H, (A or {}).get("tax_abroad_rate", 0.0),
+           tuple((iv.from_month, iv.to_month, tuple(sorted(iv.residence.items()))) for iv in moves))
+    zone, tables, segments = _residence_plan(key)
+    return zone, tables, [dict(s) for s in segments]
+
+
+@lru_cache(maxsize=256)
+def _residence_plan(key):
+    """Cached by ``key`` = (base residence, H, abroad rate, moves): exploration builds many
+    schedules with the same moves. Callers must not mutate the returned zone/tables."""
+    base, H, abroad, moves = dict(key[0]), key[1], key[2], key[3]
+    month_res = [base] * H
+    for from_month, to_month, items in moves:
+        r, done = dict(items), {}
+        moved = any(k in r for k in ("city", "canton", "country"))
+        for m in range(from_month, to_month):
+            cur = month_res[m]
+            ck = id(cur)
+            if ck not in done:
+                if moved:
+                    loc = (r.get("city"), r.get("canton"), r.get("country"))
+                else:  # household change only: stay where you are
+                    loc = (cur["city"], cur["canton"], cur["country"])
+                done[ck] = taxmod.resolve(loc[0], loc[1], r.get("household", cur["household"]), loc[2])
+            month_res[m] = done[ck]
+    keys, zone = [], np.zeros(H, dtype=int)
+    for m, res in enumerate(month_res):
+        k = (res["city"], res["household"], res["country"])
+        if k not in keys:
+            keys.append(k)
+        zone[m] = keys.index(k)
+    first = {}
+    for m, res in enumerate(month_res):
+        first.setdefault(zone[m], res)
+    tables = [taxmod.table(first[z], abroad) for z in range(len(keys))]
+    segments, start = [], 0
+    for m in range(1, H + 1):
+        if m == H or zone[m] != zone[start]:
+            segments.append({"from_month": start, "to_month": m, "taxed": True, **first[zone[start]]})
+            start = m
+    zone.setflags(write=False)
+    return zone, tables, segments
 
 
 def build_schedule(profile: Profile, interventions: list[Intervention], A: dict | None = None) -> Schedule:
@@ -114,6 +176,7 @@ def build_schedule(profile: Profile, interventions: list[Intervention], A: dict 
                                      ((iv.month, iv.monthly_payment, iv.annual_rate),))
             events.append({"month": iv.month, "type": "loan_change", "loan": iv.loan, "label": iv.label,
                            "monthly_payment": iv.monthly_payment, "annual_rate": iv.annual_rate})
+    tax_zone, tax_tables, tax_segments = _tax_residence(profile, interventions, A, H)
     pay = None
     if (gross > 0).any():
         if A is None:
@@ -127,6 +190,7 @@ def build_schedule(profile: Profile, interventions: list[Intervention], A: dict 
         series["monthly_net_income"][m] = np.maximum(pay["net"][m] * mul_adj[m] + add_adj[m], 0.0)
     return Schedule(
         horizon=H,
+        tax_zone=tax_zone, tax_tables=tax_tables, tax_segments=tax_segments,
         gross=None if pay is None else pay["gross"],
         social=None if pay is None else pay["social"],
         bvg_employee=None if pay is None else pay["bvg_employee"],
