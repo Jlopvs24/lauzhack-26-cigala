@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPersonalStore, requestFieldsOf } from './store.js';
+import { createPersonalStore, requestFieldsOf, validPath } from './store.js';
 import { amountOf, buildItem, customNodeId, describe, mockPersonalize, normalizeProposal, parentOf, withAmount } from './model.js';
 import { personalizeBody, requestPersonalization } from './api.js';
 import { PI } from './i18n.js';
@@ -20,8 +20,10 @@ test('store: add / remove / list, persisted, request fields only when non-empty,
   const branch = buildItem({ id: 'b', mode: 'branch', node_id: '2', interventions: [scholarship], label: 'Master’s with scholarship' }, { takenIds: [] });
   s.add(patch); s.add(branch);
   assert.deepEqual(s.list().map((i) => i.id), ['a', 'b']);
-  assert.deepEqual(s.requestFields(), { custom_nodes: [branch.custom_node], node_patches: [patch.node_patch] });
-  assert.equal(s.isCustom('u1'), true);
+  assert.deepEqual(s.requestFields(), { custom_nodes: [branch.custom_node], node_patches: { 2: patch.node_patch.interventions } });
+  assert.equal(s.isCustom('2.c1'), true);
+  assert.deepEqual(validPath(['2', '2.c1', '2.c1.x'], s), ['2', '2.c1', '2.c1.x']);
+  assert.deepEqual(validPath(['2', '2.c9'], s), ['2']);
   assert.deepEqual(s.forNode('2').map((i) => i.id), ['a']);
   // a second store on the same storage sees the same items (sessionStorage persistence)
   assert.equal(createPersonalStore({ storage, target: null }).list().length, 2);
@@ -41,13 +43,15 @@ test('store: add / remove / list, persisted, request fields only when non-empty,
 test('items: a patch targets the node, a branch is a new sibling based on it with a unique id', () => {
   const p = buildItem({ id: 'x', mode: 'patch', node_id: '2.1', interventions: [scholarship], label: ' ' }, { nodeLabel: 'Student job only' });
   assert.equal(p.label, 'Student job only');
-  assert.deepEqual(p.node_patch, { node_id: '2.1', label: 'Student job only', interventions: [scholarship], origin: 'user', id: 'x' });
-  const b = buildItem({ mode: 'branch', node_id: '2.1', interventions: [scholarship], label: 'Mine' }, { takenIds: ['2.u1'] });
-  assert.equal(b.custom_node.node_id, '2.u2');
-  assert.equal(b.custom_node.parent_id, '2');
-  assert.equal(b.custom_node.based_on, '2.1');
+  assert.deepEqual(p.node_patch, { node_id: '2.1', interventions: [{ source: 'user', ...scholarship }] });
+  const b = buildItem({ mode: 'branch', node_id: '2.1', interventions: [scholarship], label: 'Mine' }, { takenIds: ['2.1.c1'] });
+  assert.equal(b.custom_node.node_id, '2.1.c2');
+  assert.equal(b.custom_node.parent_id, '2.1');
   assert.equal(b.custom_node.custom, true);
-  assert.equal(customNodeId('0', []), 'u1');
+  assert.equal(customNodeId('0', []), '0.c1');
+  // two patches on one node are appended in order
+  const two = requestFieldsOf([p, buildItem({ id: 'y', mode: 'patch', node_id: '2.1', interventions: [{ param: 'monthly_rent', op: 'set', value: 700 }] })]);
+  assert.equal(two.node_patches['2.1'].length, 2);
   assert.equal(parentOf('2'), '0');
   assert.equal(parentOf('2.1.3'), '2.1');
 });
@@ -69,7 +73,11 @@ test('proposals: API answer, chat agent shape, clarifying question, unsupported'
   assert.equal(api.status, 'proposal');
   assert.equal(api.proposal.mode, 'patch');
   assert.equal(api.proposal.node_id, '2');
-  const chat = normalizeProposal({ personalize: { custom_node: { parent_id: '0', based_on: '2', label: 'Master + 40% job', interventions: [scholarship] } } });
+  // the real /tree/personalize shape for a new option: node_id = the new child, parent_id = the node
+  const real = normalizeProposal({ proposal: { mode: 'new_branch', parent_id: '2', node_id: '2.c1', label: 'Scholarship', interventions: [scholarship] }, clarifying_question: null });
+  assert.deepEqual([real.status, real.proposal.mode, real.proposal.node_id, real.proposal.custom_id], ['proposal', 'branch', '2', '2.c1']);
+  assert.equal(buildItem(real.proposal).custom_node.node_id, '2.c1');
+  const chat = normalizeProposal({ personalize: { custom_node: { parent_id: '2', node_id: '2.c3', label: 'Master + 40% job', interventions: [scholarship] } } });
   assert.equal(chat.proposal.mode, 'branch');
   assert.equal(chat.proposal.node_id, '2');
   const q = normalizeProposal({ status: 'clarify', question: 'For how many months?' });
@@ -92,7 +100,7 @@ test('browser-side reader: only the user’s numbers, a question when one is mis
 
 test('API: posts text, node and the session conditions; falls back to the reader only on 404/405', async () => {
   const node = { node_id: '2', parent_id: '0', label: 'Do a master’s' };
-  const fields = { node_patches: [{ node_id: '2.1', interventions: [] }] };
+  const fields = { node_patches: { 2.1: [] } };
   assert.deepEqual(personalizeBody({ path: ['2'], node, text: 'hi', lang: 'fr', fields }), { path: ['2'], node_id: '2', text: 'hi', language: 'fr', assumptions: [], node_patches: fields.node_patches });
   let sent;
   const ok = await requestPersonalization({ path: ['2'], node, text: 'x' }, { request: async (route, { body }) => { sent = [route, body]; return { status: 'clarify', question: '¿Cuánto?' }; } });

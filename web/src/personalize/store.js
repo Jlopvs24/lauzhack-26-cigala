@@ -37,10 +37,17 @@ export function createPersonalStore({ storage = defaultStorage(), key = STORE_KE
 export function requestFieldsOf(items = []) {
   const out = {};
   const custom = items.filter((i) => i.mode === 'branch' && i.custom_node).map((i) => i.custom_node);
-  const patches = items.filter((i) => i.mode === 'patch' && i.node_patch).map((i) => i.node_patch);
+  const patches = {};
+  for (const i of items) if (i.mode === 'patch' && i.node_patch) (patches[i.node_patch.node_id] ||= []).push(...(i.node_patch.interventions || []));
   if (custom.length) out.custom_nodes = custom;
-  if (patches.length) out.node_patches = patches;
+  if (Object.keys(patches).length) out.node_patches = patches; // {node_id: [interventions...]}, appended in order
   return out;
+}
+
+// A path is valid while every custom node on it still exists: cut it at the first removed one.
+export function validPath(path = [], store) {
+  const i = path.findIndex((id) => /\.c\d+$/.test(id) && !store.isCustom(id));
+  return i < 0 ? path : path.slice(0, i);
 }
 
 // The app-wide store (one per tab, survives reloads within the session).
