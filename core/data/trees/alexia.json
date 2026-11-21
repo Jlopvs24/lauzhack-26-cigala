@@ -1,7 +1,7 @@
 {
-  "tree_id": "alexia-v1",
+  "tree_id": "alexia-v2",
   "profile_id": "P00001",
-  "note": "EXAMPLE CONTENT (decision content is OPEN in docs/plan.md). Level 1 uses the UBS starter-kit figures; level 2 is illustrative. Edit freely: the engine only needs node_id/label/interventions/children. Interventions of a node apply on top of its parent's.",
+  "note": "Decision tree approved by Juan as a base (docs/tree-proposal.md, issue #25): 3 levels x 3 options, each grounded in the UBS scenario catalog (`catalog` = vendor/ubs-kit/Data/scenario-catalog.csv ids). Level 1 reproduces the UBS starter kit. Interventions of a node apply on top of its parent's. Every number is an editable assumption or a literal shown in `changes`; assumptions with verified=false are modelling choices. Results come from the engine (deterministic first), never from this file.",
   "assumptions": [
     {
       "id": "AS-alexia-work-salary",
@@ -114,6 +114,278 @@
       "verified": true,
       "retrieved": "2026-11-21",
       "source": "UBS starter kit ('Move abroad' one-off cost). Checked against the starter kit file; the figure itself is illustrative, not market data"
+    },
+    {
+      "id": "AS-alexia-abroad-rent",
+      "param": "abroad_rent",
+      "label": "Rent of a flat abroad, alone",
+      "value": 1200,
+      "unit": "CHF/month",
+      "range": [
+        900,
+        1600
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. UBS starter kit total 'Move abroad' expenses split by the team; to verify with Eurostat/Destatis rent statistics for the chosen city."
+    },
+    {
+      "id": "AS-alexia-raise",
+      "param": "negotiated_raise",
+      "label": "Negotiated raise on the first salary (about 5%)",
+      "value": 210,
+      "unit": "CHF/month",
+      "range": [
+        0,
+        420
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. About 5% of CHF 4,200; to verify with the FSO Swiss Earnings Structure Survey, https://www.bfs.admin.ch (salary progression by age)."
+    },
+    {
+      "id": "AS-alexia-promotion",
+      "param": "promotion_raise",
+      "label": "Raise after a promotion in year 3 (about 15%)",
+      "value": 630,
+      "unit": "CHF/month",
+      "range": [
+        300,
+        900
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. About 15% of CHF 4,200; to verify with the FSO Swiss Earnings Structure Survey, https://www.bfs.admin.ch."
+    },
+    {
+      "id": "AS-alexia-equity-return",
+      "param": "equity_heavy_return",
+      "label": "Expected-return assumption for an 80% equity portfolio",
+      "value": 0.055,
+      "unit": "1/year",
+      "range": [
+        0.03,
+        0.07
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. Pictet 1926-2024 study (Swiss shares about 7.7%/year nominal) minus fees and a margin of prudence."
+    },
+    {
+      "id": "AS-alexia-equity-vol",
+      "param": "equity_heavy_vol",
+      "label": "Volatility of an 80% equity portfolio",
+      "value": 0.15,
+      "unit": "1/year",
+      "range": [
+        0.12,
+        0.2
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. Modelling choice between the balanced portfolio (10%) and a pure equity index (about 17%)."
+    },
+    {
+      "id": "AS-alexia-car-resale",
+      "param": "car_resale",
+      "label": "Resale value of the car after 2 years",
+      "value": 7000,
+      "unit": "CHF",
+      "range": [
+        4000,
+        10000
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. About 50% depreciation after 2 years; to verify with a used-car price index."
+    },
+    {
+      "id": "AS-alexia-side-job",
+      "param": "side_job_income",
+      "label": "Side job income",
+      "value": 600,
+      "unit": "CHF/month",
+      "range": [
+        300,
+        900
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. A few hours a week at a student-job rate; to verify."
+    },
+    {
+      "id": "AS-alexia-parttime-income",
+      "param": "parttime_income",
+      "label": "Income from a 60% job while studying",
+      "value": 2520,
+      "unit": "CHF/month",
+      "range": [
+        1800,
+        2800
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. 60% of the CHF 4,200 junior salary; a student at 60% may earn less. To verify."
+    },
+    {
+      "id": "AS-alexia-80pct-income",
+      "param": "eighty_pct_income",
+      "label": "Income from an 80% job while studying",
+      "value": 3360,
+      "unit": "CHF/month",
+      "range": [
+        2800,
+        3600
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. 80% of the CHF 4,200 junior salary; feasibility next to studies is itself a modelling choice."
+    },
+    {
+      "id": "AS-alexia-study-loan-rate",
+      "param": "study_loan_rate",
+      "label": "Interest rate of the study loan",
+      "value": 0.02,
+      "unit": "1/year",
+      "range": [
+        0.0,
+        0.05
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. To verify with Vaud cantonal study grants and loans (Office cantonal des bourses d'études), https://www.vd.ch."
+    },
+    {
+      "id": "AS-alexia-scholarship",
+      "param": "scholarship",
+      "label": "Scholarship during the master's",
+      "value": 500,
+      "unit": "CHF/month",
+      "range": [
+        0,
+        1000
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. To verify with Vaud cantonal study grants and loans (Office cantonal des bourses d'études), https://www.vd.ch or the EPFL social scholarship (https://www.epfl.ch/education/studies/en/epfl-social-scholarship/)."
+    },
+    {
+      "id": "AS-alexia-internship",
+      "param": "internship_pay",
+      "label": "Paid internship in the second year",
+      "value": 2500,
+      "unit": "CHF/month",
+      "range": [
+        1500,
+        3500
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. To verify with EPFL internship guidelines or a Swiss salary survey."
+    },
+    {
+      "id": "AS-alexia-abroad-promotion",
+      "param": "abroad_promotion_raise",
+      "label": "Raise after a promotion abroad in year 3 (about 15%)",
+      "value": 555,
+      "unit": "CHF/month",
+      "range": [
+        300,
+        800
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. About 15% of CHF 3,700; to verify."
+    },
+    {
+      "id": "AS-alexia-side-project",
+      "param": "side_project_income",
+      "label": "Income from a side project",
+      "value": 400,
+      "unit": "CHF/month",
+      "range": [
+        0,
+        800
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. Illustrative; a side project may earn nothing."
+    },
+    {
+      "id": "AS-alexia-later-master-salary",
+      "param": "later_master_salary",
+      "label": "Net salary after a later master's, with experience",
+      "value": 5200,
+      "unit": "CHF/month",
+      "range": [
+        4600,
+        6000
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. To verify with the FSO Swiss Earnings Structure Survey, https://www.bfs.admin.ch."
+    },
+    {
+      "id": "AS-alexia-zurich-salary",
+      "param": "zurich_salary",
+      "label": "Net salary of a job in Zurich, with experience",
+      "value": 5400,
+      "unit": "CHF/month",
+      "range": [
+        4800,
+        6000
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. To verify with the FSO Swiss Earnings Structure Survey, https://www.bfs.admin.ch by region."
+    },
+    {
+      "id": "AS-alexia-zurich-rent",
+      "param": "zurich_rent",
+      "label": "Rent of a studio in Zurich",
+      "value": 1500,
+      "unit": "CHF/month",
+      "range": [
+        1300,
+        1900
+      ],
+      "kind": "assumption",
+      "editable": true,
+      "verified": false,
+      "retrieved": "2026-11-21",
+      "source": "Modelling choice, not verified. To verify with FSO rent statistics by canton."
     }
   ],
   "root": {
@@ -126,6 +398,9 @@
         "node_id": "1",
         "label": "Start working",
         "description": "Takes a full-time job now and moves to her own studio.",
+        "catalog": [
+          "S011"
+        ],
         "interventions": [
           {
             "param": "monthly_net_income",
@@ -156,8 +431,77 @@
         "children": [
           {
             "node_id": "1.1",
+            "label": "Keep the surplus in cash",
+            "description": "Builds a safety buffer in a savings account; no investing.",
+            "catalog": [
+              "S051"
+            ],
+            "interventions": [],
+            "children": [
+              {
+                "node_id": "1.1.1",
+                "label": "Negotiate a 5% raise",
+                "description": "Asks for a higher starting salary.",
+                "catalog": [
+                  "S012"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "add",
+                    "value": {
+                      "assumption": "AS-alexia-raise"
+                    },
+                    "from_month": 0,
+                    "label": "Negotiated raise"
+                  }
+                ]
+              },
+              {
+                "node_id": "1.1.2",
+                "label": "Promotion in year 3",
+                "description": "About 15% more from month 25.",
+                "catalog": [
+                  "S013"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "add",
+                    "value": {
+                      "assumption": "AS-alexia-promotion"
+                    },
+                    "from_month": 24,
+                    "label": "Promotion"
+                  }
+                ]
+              },
+              {
+                "node_id": "1.1.3",
+                "label": "Work 80%",
+                "description": "Keeps one day a week for herself: income x 0.8.",
+                "catalog": [
+                  "S017"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "mul",
+                    "value": 0.8,
+                    "from_month": 0,
+                    "label": "80% contract"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "node_id": "1.2",
             "label": "Invest CHF 500 a month",
             "description": "Puts CHF 500 a month into a balanced index fund.",
+            "catalog": [
+              "S061"
+            ],
             "interventions": [
               {
                 "param": "monthly_investment_contribution",
@@ -166,19 +510,60 @@
                 "from_month": 0,
                 "label": "Monthly investing"
               }
-            ]
-          },
-          {
-            "node_id": "1.2",
-            "label": "Share a flat instead",
-            "description": "Lives in a shared flat and saves CHF 400 a month on rent.",
-            "interventions": [
+            ],
+            "children": [
               {
-                "param": "monthly_rent",
-                "op": "add",
-                "value": -400,
-                "from_month": 0,
-                "label": "Shared flat"
+                "node_id": "1.2.1",
+                "label": "Stay the course",
+                "description": "Keeps investing whatever the markets do.",
+                "catalog": [
+                  "S052"
+                ],
+                "interventions": []
+              },
+              {
+                "node_id": "1.2.2",
+                "label": "Pause in year 2",
+                "description": "Stops the contributions for 12 months (months 13 to 24).",
+                "catalog": [
+                  "S067"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_investment_contribution",
+                    "op": "set",
+                    "value": 0,
+                    "from_month": 12,
+                    "to_month": 24,
+                    "label": "Contributions paused"
+                  }
+                ]
+              },
+              {
+                "node_id": "1.2.3",
+                "label": "More equities",
+                "description": "An 80% equity portfolio instead of a balanced one: higher assumed return, more volatility.",
+                "catalog": [
+                  "S062"
+                ],
+                "interventions": [
+                  {
+                    "param": "assumption",
+                    "id": "AS-investment-return",
+                    "value": {
+                      "assumption": "AS-alexia-equity-return"
+                    },
+                    "label": "80% equity portfolio: return"
+                  },
+                  {
+                    "param": "assumption",
+                    "id": "AS-investment-vol",
+                    "value": {
+                      "assumption": "AS-alexia-equity-vol"
+                    },
+                    "label": "80% equity portfolio: volatility"
+                  }
+                ]
               }
             ]
           },
@@ -186,6 +571,10 @@
             "node_id": "1.3",
             "label": "Buy a car on credit",
             "description": "Borrows CHF 15,000 for a car at 6.9% over about 5 years; insurance and fuel add CHF 250 a month.",
+            "catalog": [
+              "S042",
+              "S077"
+            ],
             "interventions": [
               {
                 "param": "new_liability",
@@ -212,6 +601,70 @@
                 "from_month": 0,
                 "label": "Car running costs"
               }
+            ],
+            "children": [
+              {
+                "node_id": "1.3.1",
+                "label": "Repay the loan early",
+                "description": "Doubles the car loan payment to CHF 600 a month.",
+                "catalog": [
+                  "S074"
+                ],
+                "interventions": [
+                  {
+                    "param": "loan_change",
+                    "loan": "Car loan",
+                    "month": 1,
+                    "monthly_payment": 600,
+                    "label": "Faster repayment"
+                  }
+                ]
+              },
+              {
+                "node_id": "1.3.2",
+                "label": "Sell the car after 2 years",
+                "description": "Sells it in month 25 and goes back to public transport; the loan keeps its schedule.",
+                "catalog": [
+                  "S043"
+                ],
+                "interventions": [
+                  {
+                    "param": "one_off_income",
+                    "month": 24,
+                    "value": {
+                      "assumption": "AS-alexia-car-resale"
+                    },
+                    "label": "Car sale"
+                  },
+                  {
+                    "param": "monthly_other_expenses",
+                    "op": "add",
+                    "value": -250,
+                    "from_month": 24,
+                    "label": "No more car running costs"
+                  }
+                ]
+              },
+              {
+                "node_id": "1.3.3",
+                "label": "Add a side job",
+                "description": "Earns CHF 600 more a month for 2 years to afford the car.",
+                "catalog": [
+                  "S020"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "add",
+                    "value": {
+                      "assumption": "AS-alexia-side-job"
+                    },
+                    "from_month": 0,
+                    "to_month": 24,
+                    "label": "Side job"
+                  }
+                ]
+              }
             ]
           }
         ]
@@ -220,6 +673,9 @@
         "node_id": "2",
         "label": "Do a master's",
         "description": "Two years of master's with a student job, then a better-paid job.",
+        "catalog": [
+          "S001"
+        ],
         "interventions": [
           {
             "param": "monthly_net_income",
@@ -292,14 +748,107 @@
         "children": [
           {
             "node_id": "2.1",
-            "label": "Keep the student job only",
-            "description": "Same plan: CHF 1,200 a month from a student job.",
-            "interventions": []
+            "label": "Student job only",
+            "description": "As in the UBS starter kit: CHF 1,200 a month from a student job.",
+            "catalog": [
+              "S001"
+            ],
+            "interventions": [],
+            "children": [
+              {
+                "node_id": "2.1.1",
+                "label": "Get a scholarship",
+                "description": "CHF 500 a month during the two years.",
+                "catalog": [
+                  "S003"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "add",
+                    "value": {
+                      "assumption": "AS-alexia-scholarship"
+                    },
+                    "from_month": 0,
+                    "to_month": 24,
+                    "label": "Scholarship"
+                  }
+                ]
+              },
+              {
+                "node_id": "2.1.2",
+                "label": "Graduate one year late",
+                "description": "Three years of studies: one more year of student life and tuition.",
+                "catalog": [
+                  "S010"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "set",
+                    "value": {
+                      "assumption": "AS-alexia-student-job"
+                    },
+                    "from_month": 24,
+                    "to_month": 36,
+                    "label": "Student job, year 3"
+                  },
+                  {
+                    "param": "monthly_rent",
+                    "op": "set",
+                    "value": 900,
+                    "from_month": 24,
+                    "to_month": 36,
+                    "label": "Student room, year 3"
+                  },
+                  {
+                    "param": "monthly_other_expenses",
+                    "op": "set",
+                    "value": 1200,
+                    "from_month": 24,
+                    "to_month": 36,
+                    "label": "Student living costs, year 3"
+                  },
+                  {
+                    "param": "one_off_cost",
+                    "month": 24,
+                    "value": {
+                      "assumption": "AS-alexia-master-tuition"
+                    },
+                    "label": "Tuition year 3"
+                  }
+                ]
+              },
+              {
+                "node_id": "2.1.3",
+                "label": "Paid internship in year 2",
+                "description": "CHF 2,500 a month for the 12 months of year 2.",
+                "catalog": [
+                  "S005"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "set",
+                    "value": {
+                      "assumption": "AS-alexia-internship"
+                    },
+                    "from_month": 12,
+                    "to_month": 24,
+                    "label": "Paid internship"
+                  }
+                ]
+              }
+            ]
           },
           {
             "node_id": "2.2",
-            "label": "Take a CHF 15,000 study loan",
+            "label": "Study loan of CHF 15,000",
             "description": "Borrows CHF 15,000 at 2%, repaid at CHF 300 a month once she works (month 25).",
+            "catalog": [
+              "S009",
+              "S071"
+            ],
             "interventions": [
               {
                 "param": "new_liability",
@@ -309,25 +858,200 @@
                   "type": "student_loan",
                   "label": "Study loan",
                   "principal": 15000,
-                  "annual_rate": 0.02,
+                  "annual_rate": {
+                    "assumption": "AS-alexia-study-loan-rate"
+                  },
                   "monthly_payment": 300,
                   "payment_start_month": 24
                 }
+              }
+            ],
+            "children": [
+              {
+                "node_id": "2.2.1",
+                "label": "Repay over about 5 years",
+                "description": "CHF 300 a month from graduation.",
+                "catalog": [
+                  "S071"
+                ],
+                "interventions": []
+              },
+              {
+                "node_id": "2.2.2",
+                "label": "Repay fast",
+                "description": "CHF 600 a month from graduation.",
+                "catalog": [
+                  "S074"
+                ],
+                "interventions": [
+                  {
+                    "param": "loan_change",
+                    "loan": "Study loan",
+                    "month": 24,
+                    "monthly_payment": 600,
+                    "label": "Faster repayment"
+                  }
+                ]
+              },
+              {
+                "node_id": "2.2.3",
+                "label": "Rate rises to 5%",
+                "description": "The variable rate rises to 5% at graduation.",
+                "catalog": [
+                  "S075"
+                ],
+                "interventions": [
+                  {
+                    "param": "loan_change",
+                    "loan": "Study loan",
+                    "month": 24,
+                    "annual_rate": 0.05,
+                    "label": "Rate rise"
+                  }
+                ]
               }
             ]
           },
           {
             "node_id": "2.3",
-            "label": "Work 40% while studying",
-            "description": "A 40% job brings CHF 800 more a month during the master's.",
+            "label": "Part-time master's with a 60% job",
+            "description": "Three years instead of two, with a 60% job; the better-paid job starts in month 37.",
+            "catalog": [
+              "S002"
+            ],
             "interventions": [
               {
                 "param": "monthly_net_income",
-                "op": "add",
-                "value": 800,
+                "op": "set",
+                "value": {
+                  "assumption": "AS-alexia-parttime-income"
+                },
                 "from_month": 0,
-                "to_month": 24,
-                "label": "40% job"
+                "to_month": 36,
+                "label": "60% job"
+              },
+              {
+                "param": "monthly_rent",
+                "op": "set",
+                "value": 900,
+                "from_month": 0,
+                "to_month": 36,
+                "label": "Student room"
+              },
+              {
+                "param": "monthly_other_expenses",
+                "op": "set",
+                "value": 1300,
+                "from_month": 0,
+                "to_month": 36,
+                "label": "Living costs while working part-time"
+              },
+              {
+                "param": "one_off_cost",
+                "month": 24,
+                "value": {
+                  "assumption": "AS-alexia-master-tuition"
+                },
+                "label": "Tuition year 3"
+              }
+            ],
+            "children": [
+              {
+                "node_id": "2.3.1",
+                "label": "Employer pays the tuition",
+                "description": "The employer reimburses the tuition each year.",
+                "catalog": [
+                  "S003"
+                ],
+                "interventions": [
+                  {
+                    "param": "one_off_income",
+                    "month": 0,
+                    "value": {
+                      "assumption": "AS-alexia-master-tuition"
+                    },
+                    "label": "Employer pays tuition year 1"
+                  },
+                  {
+                    "param": "one_off_income",
+                    "month": 12,
+                    "value": {
+                      "assumption": "AS-alexia-master-tuition"
+                    },
+                    "label": "Employer pays tuition year 2"
+                  },
+                  {
+                    "param": "one_off_income",
+                    "month": 24,
+                    "value": {
+                      "assumption": "AS-alexia-master-tuition"
+                    },
+                    "label": "Employer pays tuition year 3"
+                  }
+                ]
+              },
+              {
+                "node_id": "2.3.2",
+                "label": "Work 80% instead",
+                "description": "More income, same three years of studies.",
+                "catalog": [
+                  "S017"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "set",
+                    "value": {
+                      "assumption": "AS-alexia-80pct-income"
+                    },
+                    "from_month": 0,
+                    "to_month": 36,
+                    "label": "80% job"
+                  }
+                ]
+              },
+              {
+                "node_id": "2.3.3",
+                "label": "Drop out after year 1",
+                "description": "Leaves the programme and takes the full-time job in month 13.",
+                "catalog": [
+                  "S016"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "set",
+                    "value": {
+                      "assumption": "AS-alexia-work-salary"
+                    },
+                    "from_month": 12,
+                    "label": "Full-time salary"
+                  },
+                  {
+                    "param": "monthly_rent",
+                    "op": "set",
+                    "value": {
+                      "assumption": "AS-alexia-work-rent"
+                    },
+                    "from_month": 12,
+                    "label": "Own studio"
+                  },
+                  {
+                    "param": "monthly_other_expenses",
+                    "op": "set",
+                    "value": 1900,
+                    "from_month": 12,
+                    "label": "Living costs as a worker"
+                  },
+                  {
+                    "param": "cancel_one_off",
+                    "label": "Tuition year 2"
+                  },
+                  {
+                    "param": "cancel_one_off",
+                    "label": "Tuition year 3"
+                  }
+                ]
               }
             ]
           }
@@ -336,7 +1060,10 @@
       {
         "node_id": "3",
         "label": "Move abroad",
-        "description": "Takes a job in another country.",
+        "description": "Takes a job in another country; the exchange rate is held constant.",
+        "catalog": [
+          "S023"
+        ],
         "interventions": [
           {
             "param": "monthly_net_income",
@@ -350,7 +1077,9 @@
           {
             "param": "monthly_rent",
             "op": "set",
-            "value": 1200,
+            "value": {
+              "assumption": "AS-alexia-abroad-rent"
+            },
             "from_month": 0,
             "label": "Rent abroad"
           },
@@ -374,13 +1103,73 @@
           {
             "node_id": "3.1",
             "label": "Rent a flat alone",
-            "description": "Same plan: her own flat abroad.",
-            "interventions": []
+            "description": "Her own flat abroad.",
+            "catalog": [
+              "S031"
+            ],
+            "interventions": [],
+            "children": [
+              {
+                "node_id": "3.1.1",
+                "label": "Invest CHF 400 a month",
+                "description": "Puts CHF 400 a month into a balanced fund.",
+                "catalog": [
+                  "S061"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_investment_contribution",
+                    "op": "set",
+                    "value": 400,
+                    "from_month": 0,
+                    "label": "Monthly investing"
+                  }
+                ]
+              },
+              {
+                "node_id": "3.1.2",
+                "label": "Promotion in year 3",
+                "description": "About 15% more from month 25.",
+                "catalog": [
+                  "S013"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "add",
+                    "value": {
+                      "assumption": "AS-alexia-abroad-promotion"
+                    },
+                    "from_month": 24,
+                    "label": "Promotion"
+                  }
+                ]
+              },
+              {
+                "node_id": "3.1.3",
+                "label": "Expensive move",
+                "description": "Deposit and agency fees add CHF 2,500 on day one.",
+                "catalog": [
+                  "S030"
+                ],
+                "interventions": [
+                  {
+                    "param": "one_off_cost",
+                    "month": 0,
+                    "value": 2500,
+                    "label": "Deposit and agency fees"
+                  }
+                ]
+              }
+            ]
           },
           {
             "node_id": "3.2",
-            "label": "Share a flat abroad",
-            "description": "Shared flat: CHF 500 a month less rent.",
+            "label": "Share a flat",
+            "description": "A shared flat: CHF 500 a month less rent.",
+            "catalog": [
+              "S032"
+            ],
             "interventions": [
               {
                 "param": "monthly_rent",
@@ -389,12 +1178,75 @@
                 "from_month": 0,
                 "label": "Shared flat"
               }
+            ],
+            "children": [
+              {
+                "node_id": "3.2.1",
+                "label": "Save the difference",
+                "description": "Keeps the saved rent in cash.",
+                "catalog": [
+                  "S053"
+                ],
+                "interventions": []
+              },
+              {
+                "node_id": "3.2.2",
+                "label": "Travel sabbatical",
+                "description": "Six months unpaid in year 3 plus CHF 4,000 of travel.",
+                "catalog": [
+                  "S044"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "set",
+                    "value": 0,
+                    "from_month": 24,
+                    "to_month": 30,
+                    "label": "Unpaid sabbatical"
+                  },
+                  {
+                    "param": "one_off_cost",
+                    "month": 24,
+                    "value": 4000,
+                    "label": "Travel"
+                  }
+                ]
+              },
+              {
+                "node_id": "3.2.3",
+                "label": "Side project",
+                "description": "CHF 400 a month more from year 2, after CHF 1,500 of setup costs.",
+                "catalog": [
+                  "S112"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "add",
+                    "value": {
+                      "assumption": "AS-alexia-side-project"
+                    },
+                    "from_month": 12,
+                    "label": "Side project"
+                  },
+                  {
+                    "param": "one_off_cost",
+                    "month": 12,
+                    "value": 1500,
+                    "label": "Side project setup"
+                  }
+                ]
+              }
             ]
           },
           {
             "node_id": "3.3",
             "label": "Come back after 3 years",
             "description": "Returns to Lausanne in year 4 with a Swiss salary; moving back costs CHF 3,000.",
+            "catalog": [
+              "S027"
+            ],
             "interventions": [
               {
                 "param": "monthly_net_income",
@@ -426,6 +1278,106 @@
                 "month": 36,
                 "value": 3000,
                 "label": "Moving back"
+              }
+            ],
+            "children": [
+              {
+                "node_id": "3.3.1",
+                "label": "Job in Lausanne",
+                "description": "Back in Lausanne with experience.",
+                "catalog": [
+                  "S027"
+                ],
+                "interventions": []
+              },
+              {
+                "node_id": "3.3.2",
+                "label": "Come back for a master's",
+                "description": "Master's from month 37 to 60 with a student job, then CHF 5,200 a month.",
+                "catalog": [
+                  "S001"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "set",
+                    "value": {
+                      "assumption": "AS-alexia-student-job"
+                    },
+                    "from_month": 36,
+                    "to_month": 60,
+                    "label": "Student job"
+                  },
+                  {
+                    "param": "monthly_rent",
+                    "op": "set",
+                    "value": 900,
+                    "from_month": 36,
+                    "to_month": 60,
+                    "label": "Student room"
+                  },
+                  {
+                    "param": "monthly_other_expenses",
+                    "op": "set",
+                    "value": 1200,
+                    "from_month": 36,
+                    "to_month": 60,
+                    "label": "Student living costs"
+                  },
+                  {
+                    "param": "one_off_cost",
+                    "month": 36,
+                    "value": {
+                      "assumption": "AS-alexia-master-tuition"
+                    },
+                    "label": "Tuition year 1"
+                  },
+                  {
+                    "param": "one_off_cost",
+                    "month": 48,
+                    "value": {
+                      "assumption": "AS-alexia-master-tuition"
+                    },
+                    "label": "Tuition year 2"
+                  },
+                  {
+                    "param": "monthly_net_income",
+                    "op": "set",
+                    "value": {
+                      "assumption": "AS-alexia-later-master-salary"
+                    },
+                    "from_month": 60,
+                    "label": "Salary after the master's"
+                  }
+                ]
+              },
+              {
+                "node_id": "3.3.3",
+                "label": "Job in Zurich",
+                "description": "A higher salary and a higher rent from month 37.",
+                "catalog": [
+                  "S021"
+                ],
+                "interventions": [
+                  {
+                    "param": "monthly_net_income",
+                    "op": "set",
+                    "value": {
+                      "assumption": "AS-alexia-zurich-salary"
+                    },
+                    "from_month": 36,
+                    "label": "Salary in Zurich"
+                  },
+                  {
+                    "param": "monthly_rent",
+                    "op": "set",
+                    "value": {
+                      "assumption": "AS-alexia-zurich-rent"
+                    },
+                    "from_month": 36,
+                    "label": "Studio in Zurich"
+                  }
+                ]
               }
             ]
           }

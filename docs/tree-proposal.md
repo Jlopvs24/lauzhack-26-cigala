@@ -1,6 +1,6 @@
 # Decision tree for Alexia — PROPOSAL (not final)
 
-Status: **proposal by thread 1 (engine) for Juan to evaluate.** Nothing here is in `core/data/trees/alexia.json` yet; the tree content stays OPEN in `docs/plan.md` until Juan decides.
+Status: **approved as a base and integrated** into `core/data/trees/alexia.json` (`alexia-v2`, issue #25), including extensions A (node-level `assumption`) and B (`loan_change`), plus `cancel_one_off` so "drop out after year 1" pays no later tuition. Every 🆕 ⚠️ figure is an editable assumption with `verified: false`. The p50 / short. / health figures below were computed with Monte Carlo for the proposal; the app now shows deterministic results first (Monte Carlo only behind the uncertainty lens), computed live by the engine, so read the tables for the trade-offs, not as the numbers on screen.
 
 Constraints followed: 3 levels max, 3 options per node, every option grounded in the UBS scenario catalog (`vendor/ubs-kit/Data/scenario-catalog.csv`, ids `Sxxx`) and in Alexia's situation (20, student in Lausanne, CHF 8,000 savings, CHF 1,200 student job, CHF 1,500 monthly costs; UBS synthetic profile P00001).
 

@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
-from .models import num
+from .models import num, resolve_value
 
 DATA = Path(__file__).resolve().parent / "data"
 
@@ -96,6 +96,29 @@ class AssumptionSet:
             a.pop("default_value", None)
             a.pop("user_edited", None)
         return AssumptionSet(base, merged)
+
+    def with_node_values(self, interventions: list[dict] | None) -> "AssumptionSet":
+        """Apply ``{"param": "assumption", "id": ..., "value": ...}`` interventions: a decision
+        that changes a model assumption on its own branch (e.g. a riskier portfolio). Later
+        interventions win; an explicit user override of the same assumption wins over the node."""
+        node = {}
+        for i, iv in enumerate(interventions or []):
+            if iv.get("param") != "assumption":
+                continue
+            target = self._find(str(iv.get("id")))
+            if target is None:
+                raise ValueError(f"interventions[{i}]: unknown assumption {iv.get('id')!r}")
+            node[target["id"]] = resolve_value(iv.get("value"), self.values(), f"interventions[{i}].value")
+        if not node:
+            return self
+        out = AssumptionSet(self.items)
+        out.overridden = list(self.overridden)
+        for a in out.items:
+            if a["id"] in node and not a.get("user_edited"):
+                a["scenario_default"] = a.get("scenario_default", a["value"])
+                a["value"] = node[a["id"]]
+                a["set_by_decision"] = True
+        return out
 
     def check_complete(self) -> list[str]:
         vals = self.values()

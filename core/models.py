@@ -18,7 +18,8 @@ SERIES_PARAMS = (
     "monthly_other_expenses",
     "monthly_investment_contribution",
 )
-EVENT_PARAMS = ("one_off_cost", "one_off_income", "new_liability")
+EVENT_PARAMS = ("one_off_cost", "one_off_income", "new_liability", "loan_change", "cancel_one_off")
+MODEL_PARAMS = ("assumption",)  # node-level assumption values, applied by AssumptionSet.with_node_values
 OPS = ("set", "add", "mul")
 
 
@@ -57,6 +58,7 @@ class Liability:
     start_month: int = 0
     is_new: bool = False  # True for loans taken by an intervention (cash received at start_month)
     payment_start_month: int = 0  # payments before this month are deferred (interest capitalised)
+    changes: tuple = ()  # ((month, monthly_payment | None, annual_rate | None), ...) from loan_change
 
     @staticmethod
     def from_dict(d: dict, label: str = "liability", start_month: int = 0, is_new: bool = False) -> "Liability":
@@ -152,6 +154,9 @@ class Intervention:
     month: int = 0  # for events
     label: str = ""
     liability: Liability | None = None
+    loan: str = ""  # loan_change: label of the loan to change
+    monthly_payment: float | None = None
+    annual_rate: float | None = None
 
 
 def resolve_value(value: Any, assumptions: dict[str, float], label: str) -> float:
@@ -198,6 +203,27 @@ def parse_interventions(items: list[dict], assumptions: dict[str, float], horizo
                 spec["monthly_payment"] = resolve_value(spec["monthly_payment"], assumptions, f"{lab}.liability.monthly_payment")
             liab = Liability.from_dict(spec, f"{lab}.liability", start_month=m, is_new=True)
             out.append(Intervention(param=param, month=m, liability=liab, label=str(it.get("label", liab.label))))
+        elif param == "loan_change":
+            m = month_int(it.get("month", 0), f"{lab}.month", horizon)
+            if not it.get("loan"):
+                raise ValueError(f"{lab}.loan (label of the loan to change) is required")
+            pay = it.get("monthly_payment")
+            rate = it.get("annual_rate")
+            if pay is None and rate is None:
+                raise ValueError(f"{lab}: set monthly_payment and/or annual_rate")
+            pay = None if pay is None else resolve_value(pay, assumptions, f"{lab}.monthly_payment")
+            rate = None if rate is None else resolve_value(rate, assumptions, f"{lab}.annual_rate")
+            for v, name in ((pay, "monthly_payment"), (rate, "annual_rate")):
+                if v is not None and v < 0:
+                    raise ValueError(f"{lab}.{name} cannot be negative")
+            out.append(Intervention(param=param, month=m, loan=str(it["loan"]), monthly_payment=pay,
+                                    annual_rate=rate, label=str(it.get("label", "Loan change"))))
+        elif param == "cancel_one_off":
+            if not it.get("label"):
+                raise ValueError(f"{lab}.label (label of the one-off to cancel) is required")
+            out.append(Intervention(param=param, label=str(it["label"])))
+        elif param in MODEL_PARAMS:
+            continue  # resolved into the assumption set before parsing
         else:
-            raise ValueError(f"{lab}.param {param!r} not supported; use one of {SERIES_PARAMS + EVENT_PARAMS}")
+            raise ValueError(f"{lab}.param {param!r} not supported; use one of {SERIES_PARAMS + EVENT_PARAMS + MODEL_PARAMS}")
     return out

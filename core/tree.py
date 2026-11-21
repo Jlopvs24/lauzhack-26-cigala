@@ -158,10 +158,21 @@ def describe_intervention(iv: dict, values: dict[str, float]) -> str:
     if p in ("one_off_cost", "one_off_income"):
         sign = "cost" if p == "one_off_cost" else "income"
         return f"{iv.get('label') or sign}: one-off {sign} CHF {val(iv.get('value', 0)):,.0f} in month {iv.get('month', 0) + 1}"
+    if p == "assumption":
+        return f"{iv.get('label') or iv.get('id')}: assumption {iv.get('id')} = {val(iv.get('value', 0)):g} on this branch"
+    if p == "cancel_one_off":
+        return f"Cancels the one-off '{iv.get('label')}' planned earlier on this path"
+    if p == "loan_change":
+        what = []
+        if iv.get("monthly_payment") is not None:
+            what.append(f"payment CHF {val(iv['monthly_payment']):,.0f}/month")
+        if iv.get("annual_rate") is not None:
+            what.append(f"rate {100 * val(iv['annual_rate']):.1f}%")
+        return f"{iv.get('label') or 'Loan change'}: {iv.get('loan')} {' and '.join(what)} from month {iv.get('month', 0) + 1}"
     if p == "new_liability":
         l = iv.get("liability", {})
-        return (f"{iv.get('label') or 'Loan'}: borrow CHF {float(l.get('principal', 0)):,.0f} at "
-                f"{100 * float(l.get('annual_rate', 0)):.1f}%, CHF {float(l.get('monthly_payment', 0)):,.0f}/month, "
+        return (f"{iv.get('label') or 'Loan'}: borrow CHF {val(l.get('principal', 0)):,.0f} at "
+                f"{100 * val(l.get('annual_rate', 0)):.1f}%, CHF {val(l.get('monthly_payment', 0)):,.0f}/month, "
                 f"in month {iv.get('month', 0) + 1}")
     return str(iv)
 
@@ -229,7 +240,8 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
             "interventions": ivs,
             "changes": [describe_intervention(iv, values) for iv in ivs],
             "assumptions_ref": sorted({iv["value"]["assumption"] for iv in ivs
-                                       if isinstance(iv.get("value"), dict) and "assumption" in iv["value"]}),
+                                       if isinstance(iv.get("value"), dict) and "assumption" in iv["value"]}
+                                      | {iv["id"] for iv in ivs if iv.get("param") == "assumption"}),
             "delta_vs_parent": delta,
             "result": res,
         })
