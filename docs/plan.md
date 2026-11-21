@@ -47,6 +47,12 @@ An original little tree/sprout character, friendly and simple. It **never recomm
 - **Free look is bounded.** The user may look around the current area, but cannot jump far: from level 4 you cannot fly to the roots. Navigation is one level back at a time (Back), plus free look around the current node.
 - **Past branches stay drawn in grey.** Branches pruned earlier (siblings of every ancestor) keep their geometry visible, greyed out, with their name only. They are not simulated and not clickable. The API returns them as `status: "pruned"` nodes with label only (no `result`).
 
+## Product shell (DECIDED 15:20)
+
+- **Start portal** before the tree: short cinematic intro, then "Start with your own roots" (questionnaire / documents / voice) or "Try the demo: Alexia" (known roots, straight to the tree).
+- **Language switch** EN (default) / ES / FR / DE for UI, Lumi's bubbles and the agent. **The voice must match the language** (never English text with a Spanish voice).
+- **Light / dark mode** toggle (default: system), the scene itself adapts, not only the UI.
+
 ## Demo persona (DECIDED)
 
 **Alexia** (UBS kit): fictional 20-year-old student in Lausanne, CHF 8,000 savings, choosing between start working / master's / move abroad. Represents any student. The UBS starter kit already shows the master's path runs out of cash in month 7 — a good hook.
