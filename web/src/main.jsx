@@ -53,6 +53,12 @@ function tagMeta(n, lang, cmp = {}) {
   return a + b + strip + pin;
 }
 
+function BackButton({ className, onClick, label }) {
+  return <button className={className} onClick={onClick}>
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+    <span>{label}</span></button>;
+}
+
 function App() {
   const [lang, setLang] = useState(() => (UI[store.get('cigala.lang', 'en')] ? store.get('cigala.lang', 'en') : 'en'));
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || 'light');
@@ -104,7 +110,7 @@ function App() {
     createScene({ world: worldRef.current, labels: labelsRef.current, onTagClick: (id, status) => onTag(id, status) }).then(async (s) => {
       if (disposed) { s.destroy(); return; }
       scene.current = s;
-      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), document.querySelector('.nav-back'), document.querySelector('.cmp-bar'), document.querySelector('.cmp-options-mount'),
+      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), ...document.querySelectorAll('.nav-back'), document.querySelector('.cmp-bar'), document.querySelector('.cmp-options-mount'),
         document.querySelector('.top .brand'), ...document.querySelectorAll('#crumbs > span'), document.querySelector('.top-actions'), document.querySelector('.wx'), document.querySelector('.leaf-cta'),
         ...document.querySelectorAll('[data-layout-obstacle]')].filter(Boolean) })); // any panel can opt in (weather rail, Lumi dock)
       await s.intro();
@@ -323,9 +329,7 @@ function App() {
       </div>
     </header>
 
-    {started && path.length > 0 && <button className="nav-back" onClick={back}>
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-      <span>{t(lang, 'back')}</span></button>}
+    {started && path.length > 0 && <BackButton className="nav-back nav-back-wide" onClick={back} label={t(lang, 'back')} />}
     {started && tree && !busy && !pathReport && <div className="cmp-options-mount"><CompareOptionsButton tree={tree} lang={lang} /></div>}
     {started && <CompareRoot lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} assumptions={overrides} weather={tree?.weather} />}
 
@@ -351,6 +355,8 @@ function App() {
     <aside className={`narration${docked ? ' docked' : ''}`}>
       <div id="lumi" ref={lumiRef} />
       <div className="say-col">
+        {/* phones: Back rides above the bubble, so the bubble can never cover it */}
+        {started && path.length > 0 && <BackButton className="nav-back nav-back-phone" onClick={back} label={t(lang, 'back')} />}
         {bubble && !convOpen && <div className="say-card" aria-live="polite"><p>{bubble}</p>
           {noVoice === lang && !muted && <span className="voice-note" title={t(lang, 'noVoice')}>{lang.toUpperCase()}: {t(lang, 'textOnly')}</span>}</div>}
       {started && cur && cur.node_id !== '0' && !pathReport && <div className="pz-mount">
@@ -381,7 +387,7 @@ function App() {
     {started && cur && !busy && !tree.nodes.some((n) => n.status === 'child') && path.length > 0 && !pathReport &&
       <button className="leaf-cta" onClick={() => { setPanel(null); setPathReport(true); }}>
         <span className="leaf-cta-kicker">{t(lang, 'leafEnd')}</span><span>{t(lang, 'openReport')}</span></button>}
-    {pathReport && <PathReport lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} startProfile={profile || demoProfile} path={path} assumptions={overrides} lens={lens} onClose={() => setPathReport(false)} />}
+    {pathReport && <PathReport lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} startProfile={profile || demoProfile} path={path} assumptions={overrides} lens={lens} weather={weather} onClose={() => setPathReport(false)} />}
 
     {busy && started && <div className="loading" role="status">{t(lang, 'loading')}</div>}
     {error && <div className="error-toast" role="alert">{error}<button onClick={() => { setError(''); go(path, { force: true }); }}>{t(lang, 'retry')}</button></div>}
