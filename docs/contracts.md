@@ -620,6 +620,7 @@ All deterministic, judged with the same constraints and `plan_check.level` as a 
 | POST | `/report` | `{profile?, path, assumptions?, uncertainty?, language?}` → path report (12 sections, below); no LLM in the request path, ~1 s cold, ~10 ms cached |
 | POST | `/report/summary` | same body → `{text, mode: llm\|template, template, language, model, cost_usd, cached, latency_ms, rejected_llm_numbers?}`: grounded LLM rewording of the report summary, to swap in when it arrives |
 | POST | `/tree/personalize` | `{profile?, path, node_id?, text? or audio_b64?, language?, mode?}` → proposal to confirm (patch or new branch), never applied; see "Personal conditions" below |
+| POST | `/tree/compare` | `{profile?, paths (2-4), assumptions?, weather?, custom_nodes?, node_patches?, baseline?}` → side-by-side options, impact of each option alone (vs parent and vs today), per-metric orders; no LLM |
 | POST | `/tree/combine` | `{profile?, a, b, assumptions?, weather?, custom_nodes?, node_patches?}` → `core.combine` (path to `a` plus `b`'s own decisions, `conflicts`, combined / A / B `compare`) |
 | POST | `/tree/surface` | `{profile?, path, x, y, n? (2..11, default 7), compare_to?, ...}` → `core.surface` (heatmap `cells[y][x]`); a lever may also be given as a bare assumption id |
 | POST | `/tree/smallest_change` | `{profile?, path, target? (no_funding_gap / feasible / holds), levers?, ...}` → `core.smallest_change` plus `facts[]` (if-then sentences, null statuses in words) |
@@ -729,6 +730,42 @@ They add `cached`, `cost_usd` (always 0), `latency_ms` and `model` (engine). The
 bad lever, bad target) returns 422; no core function (mock engine) returns 501. `/tree/smallest_change` also returns
 `facts`, for example "If you had CHF 762 more net income every month, then this branch would have no funding gap."
 The agent has the tool `what_would_fix_it` (core.smallest_change) for "what would fix this branch?" questions.
+
+### Compare options (POST `/tree/compare`, API, additive)
+
+`{profile?, paths: [[...], ...] (2-4 different node paths from any branches, custom nodes included), assumptions?, weather?, custom_nodes?, node_patches?, baseline?: "parent" (default) | "today"}`. Deterministic, no LLM. It makes one lean `core.expand` per path (cached) and caches the whole response by request. Invalid input returns 422: fewer than 2 or more than 4 paths, duplicates, an empty path, an unknown node, or a bad baseline.
+
+```json
+{
+  "options": [
+    {"key": "1:2.3", "index": 1, "node_id": "2.3", "label": "Part-time master's with a 60% job",
+     "path": ["0", "2", "2.3"], "path_labels": ["Do a master's", "Part-time master's with a 60% job"],
+     "custom": false, "patched": false,
+     "headline": {"does_it_hold": "Tightest buffer: 2.6 months (month 1)", "what_it_trades": "..."},
+     "plan_check": {"level": "holds_below_target", "feasible": true, "label": "...", "failed": ["liquidity_buffer"]},
+     "metrics": {"final_net_worth_real": 117508.44, "final_net_worth": 0, "min_cash": 0, "min_cash_month": 0,
+                 "first_negative_month": null, "funding_gap": 0.0, "funding_gap_months": 0, "goals_met": 2,
+                 "goals_total": 2, "liquidity_months": 2.6, "final_debt": 0.0},
+     "series": {"net_worth": ["121 points"], "net_worth_real": ["121 points"], "cash": ["121 points"]},
+     "impact_alone": {"decision": "Part-time master's with a 60% job", "changes": ["..."],
+                      "vs_parent": {"node_id": "2", "label": "Do a master's",
+                                    "delta": {"final_net_worth_real": 14912.62, "funding_gap": -18553.21, "...": "every key metric"}},
+                      "vs_today": {"node_id": "0", "label": "Today: student in Lausanne", "delta": {"...": "..."}}},
+     "delta": "= impact_alone.vs_parent.delta (or vs_today.delta with baseline 'today')",
+     "trace_id": "sim-..."}
+  ],
+  "today": {"node_id": "0", "label": "Today: student in Lausanne", "...": "same metrics", "plan_check": {}},
+  "baseline": "parent",
+  "ranking_by": {"final_net_worth_real": {"label": "...", "direction": "higher first",
+                                          "order": [{"key": "1:2.3", "value": 117508.44}], "tied": false},
+                 "...": "final_net_worth, min_cash, funding_gap (lower first), funding_gap_months (lower first), goals_met, liquidity_months, final_debt (lower first)"},
+  "months": "0-based, as in the engine", "reading": "...", "horizon_months": 120,
+  "cached": false, "cost_usd": 0.0, "latency_ms": 90, "model": "engine:core"
+}
+```
+
+- `impact_alone.vs_parent` = what this option's **own** decision changes: the same path without the last decision. For a first-level option the parent is today, so both deltas match. `vs_today` = against the status quo, meaning the root continued unchanged. `funding_gap` = the deepest negative cash, as a positive number (0 = none).
+- `ranking_by` only orders options per metric, with its direction. There is no "best" and no total score; `tied` flags equal values.
 
 ## Env vars
 

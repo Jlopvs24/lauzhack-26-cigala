@@ -798,3 +798,36 @@ def test_agent_tool_what_would_fix_it():
         assert out["available"] is False
     else:
         assert out["facts"] and out["changes"][0]["value"] is not None
+
+
+# ------------------------------------------------------------------ /tree/compare
+def test_tree_compare_shape_and_impact_alone():
+    j = c.post("/tree/compare", json={"paths": [["1"], ["2", "2.1"]]}).json()
+    o1, o2 = j["options"]
+    assert [o["node_id"] for o in j["options"]] == ["1", "2.1"] and j["today"]["node_id"] == "0"
+    for o in (o1, o2):
+        assert {"final_net_worth", "min_cash", "funding_gap", "goals_met", "final_debt"} <= set(o["metrics"])
+        assert len(o["series"]["cash"]) == len(o["series"]["net_worth"]) > 1
+        assert o["impact_alone"]["vs_today"]["node_id"] == "0"
+    assert o2["path_labels"][0] and o2["impact_alone"]["vs_parent"]["node_id"] == "2"
+    # impact alone = option minus its parent, from the same engine numbers
+    par = c.post("/tree/compare", json={"paths": [["2"], ["1"]]}).json()["options"][0]["metrics"]
+    assert o2["impact_alone"]["vs_parent"]["delta"]["final_net_worth"] == \
+        round(o2["metrics"]["final_net_worth"] - par["final_net_worth"], 2)
+    # a first-level option's parent is today, so both deltas agree
+    assert o1["impact_alone"]["vs_parent"]["delta"] == o1["impact_alone"]["vs_today"]["delta"]
+    assert o2["delta"] == o2["impact_alone"]["vs_parent"]["delta"]  # baseline=parent (default)
+
+
+def test_tree_compare_ranking_and_baseline_and_errors():
+    j = c.post("/tree/compare", json={"paths": [["1"], ["2"], ["3"]], "baseline": "today"}).json()
+    r = j["ranking_by"]["final_net_worth"]
+    vals = [x["value"] for x in r["order"]]
+    assert vals == sorted(vals, reverse=True) and r["direction"] == "higher first"
+    gap = [x["value"] for x in j["ranking_by"]["funding_gap"]["order"]]
+    assert gap == sorted(gap) and "best" not in str(j["ranking_by"]).lower()
+    assert j["options"][0]["delta"] == j["options"][0]["impact_alone"]["vs_today"]["delta"]
+    assert c.post("/tree/compare", json={"paths": [["1"], ["2"], ["3"]], "baseline": "today"}).json()["cached"]
+    for bad in ({"paths": [["1"]]}, {"paths": [["1"], ["1"]]}, {"paths": [["1"], ["9.9"]]},
+                {"paths": [["1"], ["2"]], "baseline": "best"}, {"paths": [["1"], ["2"], ["3"], ["1", "1.1"], ["2", "2.1"]]}):
+        assert c.post("/tree/compare", json=bad).status_code == 422, bad
