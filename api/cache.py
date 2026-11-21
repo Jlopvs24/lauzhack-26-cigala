@@ -80,3 +80,25 @@ def cached(route: str, body: dict, version: str, compute: Callable[[], Any]) -> 
             with _inflight_lock:
                 _inflight.pop(k, None)
             ev.set()
+
+
+class TTLValue:
+    """One value recomputed at most every `ttl` seconds; concurrent callers share one computation."""
+
+    def __init__(self, ttl: float):
+        self.ttl = ttl
+        self._value: Any = None
+        self._at = 0.0
+        self._lock = threading.Lock()
+
+    def get(self, compute: Callable[[], Any], refresh: bool = False) -> tuple[Any, float, bool]:
+        """Return (value, age_seconds, hit)."""
+        import time
+
+        with self._lock:  # held while computing: a second caller waits and then reuses the fresh value
+            now = time.monotonic()
+            hit = not (refresh or self._value is None or now - self._at > self.ttl)
+            if not hit:
+                self._value = compute()
+                self._at = time.monotonic()
+            return self._value, round(time.monotonic() - self._at, 1), hit

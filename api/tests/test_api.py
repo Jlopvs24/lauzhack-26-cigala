@@ -522,3 +522,17 @@ def test_ask_stream_never_sends_half_a_sentence(monkeypatch):
     assert [e["text"] for e in evs if e["type"] == "sentence"] == [
         "Under these assumptions cash would drop below zero in month 7."]
     assert evs[-1]["dropped_sentences"][0].startswith("truncated")
+
+
+def test_validation_route():
+    r = c.get("/validation")
+    if engine.validation_fn() is None:
+        assert r.status_code == 503
+        return
+    assert r.status_code == 200
+    j = r.json()
+    assert j["total"] == len(j["checks"]) >= 1 and j["all_passed"] is True
+    assert all({"id", "label", "passed"} <= set(ch) for ch in j["checks"])
+    again = c.get("/validation").json()
+    assert again["cached"] is True and again["duration_ms"] == j["duration_ms"]  # same run within the TTL
+    assert c.get("/validation?refresh=true").json()["cached"] is False

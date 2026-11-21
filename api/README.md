@@ -39,6 +39,7 @@ Keys are read from `.env.local` at the repo root (`OPENROUTER_API_KEY`, `TOGETHE
 | GET | `/voice/fillers?language=en` | – | short phrases for call mode |
 | GET | `/call` | – | realtime call prototype (`api/static/call.html`, client `api/static/call.js`) |
 | GET | `/usage` | – | cumulative LLM/voice calls, tokens and USD |
+| GET | `/validation` | `?refresh=true` optional | live engine checks from `core.validation()`: `{engine_version, passed, total, all_passed, duration_ms, how, checks[{id, label, passed, detail, evidence, ms}], age_s, cached}`; cached 60 s (`VALIDATION_TTL_S`) |
 
 Voice: TTS = local Kokoro-82M (`python -m api.fetch_models --fp32` once), browser `speechSynthesis` as fallback. STT = browser `SpeechRecognition`, OpenRouter as fallback. Call mode = browser STT → `/agent/ask` with `context.mode: "call"` (max 2 sentences) → `/voice/tts/stream`, with barge-in. Measurements and rejected options: `api/VOICE.md`.
 

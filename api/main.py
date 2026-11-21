@@ -409,6 +409,25 @@ def voice_fillers(language: str = "en"):
     return {"language": lang, "fillers": FILLERS.get(lang, FILLERS["en"])}
 
 
+_VALIDATION = cache.TTLValue(ttl=float(os.environ.get("VALIDATION_TTL_S", "60")))
+
+
+@app.get("/validation")
+def validation(refresh: bool = False):
+    """Live engine validation (core.validation): accounting identities on every node, reproducibility,
+    monotonicity, isolation, UBS starter-kit match, verified threshold searches. Cached ~60 s
+    (`age_s` says how old the run is); `?refresh=true` forces a new run."""
+    t0 = time.perf_counter()
+    fn = engine.validation_fn()
+    if fn is None:
+        raise HTTPException(503, "validation needs core with core.validation() (PR #40)")
+    try:
+        out, age, hit = _VALIDATION.get(fn, refresh=refresh)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(500, f"validation crashed: {type(e).__name__}: {e}") from e
+    return {**out, "age_s": age, "cached": hit, **_meta(t0)}
+
+
 @app.get("/usage")
 def usage():
     """Cumulative LLM/voice spend since the server started (AXA frugality panel)."""
