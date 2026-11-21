@@ -2,7 +2,7 @@
 // rectangles (zoom in log space), feathered greying of sibling/pruned branches from label maps,
 // and HTML labels anchored to branch positions. Framework-free; main.jsx drives it.
 import gsap from 'gsap';
-import { createGeometry } from './geometry.js';
+import { createGeometry, codes as codesOf } from './geometry.js';
 
 const BASE = `${import.meta.env?.BASE_URL || '/'}tree/`;
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -26,14 +26,14 @@ export async function createScene({ world, labels, onTagClick }) {
     el.style.zIndex = name === 'master' ? 0 : name.split('_').length;
     const [pw, ph] = st.px || [2752, 1536];
     el.style.width = `${pw}px`; el.style.height = `${ph}px`;
-    const base = new Image(), grey = new Image();
-    base.decoding = grey.decoding = 'async';
-    base.alt = grey.alt = ''; base.draggable = grey.draggable = false;
-    grey.className = 'grey';
-    base.src = grey.src = BASE + st.src;
-    el.append(base, grey);
+    const base = new Image(), grey = new Image(), dim = new Image();
+    base.decoding = grey.decoding = dim.decoding = 'async';
+    base.alt = grey.alt = dim.alt = ''; base.draggable = grey.draggable = dim.draggable = false;
+    grey.className = 'grey'; dim.className = 'dim';
+    base.src = grey.src = dim.src = BASE + st.src;
+    el.append(base, grey, dim);
     world.append(el);
-    const s = { name, el, base, grey, pw, ph, rect: geo.rectOf(name), on: false, greyKey: '' };
+    const s = { name, el, base, grey, dim, pw, ph, rect: geo.rectOf(name), on: false, greyKey: '', dimKey: '' };
     s.ready = base.decode().catch(() => new Promise((ok) => { if (base.complete) ok(); else base.onload = base.onerror = ok; }));
     stills[name] = s;
     return s;
@@ -50,8 +50,18 @@ export async function createScene({ world, labels, onTagClick }) {
     if (!reduced()) gsap.fromTo(s.grey, { opacity: 0 }, { opacity: 1, duration: 1.1, ease: 'power2.out', overwrite: true });
     else s.grey.style.opacity = 1;
   }
+  // weather: branches whose plan no longer holds lose their light (same masks as the greying)
+  function paintDim(s, set) {
+    const masks = meta.stills[s.name].masks || {};
+    const codes = [...set].filter((c) => masks[c]).sort();
+    const key = codes.join(',');
+    if (s.dimKey === key) return;
+    s.dimKey = key;
+    if (codes.length) s.dim.style.webkitMaskImage = s.dim.style.maskImage = codes.map((c) => `url("${BASE}${masks[c]}")`).join(', ');
+    gsap.to(s.dim, { opacity: codes.length ? 1 : 0, duration: reduced() ? 0.01 : 1.2, ease: 'power2.out', overwrite: true });
+  }
   function release(s) {
-    s.base.src = s.grey.src = '';
+    s.base.src = s.grey.src = s.dim.src = '';
     s.el.remove();
     delete stills[s.name];
   }
@@ -179,14 +189,16 @@ export async function createScene({ world, labels, onTagClick }) {
       }
       if (!best) { p.hidden = true; continue; }
       p.compact = false;
-      if (best.cost > 0 && (PRIORITY[p.t.status] ?? 3) > 0) {
-        // a grey alternative with no free slot: try its name only (a small pill) before fading it
-        const small = p.t.status === 'sibling' && p.t.hc ? { ...p.t, h: p.t.hc } : null;
+      const pri = PRIORITY[p.t.status] ?? 3;
+      if (best.cost > 0 && (pri > 0 || narrow)) {
+        // no free slot: try the name only (a small pill) before fading a grey alternative, or before
+        // letting an option overlap another card on a phone
+        const small = (p.t.status === 'sibling' || p.t.status === 'child') && p.t.hc ? { ...p.t, h: p.t.hc } : null;
         const fit = small && cands.map(([dx, dy]) => [dx, dy, rectAt(p.x + dx, p.y + dy, small)])
           .find(([dx, dy, r]) => r.top >= minY && r.bottom <= maxY + 40 && r.left >= 4 && r.right <= W2 - 4
             && !taken.some((q) => overlap(r, q)) && !fixed.some((q) => overlap(r, q)));
         if (fit) { p.compact = true; p.t.slot = null; p.x += fit[0]; p.y += fit[1]; taken.push(fit[2]); continue; }
-        p.hidden = true; p.t.slot = null; continue;
+        if (pri > 0) { p.hidden = true; p.t.slot = null; continue; }
       }
       p.t.slot = [best.dx, best.dy]; p.x += best.dx; p.y += best.dy;
       taken.push(best.r);
@@ -263,7 +275,8 @@ export async function createScene({ world, labels, onTagClick }) {
         gsap.to(el, { opacity: 1, duration: 0.8, delay: 0.25, ease: 'power2.out' });
       }
       t.status = it.status; t.clickable = it.clickable;
-      t.el.className = `tag ${it.status}${it.custom ? ' custom' : ''}`;
+      t.el.className = `tag ${it.status}${it.custom ? ' custom' : ''}${wx.breaking.has(it.id) ? ' breaking' : wx.holding.has(it.id) ? ' holding' : ''}`;
+      t.compactShown = t.occluded = t.edgeShown = undefined; // className reset: layout classes come back next frame
       t.el.querySelector('.card').dataset.badge = it.custom || '';
       t.el.disabled = !it.clickable;
       t.el.tabIndex = it.clickable ? 0 : -1;
@@ -278,6 +291,66 @@ export async function createScene({ world, labels, onTagClick }) {
       gsap.to(t.el, { opacity: 0, duration: 0.35, onComplete: () => t.el.remove() });
     }
   }
+
+  // ---------- weather (#65): the sky the user does not choose ----------
+  // 'weather:change' {weather, intensity, clear, pending, holding_node_ids, breaking_node_ids} from
+  // web/src/weather. No new images: a tint over the sky, desaturated stills, canvas rain, a lightning
+  // flash for a market crash, a cold cast for a job loss, and dimmed branches that stop holding.
+  const stage = world.parentElement;
+  const wxSky = document.createElement('div'); wxSky.className = 'wx-sky';
+  const wxRain = document.createElement('canvas'); wxRain.className = 'wx-rain';
+  const wxFlash = document.createElement('div'); wxFlash.className = 'wx-flash';
+  for (const el of [wxSky, wxRain, wxFlash]) { el.setAttribute('aria-hidden', 'true'); stage?.insertBefore(el, labels); }
+  const wx = { types: [], k: 0, holding: new Set(), breaking: new Set(), dimCodes: new Set(), drops: [], raf: 0, flashT: 0 };
+  const RAINY = { recession: 1, market_crash: 1, job_loss: 0.6 };
+  const rainLevel = () => Math.min(1, wx.types.reduce((a, t) => a + (RAINY[t] || 0), 0)) * (0.35 + 0.65 * wx.k);
+  function rainFrame() {
+    wx.raf = 0;
+    const lvl = rainLevel();
+    const c = wxRain.getContext('2d');
+    if (!alive || !lvl || reduced() || document.hidden || !c) { c?.clearRect(0, 0, wxRain.width, wxRain.height); return; }
+    const w = stage.clientWidth, h = stage.clientHeight;
+    if (wxRain.width !== w || wxRain.height !== h) { wxRain.width = w; wxRain.height = h; }
+    const want = Math.round(70 + 260 * lvl);
+    while (wx.drops.length < want) wx.drops.push({ x: Math.random() * w, y: Math.random() * h, v: 9 + Math.random() * 9, l: 10 + Math.random() * 16 });
+    wx.drops.length = want;
+    c.clearRect(0, 0, w, h);
+    c.strokeStyle = 'rgba(214, 226, 238, 0.42)'; c.lineWidth = 1; c.beginPath();
+    for (const d of wx.drops) {
+      c.moveTo(d.x, d.y); c.lineTo(d.x - d.l * 0.18, d.y + d.l);
+      d.y += d.v; d.x -= d.v * 0.18;
+      if (d.y > h) { d.y = -d.l; d.x = Math.random() * (w + 60); }
+    }
+    c.stroke();
+    wx.raf = requestAnimationFrame(rainFrame);
+  }
+  function flash() {
+    if (reduced() || document.hidden || !wx.types.includes('market_crash')) return;
+    gsap.timeline().set(wxFlash, { opacity: 0 }).to(wxFlash, { opacity: 0.75, duration: 0.06 }).to(wxFlash, { opacity: 0.1, duration: 0.12 })
+      .to(wxFlash, { opacity: 0.55, duration: 0.05 }).to(wxFlash, { opacity: 0, duration: 0.7, ease: 'power2.out' });
+  }
+  function setWeather(d = {}) {
+    const types = (d.weather || []).map((w) => w.type);
+    const crashNew = types.includes('market_crash') && !wx.types.includes('market_crash');
+    wx.types = types; wx.k = d.clear || !types.length ? 0 : Math.max(0.15, Math.min(1, Number(d.intensity) || 0));
+    if (stage) {
+      stage.dataset.wx = types.join(' ');
+      stage.style.setProperty('--wx-k', wx.k.toFixed(2));
+      stage.classList.toggle('wx-on', wx.k > 0);
+    }
+    if (!d.pending) { // results arrived: which visible options still hold
+      wx.holding = new Set(types.length ? d.holding_node_ids || [] : []);
+      wx.breaking = new Set(types.length ? d.breaking_node_ids || [] : []);
+      wx.dimCodes = new Set([...wx.breaking].flatMap(codesOf));
+      for (const [id, t] of tags) { t.el.classList.toggle('breaking', wx.breaking.has(id)); t.el.classList.toggle('holding', !wx.breaking.has(id) && wx.holding.has(id)); }
+      for (const s of Object.values(stills)) if (s.on) paintDim(s, wx.dimCodes);
+    }
+    if (crashNew) flash();
+    clearInterval(wx.flashT); wx.flashT = types.includes('market_crash') ? setInterval(flash, 14000) : 0;
+    if (!wx.raf && rainLevel()) wx.raf = requestAnimationFrame(rainFrame);
+  }
+  const onWeatherEvt = (e) => setWeather(e.detail || {});
+  addEventListener('weather:change', onWeatherEvt);
 
   raf = requestAnimationFrame(frame);
   return {
@@ -314,10 +387,10 @@ export async function createScene({ world, labels, onTagClick }) {
     async dress({ grey, tagItems, childIds = [] }) {
       await Promise.all(Object.values(stills).filter((s) => s.on).map((s) => s.ready));
       prefetch(childIds.map((id) => geo.ownStill(id)));
-      for (const s of Object.values(stills)) if (s.on) paintGrey(s, grey);
+      for (const s of Object.values(stills)) if (s.on) { paintGrey(s, grey); paintDim(s, wx.dimCodes); }
       setTags(tagItems);
     },
-    setTags,
+    setTags, setWeather,
     /** Personal conditions changed: the camera breathes out and back while the branch's cards grow again. */
     async regrow() {
       if (reduced()) return;
@@ -344,6 +417,8 @@ export async function createScene({ world, labels, onTagClick }) {
     },
     destroy() {
       alive = false; cancelAnimationFrame(raf); removeEventListener('pointermove', onMove);
+      removeEventListener('weather:change', onWeatherEvt); cancelAnimationFrame(wx.raf); clearInterval(wx.flashT);
+      wxSky.remove(); wxRain.remove(); wxFlash.remove();
       for (const s of Object.values(stills)) release(s);
       for (const t of tags.values()) t.el.remove();
     },
