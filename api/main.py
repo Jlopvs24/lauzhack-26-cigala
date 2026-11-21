@@ -122,16 +122,45 @@ def agent_ask(req: AskReq):
 
 @app.post("/voice/stt")
 async def voice_stt(audio: UploadFile = File(...), language: str | None = Form(None)):
+    """Fallback STT for browsers without SpeechRecognition. WAV or MP3 is safest."""
     t0 = time.perf_counter()
     data = await audio.read()
-    out = voice.stt(data, audio.filename or "audio.webm", language)
+    try:
+        out = voice.stt(data, audio.filename or "audio.wav", language, audio.content_type)
+    except (voice.VoiceError, RuntimeError) as e:
+        raise HTTPException(503, f"stt unavailable: {e}") from e
     return {**out, "latency_ms": int((time.perf_counter() - t0) * 1000)}
+
+
+@app.post("/voice/ask")
+async def voice_ask(audio: UploadFile = File(...), context: str = Form("{}"), language: str | None = Form(None)):
+    """Voice note -> STT -> agent, in one round trip. `context` is the /agent/ask context as a JSON string."""
+    t0 = time.perf_counter()
+    data = await audio.read()
+    try:
+        heard = voice.stt(data, audio.filename or "audio.wav", language, audio.content_type)
+    except (voice.VoiceError, RuntimeError) as e:
+        raise HTTPException(503, f"stt unavailable: {e}") from e
+    try:
+        ctx = json.loads(context or "{}")
+    except json.JSONDecodeError as e:
+        raise HTTPException(422, "context must be a JSON object") from e
+    ctx.setdefault("profile", ALEXIA)
+    if heard.get("language") and not ctx.get("language"):
+        ctx["language"] = heard["language"]
+    out = agent.ask(heard["text"], ctx)
+    return {**out, "transcript": heard["text"], "stt": {k: heard.get(k) for k in ("model", "cost_usd", "provider_latency_ms")},
+            "cost_usd": round(out["cost_usd"] + heard["cost_usd"], 6),
+            "latency_ms": int((time.perf_counter() - t0) * 1000)}
 
 
 @app.post("/voice/tts")
 def voice_tts(req: TTSReq):
     t0 = time.perf_counter()
-    audio, meta = voice.tts(req.text, req.language, req.voice)
+    try:
+        audio, meta = voice.tts(req.text, req.language, req.voice)
+    except (voice.VoiceError, RuntimeError) as e:
+        raise HTTPException(503, str(e)) from e
     headers = {"X-Cost-USD": str(meta["cost_usd"]), "X-Model": meta["model"],
                "X-Latency-Ms": str(int((time.perf_counter() - t0) * 1000)),
                "Access-Control-Expose-Headers": "X-Cost-USD, X-Model, X-Latency-Ms"}
