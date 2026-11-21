@@ -275,7 +275,7 @@ const LEVEL_GLYPH = { holds: '✓', holds_below_target: '!', infeasible: '✕', 
 export function Heatmap({ grid, L, H, peerName }) {
   const box = useRef(null), w = useWidth(box), tip = useTip(box);
   const nx = grid.xs.length, ny = grid.rows.length;
-  const m = { l: 74, r: 8, t: 8, b: 40 };
+  const m = { l: 74, r: 8, t: 26, b: 40 };
   const cw = Math.max(26, Math.min(64, Math.floor((w - m.l - m.r) / nx))), ch = Math.min(44, cw);
   const W = m.l + nx * cw + m.r, Ht = m.t + ny * ch + m.b;
   const X = (i) => m.l + i * cw, Y = (j) => m.t + j * ch;
@@ -306,7 +306,7 @@ export function Heatmap({ grid, L, H, peerName }) {
       {edges.map((e, k) => <line key={k} className="vr-hbreak" x1={e[0]} y1={e[1]} x2={e[2]} y2={e[3]} />)}
       {grid.xs.map((x, i) => <text key={i} className="vr-axis" x={X(i) + cw / 2} y={m.t + ny * ch + 16} textAnchor="middle">{money(x, true)}</text>)}
       <text className="vr-axis" x={m.l} y={Ht - 4}>{L.srX} →</text>
-      <text className="vr-axis" x={4} y={m.t + 10}>{L.srY}</text>
+      <text className="vr-axis" x={4} y={12}>{L.srY} ↑</text>
     </svg>
     <div className="vr-legend">
       {['holds', 'holds_below_target', 'needs_financing'].map((k) => <span key={k}><i className={`k lvl ${k}`} />{H.level[k]}</span>)}

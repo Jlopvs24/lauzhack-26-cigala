@@ -272,6 +272,7 @@ button.vr-node-card:hover { border-color: var(--vr-line-2); transform: translate
 .vr-fixcards .vr-card { position: relative; }
 .vr-or { position: absolute; left: -11px; top: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vr-muted); background: var(--vr-bg); padding: 2px 4px; }
 .vr-then { margin-top: 8px !important; font-size: 12.5px !important; }
+.vr-fixcards .vr-card-big { font-size: 22px; white-space: nowrap; }
 .vr-heat { position: relative; overflow-x: auto; }
 .vr-heat svg { display: block; }
 .vr-hcell rect { stroke: var(--vr-bg); stroke-width: 2; }
