@@ -157,7 +157,7 @@ export function renderReport({ data, lang, ui, tr, lens, lensPending = false, ap
     <div class="lens"><label class="switch"><input type="checkbox" id="lensToggle" ${lens ? "checked" : ""}><span class="track"></span>${L.lens}</label></div>
     ${lensHTML}
     ${more ? `<details class="more"><summary>${L.more}</summary><dl>${more}</dl></details>` : ""}
-    <p class="note checks">${L.checks(passed, (r.checks || []).length)}${r.engine_version ? " · " + esc(r.engine_version) : ""}</p>`;
+    <p class="note checks"><button type="button" class="verified-link" onclick="dispatchEvent(new Event('verified:open'))">✓</button> ${L.checks(passed, (r.checks || []).length)}${r.engine_version ? " · " + esc(r.engine_version) : ""}</p>`;
 }
 
 // Generic renderer for the engine's `exploration` block. Known shapes get a sentence; anything else
