@@ -62,3 +62,19 @@ test('stage 3: the summary comes from POST /report/summary, or from POST /report
   globalThis.fetch.mock.mockImplementation(async () => ({ ok: false, status: 500 }));
   await assert.rejects(loadSummary({ path: ['2'] }), /500/);
 });
+
+test('stage 2b: fix / surface / timing in parallel with the session conditions; a failing route gives null', async () => {
+  const { loadAnalyses, fixTarget } = await import('./pathReport.js');
+  const calls = [];
+  const request = async (route, { body }) => { calls.push([route, body]); if (route === '/tree/timing_scan') throw new Error('The API returned 501.'); return { route }; };
+  const a = await loadAnalyses({ path: ['2'], level: 'needs_financing', peer: '1', weather: ['recession'], request });
+  assert.equal(a.fix.route, '/tree/smallest_change');
+  assert.equal(a.surface.route, '/tree/surface');
+  assert.equal(a.timing, null);
+  assert.equal(calls.find(([r]) => r === '/tree/smallest_change')[1].target, 'no_funding_gap');
+  assert.equal(calls.find(([r]) => r === '/tree/surface')[1].compare_to, '1');
+  assert.deepEqual(calls[0][1].weather, ['recession']);
+  assert.equal(fixTarget('holds'), null);
+  const held = await loadAnalyses({ path: ['2'], level: 'holds', request: async (r) => ({ r }) });
+  assert.equal(held.fix, null);
+});

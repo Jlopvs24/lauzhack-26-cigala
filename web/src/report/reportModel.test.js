@@ -129,3 +129,36 @@ test('pillar 3a card: three options split into liquid and locked, caveat and goa
   assert.equal(pillar3a({ result: { exploration: {} } }), null);
   assert.equal(pillar3a(undefined), null);
 });
+
+test('what would fix it, room to move, timing: from the engine shapes, guarded when absent', async () => {
+  const { fixOptions, surfaceGrid, timingStrip } = await import('./reportModel.js');
+  const fix = { target: 'no_funding_gap', already_holds: false, changes: [
+    { lever: 'more_income', unit: 'CHF/month (today’s prices)', param: 'monthly_net_income', direction: 'increase', status: 'threshold_found', value: 761.93, result: { level: 'holds_below_target', final_net_worth_real: 173265.65 } },
+    { lever: 'lower_rent', unit: 'CHF/month (today’s prices)', param: 'monthly_rent', direction: 'decrease', status: 'threshold_found', value: 765.54, result: { level: 'holds_below_target', final_net_worth_real: 190404.81 } },
+    { lever: 'cash_now', unit: 'CHF', param: 'one_off_income', direction: 'increase', status: 'threshold_found', value: 18531.2 },
+    { lever: 'lower_living_costs', status: 'not_reached_within_bounds', value: null }] };
+  const f = fixOptions(fix, 'en');
+  assert.deepEqual(f.options.map((o) => o.big), ['+CHF 762/month', '−CHF 766/month', 'CHF 18’531']);
+  assert.match(f.lead, /^If any one of these were true, then under these assumptions the funding gap would close/);
+  assert.match(f.options[0].then, /Holds, below the buffer target · net worth after 10 years CHF 173’266/);
+  assert.equal(fixOptions({ ...fix, already_holds: true }), null);
+  assert.equal(fixOptions(null), null);
+  assert.match(fixOptions({ target: 'feasible', changes: [] }, 'de').none, /Kombination/);
+
+  const cell = (level, d) => ({ level, final_net_worth_real: 1, min_cash: 1, delta_vs_peer: d });
+  const sf = { x: { values: [0, 750, 1500] }, y: { values: [-600, 0] }, holds_share: 0.5, compare_to: '1',
+    cells: [[cell('holds', 5), cell('holds', 9), cell('holds', 12)], [cell('needs_financing', -3), cell('holds', 2), cell('holds', 7)]] };
+  const g = surfaceGrid(sf, 'fr');
+  assert.deepEqual(g.rows.map((r) => r.y), [0, -600]); // top row = highest y
+  assert.deepEqual(g.planned, { x: 0, y: 1 });
+  assert.equal(g.hasPeer, true);
+  assert.equal(g.share, 'Tient dans 50% de ces combinaisons.');
+  assert.equal(surfaceGrid({ cells: [] }), null);
+
+  const ts = { status: 'evaluated', latest_start_that_holds: 12, rows: [0, 6, 12, 18].map((d) => ({ delay_months: d, level: d <= 12 ? 'holds' : 'needs_financing', final_net_worth_real: 1000 - d })) };
+  const t = timingStrip(ts, 'es');
+  assert.deepEqual(t.rows.map((r) => [r.label, r.tone]), [['ahora', 'good'], ['+6 m', 'good'], ['+12 m', 'good'], ['+18 m', 'bad']]);
+  assert.equal(t.text, 'Aún se sostiene si empiezas hasta 12 meses más tarde.');
+  assert.match(timingStrip({ ...ts, latest_start_that_holds: null }, 'en').text, /does not hold at any/);
+  assert.equal(timingStrip({ status: 'no_own_decision', rows: [] }), null);
+});
