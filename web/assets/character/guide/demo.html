@@ -18,22 +18,28 @@ button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--in
 figure{margin:0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center}
 figure svg{width:100%;max-width:120px;height:auto}
 figcaption{font-size:12px;color:var(--muted)}
-/* Lumi, the guide orb. Size the host element (e.g. width: 140px); height follows (5:6). */
+/* Lumi, the guide orb. Size the host element (e.g. width: 140px); height follows (5:6).
+   Motion is driven by guide.js (one requestAnimationFrame loop); CSS only handles the glide,
+   the sidestep and the sparkles. */
 .guide {
   position: relative;
   width: 140px;
   aspect-ratio: 5 / 6;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: transform 0.9s cubic-bezier(0.34, 1.4, 0.64, 1);
   will-change: transform;
 }
-.guide-layer {
+.guide:focus-visible .guide-svg {
+  filter: drop-shadow(0 0 6px #6aa9ff);
+}
+.guide-nudge {
   position: absolute;
   inset: 0;
-  transition: opacity 0.4s ease;
-}
-.guide-layer.is-entering,
-.guide-layer.is-leaving {
-  opacity: 0;
+  transition: transform 0.55s cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 .guide-svg {
   width: 100%;
@@ -41,97 +47,27 @@ figcaption{font-size:12px;color:var(--muted)}
   overflow: visible;
   display: block;
 }
-/* animated parts rotate/scale around their own box */
-.g-float, .g-shadow, .g-jelly, .g-halo, .g-eye, .g-sparks path, .g-mouth {
-  transform-box: fill-box;
-}
-
-/* float: the orb bobs, the shadow breathes with it */
-.g-float {
-  animation: guide-float 3.2s ease-in-out infinite;
-  animation-delay: var(--phase, 0s);
-}
-.g-shadow {
-  transform-origin: center;
-  animation: guide-shadow 3.2s ease-in-out infinite;
-  animation-delay: var(--phase, 0s);
-}
-/* jelly: a little squash at the bottom of each bob */
-.g-jelly {
-  transform-origin: 50% 100%;
-  animation: guide-jelly 3.2s ease-in-out infinite;
-  animation-delay: var(--phase, 0s);
-}
-.g-halo {
-  transform-origin: center;
-  animation: guide-halo 3.2s ease-in-out infinite;
-  animation-delay: var(--phase, 0s);
-}
-.g-eye {
-  transform-origin: center;
-  animation: guide-blink 4.6s infinite;
-  animation-delay: calc(var(--phase, 0s) * 1.3);
-}
 .g-sparks path {
+  transform-box: fill-box;
   transform-origin: center;
   animation: guide-twinkle 1.6s ease-in-out infinite;
 }
 .g-sparks path:nth-child(2) { animation-delay: 0.3s; }
 .g-sparks path:nth-child(3) { animation-delay: 0.6s; }
 
-.is-talking .g-mouth {
-  transform-origin: 50% 20%;
-  animation: guide-talk 0.24s ease-in-out infinite alternate;
-}
-/* while gliding: stretch along the way it travels, then settle with the overshoot */
-.guide.is-moving .g-jelly {
-  animation: guide-stretch 0.9s ease-out;
-}
-
-@keyframes guide-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
-}
-@keyframes guide-shadow {
-  0%, 100% { transform: scaleX(1); opacity: 0.12; }
-  50% { transform: scaleX(0.88); opacity: 0.08; }
-}
-@keyframes guide-jelly {
-  0%, 100% { transform: scale(1.03, 0.97); }
-  25%, 75% { transform: scale(1, 1); }
-  50% { transform: scale(0.985, 1.015); }
-}
-@keyframes guide-halo {
-  0%, 100% { transform: scale(1); opacity: 0.85; }
-  50% { transform: scale(1.06); opacity: 1; }
-}
-@keyframes guide-blink {
-  0%, 94%, 100% { transform: scaleY(1); }
-  96% { transform: scaleY(0.12); }
-}
 @keyframes guide-twinkle {
   0%, 100% { transform: scale(0.7); opacity: 0.6; }
   50% { transform: scale(1.1); opacity: 1; }
 }
-@keyframes guide-talk {
-  from { transform: scaleY(0.45); }
-  to { transform: scaleY(1.1); }
-}
-@keyframes guide-stretch {
-  0% { transform: scale(1, 1); }
-  25% { transform: scale(1.12, 0.9); }
-  60% { transform: scale(0.95, 1.05); }
-  100% { transform: scale(1, 1); }
-}
 
 @media (prefers-reduced-motion: reduce) {
-  .guide { transition: none; }
-  .g-float, .g-shadow, .g-jelly, .g-halo, .g-sparks path, .is-talking .g-mouth { animation: none; }
+  .guide, .guide-nudge { transition: none; }
+  .g-sparks path { animation: none; }
 }
 
 </style></head><body>
 <h1>Lumi, the guide</h1>
-<p class="sub">A soft glowing orb that floats next to the tree and explains it. It never recommends or decides. Its colour, glow and face follow the health of the selected node. Try the controls: health, pose, talking, and gliding to the leaf it explains.</p>
+<p class="sub">A soft glowing orb that floats next to the tree and explains it. It never recommends or decides. Its colour, glow and face follow the health of the selected node. Move the mouse near it (it watches you), hover it, click it (spin + hop), leave it alone for 25 s (it dozes off), or use the controls.</p>
 <div class="stage"><div class="ground"></div><div class="leaf"><b>Master's in Lausanne</b><br>Cash runs out in month 7 in the median path. Range: month 5 to 10.</div><div id="lumi"></div></div>
 <div class="controls">
   <button data-health="healthy" aria-pressed="true">Healthy</button>
@@ -141,265 +77,145 @@ figcaption{font-size:12px;color:var(--muted)}
   <button id="talk">Talk</button>
 </div>
 <div class="grid">
-<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide (healthy, idle)">
-<defs>
-  <radialGradient id="g-healthy-idle-halo">
-    <stop offset="0" stop-color="hsla(150, 66%, 78%, 0.55)"/>
-    <stop offset=".42" stop-color="hsla(150, 66%, 76%, 0.18)"/>
-    <stop offset=".68" stop-color="hsla(150, 56%, 76%, 0)"/>
-  </radialGradient>
-  <radialGradient id="g-healthy-idle-body" cx="50%" cy="50%" r="50%">
-    <stop offset="0" stop-color="hsla(150, 56%, 95%, 1)"/>
-    <stop offset=".6" stop-color="hsla(150, 56%, 87%, 1)"/>
-    <stop offset="1" stop-color="hsla(150, 44.800000000000004%, 73%, 1)"/>
-  </radialGradient>
-  <radialGradient id="g-healthy-idle-shade" cx="36%" cy="30%" r="78%">
-    <stop offset=".55" stop-color="hsla(150, 45%, 46%, 0)"/>
-    <stop offset="1" stop-color="hsla(150, 45%, 46%, 0.4)"/>
-  </radialGradient>
-  <radialGradient id="g-healthy-idle-shine" cx="33%" cy="27%" r="50%">
-    <stop offset="0" stop-color="#fff" stop-opacity="1"/>
-    <stop offset=".34" stop-color="#fff" stop-opacity=".85"/>
-    <stop offset=".9" stop-color="#fff" stop-opacity="0"/>
-  </radialGradient>
+<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide">
+<defs><radialGradient id="g-healthy-idle-halo"><stop offset="0" stop-color="hsla(150.0, 66.0%, 78%, 0.550)"/><stop offset="0.42" stop-color="hsla(150.0, 66.0%, 76%, 0.180)"/><stop offset="0.68" stop-color="hsla(150.0, 66.0%, 76%, 0.000)"/></radialGradient><radialGradient id="g-healthy-idle-body" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="hsla(150.0, 56.0%, 95%, 1.000)"/><stop offset="0.6" stop-color="hsla(150.0, 56.0%, 87%, 1.000)"/><stop offset="1" stop-color="hsla(150.0, 44.8%, 73%, 1.000)"/></radialGradient><radialGradient id="g-healthy-idle-shade" cx="36%" cy="30%" r="78%"><stop offset="0.55" stop-color="hsla(150.0, 45.0%, 46%, 0.000)"/><stop offset="1" stop-color="hsla(150.0, 45.0%, 46%, 0.400)"/></radialGradient>
+  <radialGradient id="g-healthy-idle-shine" cx="33%" cy="27%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".34" stop-color="#fff" stop-opacity=".85"/><stop offset=".9" stop-color="#fff" stop-opacity="0"/></radialGradient>
 </defs>
 <ellipse class="g-shadow" cx="100" cy="206" rx="42" ry="6.5" fill="#1F2B4D" opacity=".12"/>
-<g class="g-float">
- <g class="g-pose" transform="translate(0 0) rotate(0 100 176) translate(100 176) scale(1 1) translate(-100 -176)">
-  <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-healthy-idle-halo)"/>
-  <g class="g-jelly">
-   <circle cx="100" cy="116" r="60" fill="url(#g-healthy-idle-body)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-healthy-idle-shade)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-healthy-idle-shine)"/>
-   <g class="g-face" transform="translate(100 126) scale(1.3)">
-    <ellipse cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
-    <ellipse cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
-    <g class="g-eyes" transform="translate(0 0)"><g class="g-eye"><rect x="-15.25" y="-5.5" width="6.5" height="11" rx="3.25" fill="#1F2B4D"/><circle cx="-10.9" cy="-2.9" r="1.35" fill="#fff"/></g><g class="g-eye"><rect x="8.75" y="-5.5" width="6.5" height="11" rx="3.25" fill="#1F2B4D"/><circle cx="13.1" cy="-2.9" r="1.35" fill="#fff"/></g></g>
-    <g transform="translate(0 13)"><path class="g-mouth" d="M-7,-1.5 Q0,7.5 7,-1.5 Q0,2.5 -7,-1.5 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
-   </g>
-  </g>
+<g class="g-pose" transform="translate(0 0) rotate(0 100 176) translate(100 176) scale(1 1) translate(-100 -176)">
+ <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-healthy-idle-halo)"/>
+ <circle class="g-ring" cx="100" cy="116" r="60" fill="none" stroke-width="3" opacity="0"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-healthy-idle-body)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-healthy-idle-shade)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-healthy-idle-shine)"/>
+ <g class="g-face" transform="translate(100 126) scale(1.3)">
+  <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
+  <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
+  <g class="g-eyes" transform="translate(0 0)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-5.5" width="6.5" height="11" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-2.9" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-5.5" width="6.5" height="11" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-2.9" r="1.35" fill="#fff"/></g></g>
+  <g class="g-mouth-pos" transform="translate(0 13)"><path class="g-mouth" d="M-6.5,0 Q0,3.00 6.5,0 Q0,5.00 -6.5,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
  </g>
- 
 </g>
+<g class="g-sparks" fill="hsla(150.0, 66.0%, 66%, 1.000)" opacity="0"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
 </svg><figcaption>healthy · idle</figcaption></figure>
-<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide (healthy, explaining)">
-<defs>
-  <radialGradient id="g-healthy-explaining-halo">
-    <stop offset="0" stop-color="hsla(150, 66%, 78%, 0.55)"/>
-    <stop offset=".42" stop-color="hsla(150, 66%, 76%, 0.18)"/>
-    <stop offset=".68" stop-color="hsla(150, 56%, 76%, 0)"/>
-  </radialGradient>
-  <radialGradient id="g-healthy-explaining-body" cx="50%" cy="50%" r="50%">
-    <stop offset="0" stop-color="hsla(150, 56%, 95%, 1)"/>
-    <stop offset=".6" stop-color="hsla(150, 56%, 87%, 1)"/>
-    <stop offset="1" stop-color="hsla(150, 44.800000000000004%, 73%, 1)"/>
-  </radialGradient>
-  <radialGradient id="g-healthy-explaining-shade" cx="36%" cy="30%" r="78%">
-    <stop offset=".55" stop-color="hsla(150, 45%, 46%, 0)"/>
-    <stop offset="1" stop-color="hsla(150, 45%, 46%, 0.4)"/>
-  </radialGradient>
-  <radialGradient id="g-healthy-explaining-shine" cx="33%" cy="27%" r="50%">
-    <stop offset="0" stop-color="#fff" stop-opacity="1"/>
-    <stop offset=".34" stop-color="#fff" stop-opacity=".85"/>
-    <stop offset=".9" stop-color="#fff" stop-opacity="0"/>
-  </radialGradient>
+<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide">
+<defs><radialGradient id="g-healthy-explaining-halo"><stop offset="0" stop-color="hsla(150.0, 66.0%, 78%, 0.550)"/><stop offset="0.42" stop-color="hsla(150.0, 66.0%, 76%, 0.180)"/><stop offset="0.68" stop-color="hsla(150.0, 66.0%, 76%, 0.000)"/></radialGradient><radialGradient id="g-healthy-explaining-body" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="hsla(150.0, 56.0%, 95%, 1.000)"/><stop offset="0.6" stop-color="hsla(150.0, 56.0%, 87%, 1.000)"/><stop offset="1" stop-color="hsla(150.0, 44.8%, 73%, 1.000)"/></radialGradient><radialGradient id="g-healthy-explaining-shade" cx="36%" cy="30%" r="78%"><stop offset="0.55" stop-color="hsla(150.0, 45.0%, 46%, 0.000)"/><stop offset="1" stop-color="hsla(150.0, 45.0%, 46%, 0.400)"/></radialGradient>
+  <radialGradient id="g-healthy-explaining-shine" cx="33%" cy="27%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".34" stop-color="#fff" stop-opacity=".85"/><stop offset=".9" stop-color="#fff" stop-opacity="0"/></radialGradient>
 </defs>
 <ellipse class="g-shadow" cx="100" cy="206" rx="42" ry="6.5" fill="#1F2B4D" opacity=".12"/>
-<g class="g-float">
- <g class="g-pose" transform="translate(0 0) rotate(9 100 176) translate(100 176) scale(1 1) translate(-100 -176)">
-  <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-healthy-explaining-halo)"/>
-  <g class="g-jelly">
-   <circle cx="100" cy="116" r="60" fill="url(#g-healthy-explaining-body)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-healthy-explaining-shade)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-healthy-explaining-shine)"/>
-   <g class="g-face" transform="translate(100 126) scale(1.3)">
-    <ellipse cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
-    <ellipse cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
-    <g class="g-eyes" transform="translate(4.5 -1.5)"><g class="g-eye"><rect x="-15.25" y="-6" width="6.5" height="12" rx="3.25" fill="#1F2B4D"/><circle cx="-10.9" cy="-3.4" r="1.35" fill="#fff"/></g><g class="g-eye"><rect x="8.75" y="-6" width="6.5" height="12" rx="3.25" fill="#1F2B4D"/><circle cx="13.1" cy="-3.4" r="1.35" fill="#fff"/></g></g>
-    <g transform="translate(2.6999999999999997 13)"><path class="g-mouth" d="M-6.5,-2 Q0,-3.2 6.5,-2 Q6.5,7 0,8.5 Q-6.5,7 -6.5,-2 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
-   </g>
-  </g>
+<g class="g-pose" transform="translate(0 0) rotate(9 100 176) translate(100 176) scale(1 1) translate(-100 -176)">
+ <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-healthy-explaining-halo)"/>
+ <circle class="g-ring" cx="100" cy="116" r="60" fill="none" stroke-width="3" opacity="0"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-healthy-explaining-body)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-healthy-explaining-shade)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-healthy-explaining-shine)"/>
+ <g class="g-face" transform="translate(100 126) scale(1.3)">
+  <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
+  <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.6"/>
+  <g class="g-eyes" transform="translate(4.5 -1.5)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-6" width="6.5" height="12" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-3.4" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-6" width="6.5" height="12" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-3.4" r="1.35" fill="#fff"/></g></g>
+  <g class="g-mouth-pos" transform="translate(2.6999999999999997 13)"><path class="g-mouth" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
  </g>
- <g class="g-sparks"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z" fill="hsla(150, 66%, 62%, 1)"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z" fill="hsla(150, 66%, 70%, 1)"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z" fill="hsla(150, 66%, 74%, 1)"/></g>
 </g>
+<g class="g-sparks" fill="hsla(150.0, 66.0%, 66%, 1.000)" opacity="1"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
 </svg><figcaption>healthy · explaining</figcaption></figure>
-<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide (fair, idle)">
-<defs>
-  <radialGradient id="g-fair-idle-halo">
-    <stop offset="0" stop-color="hsla(44, 82%, 78%, 0.44000000000000006)"/>
-    <stop offset=".42" stop-color="hsla(44, 82%, 76%, 0.144)"/>
-    <stop offset=".68" stop-color="hsla(44, 72%, 76%, 0)"/>
-  </radialGradient>
-  <radialGradient id="g-fair-idle-body" cx="50%" cy="50%" r="50%">
-    <stop offset="0" stop-color="hsla(44, 72%, 95%, 1)"/>
-    <stop offset=".6" stop-color="hsla(44, 72%, 87%, 1)"/>
-    <stop offset="1" stop-color="hsla(44, 57.6%, 73%, 1)"/>
-  </radialGradient>
-  <radialGradient id="g-fair-idle-shade" cx="36%" cy="30%" r="78%">
-    <stop offset=".55" stop-color="hsla(44, 45%, 46%, 0)"/>
-    <stop offset="1" stop-color="hsla(44, 45%, 46%, 0.4)"/>
-  </radialGradient>
-  <radialGradient id="g-fair-idle-shine" cx="33%" cy="27%" r="50%">
-    <stop offset="0" stop-color="#fff" stop-opacity="1"/>
-    <stop offset=".34" stop-color="#fff" stop-opacity=".85"/>
-    <stop offset=".9" stop-color="#fff" stop-opacity="0"/>
-  </radialGradient>
+<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide">
+<defs><radialGradient id="g-fair-idle-halo"><stop offset="0" stop-color="hsla(44.0, 82.0%, 78%, 0.440)"/><stop offset="0.42" stop-color="hsla(44.0, 82.0%, 76%, 0.144)"/><stop offset="0.68" stop-color="hsla(44.0, 82.0%, 76%, 0.000)"/></radialGradient><radialGradient id="g-fair-idle-body" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="hsla(44.0, 72.0%, 95%, 1.000)"/><stop offset="0.6" stop-color="hsla(44.0, 72.0%, 87%, 1.000)"/><stop offset="1" stop-color="hsla(44.0, 57.6%, 73%, 1.000)"/></radialGradient><radialGradient id="g-fair-idle-shade" cx="36%" cy="30%" r="78%"><stop offset="0.55" stop-color="hsla(44.0, 45.0%, 46%, 0.000)"/><stop offset="1" stop-color="hsla(44.0, 45.0%, 46%, 0.400)"/></radialGradient>
+  <radialGradient id="g-fair-idle-shine" cx="33%" cy="27%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".34" stop-color="#fff" stop-opacity=".85"/><stop offset=".9" stop-color="#fff" stop-opacity="0"/></radialGradient>
 </defs>
 <ellipse class="g-shadow" cx="100" cy="206" rx="45" ry="6.5" fill="#1F2B4D" opacity=".12"/>
-<g class="g-float">
- <g class="g-pose" transform="translate(0 3) rotate(0 100 176) translate(100 176) scale(1.02 0.97) translate(-100 -176)">
-  <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-fair-idle-halo)"/>
-  <g class="g-jelly">
-   <circle cx="100" cy="116" r="60" fill="url(#g-fair-idle-body)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-fair-idle-shade)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-fair-idle-shine)"/>
-   <g class="g-face" transform="translate(100 126) scale(1.3)">
-    <ellipse cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
-    <ellipse cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
-    <g class="g-eyes" transform="translate(0 0)"><g class="g-eye"><rect x="-15.25" y="-4.75" width="6.5" height="9.5" rx="3.25" fill="#1F2B4D"/><circle cx="-10.9" cy="-2.15" r="1.35" fill="#fff"/></g><g class="g-eye"><rect x="8.75" y="-4.75" width="6.5" height="9.5" rx="3.25" fill="#1F2B4D"/><circle cx="13.1" cy="-2.15" r="1.35" fill="#fff"/></g></g>
-    <g transform="translate(0 13)"><path class="g-mouth" d="M-5,0.6 Q0,2 5,0.6 Q0,1.2 -5,0.6 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
-   </g>
-  </g>
+<g class="g-pose" transform="translate(0 3) rotate(0 100 176) translate(100 176) scale(1.024 0.976) translate(-100 -176)">
+ <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-fair-idle-halo)"/>
+ <circle class="g-ring" cx="100" cy="116" r="60" fill="none" stroke-width="3" opacity="0"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-fair-idle-body)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-fair-idle-shade)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-fair-idle-shine)"/>
+ <g class="g-face" transform="translate(100 126) scale(1.3)">
+  <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
+  <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
+  <g class="g-eyes" transform="translate(0 0)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-4.75" width="6.5" height="9.5" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-2.15" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-4.75" width="6.5" height="9.5" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-2.15" r="1.35" fill="#fff"/></g></g>
+  <g class="g-mouth-pos" transform="translate(0 13)"><path class="g-mouth" d="M-6.5,0 Q0,-0.20 6.5,0 Q0,1.80 -6.5,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
  </g>
- 
 </g>
+<g class="g-sparks" fill="hsla(44.0, 82.0%, 66%, 1.000)" opacity="0"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
 </svg><figcaption>fair · idle</figcaption></figure>
-<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide (fair, explaining)">
-<defs>
-  <radialGradient id="g-fair-explaining-halo">
-    <stop offset="0" stop-color="hsla(44, 82%, 78%, 0.44000000000000006)"/>
-    <stop offset=".42" stop-color="hsla(44, 82%, 76%, 0.144)"/>
-    <stop offset=".68" stop-color="hsla(44, 72%, 76%, 0)"/>
-  </radialGradient>
-  <radialGradient id="g-fair-explaining-body" cx="50%" cy="50%" r="50%">
-    <stop offset="0" stop-color="hsla(44, 72%, 95%, 1)"/>
-    <stop offset=".6" stop-color="hsla(44, 72%, 87%, 1)"/>
-    <stop offset="1" stop-color="hsla(44, 57.6%, 73%, 1)"/>
-  </radialGradient>
-  <radialGradient id="g-fair-explaining-shade" cx="36%" cy="30%" r="78%">
-    <stop offset=".55" stop-color="hsla(44, 45%, 46%, 0)"/>
-    <stop offset="1" stop-color="hsla(44, 45%, 46%, 0.4)"/>
-  </radialGradient>
-  <radialGradient id="g-fair-explaining-shine" cx="33%" cy="27%" r="50%">
-    <stop offset="0" stop-color="#fff" stop-opacity="1"/>
-    <stop offset=".34" stop-color="#fff" stop-opacity=".85"/>
-    <stop offset=".9" stop-color="#fff" stop-opacity="0"/>
-  </radialGradient>
+<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide">
+<defs><radialGradient id="g-fair-explaining-halo"><stop offset="0" stop-color="hsla(44.0, 82.0%, 78%, 0.440)"/><stop offset="0.42" stop-color="hsla(44.0, 82.0%, 76%, 0.144)"/><stop offset="0.68" stop-color="hsla(44.0, 82.0%, 76%, 0.000)"/></radialGradient><radialGradient id="g-fair-explaining-body" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="hsla(44.0, 72.0%, 95%, 1.000)"/><stop offset="0.6" stop-color="hsla(44.0, 72.0%, 87%, 1.000)"/><stop offset="1" stop-color="hsla(44.0, 57.6%, 73%, 1.000)"/></radialGradient><radialGradient id="g-fair-explaining-shade" cx="36%" cy="30%" r="78%"><stop offset="0.55" stop-color="hsla(44.0, 45.0%, 46%, 0.000)"/><stop offset="1" stop-color="hsla(44.0, 45.0%, 46%, 0.400)"/></radialGradient>
+  <radialGradient id="g-fair-explaining-shine" cx="33%" cy="27%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".34" stop-color="#fff" stop-opacity=".85"/><stop offset=".9" stop-color="#fff" stop-opacity="0"/></radialGradient>
 </defs>
 <ellipse class="g-shadow" cx="100" cy="206" rx="45" ry="6.5" fill="#1F2B4D" opacity=".12"/>
-<g class="g-float">
- <g class="g-pose" transform="translate(0 3) rotate(9 100 176) translate(100 176) scale(1.02 0.97) translate(-100 -176)">
-  <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-fair-explaining-halo)"/>
-  <g class="g-jelly">
-   <circle cx="100" cy="116" r="60" fill="url(#g-fair-explaining-body)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-fair-explaining-shade)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-fair-explaining-shine)"/>
-   <g class="g-face" transform="translate(100 126) scale(1.3)">
-    <ellipse cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
-    <ellipse cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
-    <g class="g-eyes" transform="translate(4.5 -1.5)"><g class="g-eye"><rect x="-15.25" y="-5.25" width="6.5" height="10.5" rx="3.25" fill="#1F2B4D"/><circle cx="-10.9" cy="-2.65" r="1.35" fill="#fff"/></g><g class="g-eye"><rect x="8.75" y="-5.25" width="6.5" height="10.5" rx="3.25" fill="#1F2B4D"/><circle cx="13.1" cy="-2.65" r="1.35" fill="#fff"/></g></g>
-    <g transform="translate(2.6999999999999997 13)"><path class="g-mouth" d="M-6.5,-2 Q0,-3.2 6.5,-2 Q6.5,7 0,8.5 Q-6.5,7 -6.5,-2 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
-   </g>
-  </g>
+<g class="g-pose" transform="translate(0 3) rotate(9 100 176) translate(100 176) scale(1.024 0.976) translate(-100 -176)">
+ <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-fair-explaining-halo)"/>
+ <circle class="g-ring" cx="100" cy="116" r="60" fill="none" stroke-width="3" opacity="0"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-fair-explaining-body)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-fair-explaining-shade)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-fair-explaining-shine)"/>
+ <g class="g-face" transform="translate(100 126) scale(1.3)">
+  <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
+  <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.3"/>
+  <g class="g-eyes" transform="translate(4.5 -1.5)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-5.25" width="6.5" height="10.5" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-2.65" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-5.25" width="6.5" height="10.5" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-2.65" r="1.35" fill="#fff"/></g></g>
+  <g class="g-mouth-pos" transform="translate(2.6999999999999997 13)"><path class="g-mouth" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
  </g>
- <g class="g-sparks"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z" fill="hsla(44, 82%, 62%, 1)"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z" fill="hsla(44, 82%, 70%, 1)"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z" fill="hsla(44, 82%, 74%, 1)"/></g>
 </g>
+<g class="g-sparks" fill="hsla(44.0, 82.0%, 66%, 1.000)" opacity="1"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
 </svg><figcaption>fair · explaining</figcaption></figure>
-<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide (weak, idle)">
-<defs>
-  <radialGradient id="g-weak-idle-halo">
-    <stop offset="0" stop-color="hsla(28, 24%, 78%, 0.30250000000000005)"/>
-    <stop offset=".42" stop-color="hsla(28, 24%, 76%, 0.099)"/>
-    <stop offset=".68" stop-color="hsla(28, 14%, 76%, 0)"/>
-  </radialGradient>
-  <radialGradient id="g-weak-idle-body" cx="50%" cy="50%" r="50%">
-    <stop offset="0" stop-color="hsla(28, 14%, 95%, 1)"/>
-    <stop offset=".6" stop-color="hsla(28, 14%, 87%, 1)"/>
-    <stop offset="1" stop-color="hsla(28, 11.200000000000001%, 73%, 1)"/>
-  </radialGradient>
-  <radialGradient id="g-weak-idle-shade" cx="36%" cy="30%" r="78%">
-    <stop offset=".55" stop-color="hsla(28, 45%, 46%, 0)"/>
-    <stop offset="1" stop-color="hsla(28, 45%, 46%, 0.4)"/>
-  </radialGradient>
-  <radialGradient id="g-weak-idle-shine" cx="33%" cy="27%" r="50%">
-    <stop offset="0" stop-color="#fff" stop-opacity="1"/>
-    <stop offset=".34" stop-color="#fff" stop-opacity=".85"/>
-    <stop offset=".9" stop-color="#fff" stop-opacity="0"/>
-  </radialGradient>
+<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide">
+<defs><radialGradient id="g-weak-idle-halo"><stop offset="0" stop-color="hsla(28.0, 24.0%, 78%, 0.303)"/><stop offset="0.42" stop-color="hsla(28.0, 24.0%, 76%, 0.099)"/><stop offset="0.68" stop-color="hsla(28.0, 24.0%, 76%, 0.000)"/></radialGradient><radialGradient id="g-weak-idle-body" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="hsla(28.0, 14.0%, 95%, 1.000)"/><stop offset="0.6" stop-color="hsla(28.0, 14.0%, 87%, 1.000)"/><stop offset="1" stop-color="hsla(28.0, 11.2%, 73%, 1.000)"/></radialGradient><radialGradient id="g-weak-idle-shade" cx="36%" cy="30%" r="78%"><stop offset="0.55" stop-color="hsla(28.0, 45.0%, 46%, 0.000)"/><stop offset="1" stop-color="hsla(28.0, 45.0%, 46%, 0.400)"/></radialGradient>
+  <radialGradient id="g-weak-idle-shine" cx="33%" cy="27%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".34" stop-color="#fff" stop-opacity=".85"/><stop offset=".9" stop-color="#fff" stop-opacity="0"/></radialGradient>
 </defs>
 <ellipse class="g-shadow" cx="100" cy="206" rx="51" ry="6.5" fill="#1F2B4D" opacity=".12"/>
-<g class="g-float">
- <g class="g-pose" transform="translate(0 9) rotate(0 100 176) translate(100 176) scale(1.07 0.91) translate(-100 -176)">
-  <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-weak-idle-halo)"/>
-  <g class="g-jelly">
-   <circle cx="100" cy="116" r="60" fill="url(#g-weak-idle-body)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-weak-idle-shade)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-weak-idle-shine)"/>
-   <g class="g-face" transform="translate(100 126) scale(1.3)">
-    <ellipse cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
-    <ellipse cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
-    <g class="g-eyes" transform="translate(0 1.5)"><g class="g-eye"><rect x="-15.25" y="-3.5" width="6.5" height="7" rx="3.25" fill="#1F2B4D"/><circle cx="-10.9" cy="-0.8999999999999999" r="1.35" fill="#fff"/></g><g class="g-eye"><rect x="8.75" y="-3.5" width="6.5" height="7" rx="3.25" fill="#1F2B4D"/><circle cx="13.1" cy="-0.8999999999999999" r="1.35" fill="#fff"/></g></g>
-    <g transform="translate(0 13)"><path class="g-mouth" d="M-6,3 Q0,-2.5 6,3 Q0,0.8 -6,3 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
-   </g>
-  </g>
+<g class="g-pose" transform="translate(0 9) rotate(0 100 176) translate(100 176) scale(1.072 0.928) translate(-100 -176)">
+ <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-weak-idle-halo)"/>
+ <circle class="g-ring" cx="100" cy="116" r="60" fill="none" stroke-width="3" opacity="0"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-weak-idle-body)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-weak-idle-shade)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-weak-idle-shine)"/>
+ <g class="g-face" transform="translate(100 126) scale(1.3)">
+  <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
+  <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
+  <g class="g-eyes" transform="translate(0 1.5)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-3.5" width="6.5" height="7" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-0.8999999999999999" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-3.5" width="6.5" height="7" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-0.8999999999999999" r="1.35" fill="#fff"/></g></g>
+  <g class="g-mouth-pos" transform="translate(0 13)"><path class="g-mouth" d="M-6.5,0 Q0,-4.00 6.5,0 Q0,-2.00 -6.5,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
  </g>
- 
 </g>
+<g class="g-sparks" fill="hsla(28.0, 24.0%, 66%, 1.000)" opacity="0"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
 </svg><figcaption>weak · idle</figcaption></figure>
-<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide (weak, explaining)">
-<defs>
-  <radialGradient id="g-weak-explaining-halo">
-    <stop offset="0" stop-color="hsla(28, 24%, 78%, 0.30250000000000005)"/>
-    <stop offset=".42" stop-color="hsla(28, 24%, 76%, 0.099)"/>
-    <stop offset=".68" stop-color="hsla(28, 14%, 76%, 0)"/>
-  </radialGradient>
-  <radialGradient id="g-weak-explaining-body" cx="50%" cy="50%" r="50%">
-    <stop offset="0" stop-color="hsla(28, 14%, 95%, 1)"/>
-    <stop offset=".6" stop-color="hsla(28, 14%, 87%, 1)"/>
-    <stop offset="1" stop-color="hsla(28, 11.200000000000001%, 73%, 1)"/>
-  </radialGradient>
-  <radialGradient id="g-weak-explaining-shade" cx="36%" cy="30%" r="78%">
-    <stop offset=".55" stop-color="hsla(28, 45%, 46%, 0)"/>
-    <stop offset="1" stop-color="hsla(28, 45%, 46%, 0.4)"/>
-  </radialGradient>
-  <radialGradient id="g-weak-explaining-shine" cx="33%" cy="27%" r="50%">
-    <stop offset="0" stop-color="#fff" stop-opacity="1"/>
-    <stop offset=".34" stop-color="#fff" stop-opacity=".85"/>
-    <stop offset=".9" stop-color="#fff" stop-opacity="0"/>
-  </radialGradient>
+<figure><svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide">
+<defs><radialGradient id="g-weak-explaining-halo"><stop offset="0" stop-color="hsla(28.0, 24.0%, 78%, 0.303)"/><stop offset="0.42" stop-color="hsla(28.0, 24.0%, 76%, 0.099)"/><stop offset="0.68" stop-color="hsla(28.0, 24.0%, 76%, 0.000)"/></radialGradient><radialGradient id="g-weak-explaining-body" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="hsla(28.0, 14.0%, 95%, 1.000)"/><stop offset="0.6" stop-color="hsla(28.0, 14.0%, 87%, 1.000)"/><stop offset="1" stop-color="hsla(28.0, 11.2%, 73%, 1.000)"/></radialGradient><radialGradient id="g-weak-explaining-shade" cx="36%" cy="30%" r="78%"><stop offset="0.55" stop-color="hsla(28.0, 45.0%, 46%, 0.000)"/><stop offset="1" stop-color="hsla(28.0, 45.0%, 46%, 0.400)"/></radialGradient>
+  <radialGradient id="g-weak-explaining-shine" cx="33%" cy="27%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".34" stop-color="#fff" stop-opacity=".85"/><stop offset=".9" stop-color="#fff" stop-opacity="0"/></radialGradient>
 </defs>
 <ellipse class="g-shadow" cx="100" cy="206" rx="51" ry="6.5" fill="#1F2B4D" opacity=".12"/>
-<g class="g-float">
- <g class="g-pose" transform="translate(0 9) rotate(9 100 176) translate(100 176) scale(1.07 0.91) translate(-100 -176)">
-  <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-weak-explaining-halo)"/>
-  <g class="g-jelly">
-   <circle cx="100" cy="116" r="60" fill="url(#g-weak-explaining-body)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-weak-explaining-shade)"/>
-   <circle cx="100" cy="116" r="60" fill="url(#g-weak-explaining-shine)"/>
-   <g class="g-face" transform="translate(100 126) scale(1.3)">
-    <ellipse cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
-    <ellipse cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
-    <g class="g-eyes" transform="translate(4.5 -1.5)"><g class="g-eye"><rect x="-15.25" y="-4" width="6.5" height="8" rx="3.25" fill="#1F2B4D"/><circle cx="-10.9" cy="-1.4" r="1.35" fill="#fff"/></g><g class="g-eye"><rect x="8.75" y="-4" width="6.5" height="8" rx="3.25" fill="#1F2B4D"/><circle cx="13.1" cy="-1.4" r="1.35" fill="#fff"/></g></g>
-    <g transform="translate(2.6999999999999997 13)"><path class="g-mouth" d="M-6.5,-2 Q0,-3.2 6.5,-2 Q6.5,7 0,8.5 Q-6.5,7 -6.5,-2 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
-   </g>
-  </g>
+<g class="g-pose" transform="translate(0 9) rotate(9 100 176) translate(100 176) scale(1.072 0.928) translate(-100 -176)">
+ <circle class="g-halo" cx="100" cy="116" r="99" fill="url(#g-weak-explaining-halo)"/>
+ <circle class="g-ring" cx="100" cy="116" r="60" fill="none" stroke-width="3" opacity="0"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-weak-explaining-body)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-weak-explaining-shade)"/>
+ <circle cx="100" cy="116" r="60" fill="url(#g-weak-explaining-shine)"/>
+ <g class="g-face" transform="translate(100 126) scale(1.3)">
+  <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
+  <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="#F6A5C0" opacity="0.12"/>
+  <g class="g-eyes" transform="translate(4.5 -1.5)"><g class="g-eye"><rect class="g-pupil" x="-15.25" y="-4" width="6.5" height="8" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M-16.5,1.5 Q-12,-5 -7.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="-10.9" cy="-1.4" r="1.35" fill="#fff"/></g><g class="g-eye"><rect class="g-pupil" x="8.75" y="-4" width="6.5" height="8" rx="3.25" fill="#1F2B4D"/><path class="g-arc" d="M7.5,1.5 Q12,-5 16.5,1.5" fill="none" stroke="#1F2B4D" stroke-width="3" stroke-linecap="round" opacity="0"/><circle class="g-glint" cx="13.1" cy="-1.4" r="1.35" fill="#fff"/></g></g>
+  <g class="g-mouth-pos" transform="translate(2.6999999999999997 13)"><path class="g-mouth" d="M-6,0 Q0,-2.50 6,0 Q0,6.50 -6,0 Z" fill="#1F2B4D" stroke="#1F2B4D" stroke-width="1.1" stroke-linejoin="round"/></g>
  </g>
- <g class="g-sparks"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z" fill="hsla(28, 24%, 62%, 1)"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z" fill="hsla(28, 24%, 70%, 1)"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z" fill="hsla(28, 24%, 74%, 1)"/></g>
 </g>
+<g class="g-sparks" fill="hsla(28.0, 24.0%, 66%, 1.000)" opacity="1"><path d="M176,77 Q177.05,82.95 183,84 Q177.05,85.05 176,91 Q174.95,85.05 169,84 Q174.95,82.95 176,77 Z"/><path d="M190,57.5 Q190.675,61.325 194.5,62 Q190.675,62.675 190,66.5 Q189.325,62.675 185.5,62 Q189.325,61.325 190,57.5 Z"/><path d="M164,54.5 Q164.525,57.475 167.5,58 Q164.525,58.525 164,61.5 Q163.475,58.525 160.5,58 Q163.475,57.475 164,54.5 Z"/></g>
 </svg><figcaption>weak · explaining</figcaption></figure>
 </div>
 <script>
 // Lumi, the guide: a soft glowing orb that floats next to the tree and explains it.
-// Framework-free ES module. Use it from React with a ref:
+// It never recommends or decides. Framework-free ES module; use it from React with a ref:
 //
 //   import { createGuide } from "../assets/character/guide/guide.js";
 //   import "../assets/character/guide/guide.css";
-//   const lumi = createGuide(divRef.current, { health: "healthy" });
+//   const lumi = createGuide(divRef.current, { health: "healthy", onTap: () => openChat() });
 //   lumi.setHealth("fair");        // "healthy" | "fair" | "weak"  (health of the selected node)
 //   lumi.setPose("explaining");    // "idle" | "explaining"        (leans and looks right, sparkles)
 //   lumi.setTalking(true);         // mouth moves while audio plays
-//   lumi.moveTo(x, y);             // glide (px, relative to the element's offset parent)
+//   lumi.react("happy");           // short reaction: "happy" | "curious" | "surprised"
+//   lumi.moveTo(x, y);             // glide (px, relative to where the element sits)
 //   lumi.destroy();
+//
+// Alive on its own: it bobs, blinks and glances around; follows the cursor with its eyes when it
+// comes close; smiles and wobbles on hover; on click it spins a full turn (the face slides round
+// the sphere), hops with a crouch first and sends a ripple of light; it dozes off when nobody
+// moves for a while; and it slides out of the way of a button you are reaching for.
 //
 // guideSVG({ health, pose }) returns static SVG markup (used to export the state images).
 
@@ -409,149 +225,396 @@ const POSES = ["idle", "explaining"];
 const INK = "#1F2B4D";
 const BLUSH = "#F6A5C0";
 
-// Hue and saturation of the orb per health, plus how the face and body read.
+// Per health: hue/saturation of the orb, glow, face and how heavy it sits.
+// curve: mouth curvature (+ smile, - worried).
 const HEALTH = {
-  healthy: { h: 150, s: 56, eye: 11, mouth: "smile", drop: 0, squash: [1, 1], halo: 1, blush: 0.6 },
-  fair: { h: 44, s: 72, eye: 9.5, mouth: "flat", drop: 3, squash: [1.02, 0.97], halo: 0.8, blush: 0.3 },
-  weak: { h: 28, s: 14, eye: 7, mouth: "worried", drop: 9, squash: [1.07, 0.91], halo: 0.55, blush: 0.12 },
-};
-
-const MOUTH = {
-  smile: "M-7,-1.5 Q0,7.5 7,-1.5 Q0,2.5 -7,-1.5 Z",
-  flat: "M-5,0.6 Q0,2 5,0.6 Q0,1.2 -5,0.6 Z",
-  worried: "M-6,3 Q0,-2.5 6,3 Q0,0.8 -6,3 Z",
-  open: "M-6.5,-2 Q0,-3.2 6.5,-2 Q6.5,7 0,8.5 Q-6.5,7 -6.5,-2 Z",
+  healthy: { h: 150, s: 56, halo: 1, blush: 0.6, eye: 11, curve: 4, drop: 0, flat: 0, bob: 1 },
+  fair: { h: 44, s: 72, halo: 0.8, blush: 0.3, eye: 9.5, curve: 0.8, drop: 3, flat: 0.4, bob: 0.8 },
+  weak: { h: 28, s: 14, halo: 0.55, blush: 0.12, eye: 7, curve: -3, drop: 9, flat: 1.2, bob: 0.5 },
 };
 
 // Geometry, in a 200 x 240 viewBox
 const CX = 100;
 const CY = 116;
 const R = 60;
-const BASE = CY + R; // bottom of the orb, anchor for squash and tilt
+const BASE = CY + R; // bottom of the orb: anchor for squash and tilt
+const FACE = 1.3;
+const EYE_X = 12;
+const EYE_W = 6.5;
 
-let uid = 0;
-const hsl = (h, s, l, a = 1) => `hsla(${h}, ${s}%, ${l}%, ${a})`;
+const hsl = (h, s, l, a = 1) => `hsla(${h.toFixed(1)}, ${s.toFixed(1)}%, ${l}%, ${a.toFixed(3)})`;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
 
-function star(x, y, size, fill) {
-  const s = size;
-  return `<path d="M${x},${y - s} Q${x + s * 0.15},${y - s * 0.15} ${x + s},${y} Q${x + s * 0.15},${y + s * 0.15} ${x},${y + s} Q${x - s * 0.15},${y + s * 0.15} ${x - s},${y} Q${x - s * 0.15},${y - s * 0.15} ${x},${y - s} Z" fill="${fill}"/>`;
+// Gradient stops, shared by the static markup and the live loop: fn(hue, sat, halo) -> colour
+const STOPS = {
+  halo: [
+    [0, (h, s, g) => hsl(h, s + 10, 78, 0.55 * g)],
+    [0.42, (h, s, g) => hsl(h, s + 10, 76, 0.18 * g)],
+    [0.68, (h, s) => hsl(h, s + 10, 76, 0)],
+  ],
+  body: [
+    [0, (h, s) => hsl(h, s, 95)],
+    [0.6, (h, s) => hsl(h, s, 87)],
+    [1, (h, s) => hsl(h, s * 0.8, 73)],
+  ],
+  shade: [
+    [0.55, (h) => hsl(h, 45, 46, 0)],
+    [1, (h) => hsl(h, 45, 46, 0.4)],
+  ],
+};
+const GRAD_POS = { halo: "", body: ' cx="50%" cy="50%" r="50%"', shade: ' cx="36%" cy="30%" r="78%"' };
+
+// Lens-shaped mouth: corners at (+-w, 0); curve bends it, open separates the lips.
+const mouthPath = (w, curve, open) =>
+  `M${-w},0 Q0,${(curve - open).toFixed(2)} ${w},0 Q0,${(curve + open).toFixed(2)} ${-w},0 Z`;
+
+function star(x, y, s) {
+  return `<path d="M${x},${y - s} Q${x + s * 0.15},${y - s * 0.15} ${x + s},${y} Q${x + s * 0.15},${y + s * 0.15} ${x},${y + s} Q${x - s * 0.15},${y + s * 0.15} ${x - s},${y} Q${x - s * 0.15},${y - s * 0.15} ${x},${y - s} Z"/>`;
 }
 
-function guideSVG({ health = "healthy", pose = "idle", talking = false, id } = {}) {
+// ------------------------------------------------------------------ static markup
+
+/** Full SVG for one state. The live guide uses the same markup and then drives it every frame. */
+function guideSVG({ health = "healthy", pose = "idle", talking = false, id = "lumi" } = {}) {
   const c = HEALTH[health] ?? HEALTH.healthy;
-  const k = id ?? `lumi${++uid}`;
-  const { h, s } = c;
   const explaining = pose === "explaining";
-  const [sx, sy] = c.squash;
   const tilt = explaining ? 9 : 0;
   const gaze = explaining ? [4.5, -1.5] : [0, health === "weak" ? 1.5 : 0];
   const eyeH = explaining ? c.eye + 1 : c.eye;
-  const eyeW = 6.5;
-  const mouth = explaining || talking ? MOUTH.open : MOUTH[c.mouth];
+  const open = explaining || talking ? 4.5 : 1;
+  const curve = explaining || talking ? 2 : c.curve;
+  const sq = c.flat * 0.06;
 
-  const eye = (x) =>
-    `<g class="g-eye"><rect x="${x - eyeW / 2}" y="${-eyeH / 2}" width="${eyeW}" height="${eyeH}" rx="${eyeW / 2}" fill="${INK}"/>` +
-    `<circle cx="${x + 1.1}" cy="${-eyeH / 2 + 2.6}" r="1.35" fill="#fff"/></g>`;
+  const grad = (name) =>
+    `<radialGradient id="${id}-${name}"${GRAD_POS[name]}>` +
+    STOPS[name].map(([o, f]) => `<stop offset="${o}" stop-color="${f(c.h, c.s, c.halo)}"/>`).join("") +
+    `</radialGradient>`;
+  const eye = (side) => {
+    const x = side * EYE_X;
+    return (
+      `<g class="g-eye">` +
+      `<rect class="g-pupil" x="${x - EYE_W / 2}" y="${-eyeH / 2}" width="${EYE_W}" height="${eyeH}" rx="${EYE_W / 2}" fill="${INK}"/>` +
+      `<path class="g-arc" d="M${x - 4.5},1.5 Q${x},-5 ${x + 4.5},1.5" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round" opacity="0"/>` +
+      `<circle class="g-glint" cx="${x + 1.1}" cy="${-eyeH / 2 + 2.6}" r="1.35" fill="#fff"/></g>`
+    );
+  };
 
-  const sparks = explaining
-    ? `<g class="g-sparks">${star(176, 84, 7, hsl(h, s + 10, 62))}${star(190, 62, 4.5, hsl(h, s + 10, 70))}${star(164, 58, 3.5, hsl(h, s + 10, 74))}</g>`
-    : "";
-
-  return `<svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide (${health}, ${pose})">
-<defs>
-  <radialGradient id="${k}-halo">
-    <stop offset="0" stop-color="${hsl(h, s + 10, 78, 0.55 * c.halo)}"/>
-    <stop offset=".42" stop-color="${hsl(h, s + 10, 76, 0.18 * c.halo)}"/>
-    <stop offset=".68" stop-color="${hsl(h, s, 76, 0)}"/>
-  </radialGradient>
-  <radialGradient id="${k}-body" cx="50%" cy="50%" r="50%">
-    <stop offset="0" stop-color="${hsl(h, s, 95)}"/>
-    <stop offset=".6" stop-color="${hsl(h, s, 87)}"/>
-    <stop offset="1" stop-color="${hsl(h, s * 0.8, 73)}"/>
-  </radialGradient>
-  <radialGradient id="${k}-shade" cx="36%" cy="30%" r="78%">
-    <stop offset=".55" stop-color="${hsl(h, 45, 46, 0)}"/>
-    <stop offset="1" stop-color="${hsl(h, 45, 46, 0.4)}"/>
-  </radialGradient>
-  <radialGradient id="${k}-shine" cx="33%" cy="27%" r="50%">
-    <stop offset="0" stop-color="#fff" stop-opacity="1"/>
-    <stop offset=".34" stop-color="#fff" stop-opacity=".85"/>
-    <stop offset=".9" stop-color="#fff" stop-opacity="0"/>
-  </radialGradient>
+  return `<svg class="guide-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" role="img" aria-label="Lumi, your guide">
+<defs>${grad("halo")}${grad("body")}${grad("shade")}
+  <radialGradient id="${id}-shine" cx="33%" cy="27%" r="50%"><stop offset="0" stop-color="#fff"/><stop offset=".34" stop-color="#fff" stop-opacity=".85"/><stop offset=".9" stop-color="#fff" stop-opacity="0"/></radialGradient>
 </defs>
 <ellipse class="g-shadow" cx="${CX}" cy="206" rx="${42 + c.drop}" ry="6.5" fill="${INK}" opacity=".12"/>
-<g class="g-float">
- <g class="g-pose" transform="translate(0 ${c.drop}) rotate(${tilt} ${CX} ${BASE}) translate(${CX} ${BASE}) scale(${sx} ${sy}) translate(${-CX} ${-BASE})">
-  <circle class="g-halo" cx="${CX}" cy="${CY}" r="${R * 1.65}" fill="url(#${k}-halo)"/>
-  <g class="g-jelly">
-   <circle cx="${CX}" cy="${CY}" r="${R}" fill="url(#${k}-body)"/>
-   <circle cx="${CX}" cy="${CY}" r="${R}" fill="url(#${k}-shade)"/>
-   <circle cx="${CX}" cy="${CY}" r="${R}" fill="url(#${k}-shine)"/>
-   <g class="g-face" transform="translate(${CX} ${CY + 10}) scale(1.3)">
-    <ellipse cx="-23" cy="10" rx="7" ry="3.8" fill="${BLUSH}" opacity="${c.blush}"/>
-    <ellipse cx="23" cy="10" rx="7" ry="3.8" fill="${BLUSH}" opacity="${c.blush}"/>
-    <g class="g-eyes" transform="translate(${gaze[0]} ${gaze[1]})">${eye(-12)}${eye(12)}</g>
-    <g transform="translate(${gaze[0] * 0.6} 13)"><path class="g-mouth" d="${mouth}" fill="${INK}" stroke="${INK}" stroke-width="1.1" stroke-linejoin="round"/></g>
-   </g>
-  </g>
+<g class="g-pose" transform="translate(0 ${c.drop}) rotate(${tilt} ${CX} ${BASE}) translate(${CX} ${BASE}) scale(${1 + sq} ${1 - sq}) translate(${-CX} ${-BASE})">
+ <circle class="g-halo" cx="${CX}" cy="${CY}" r="${R * 1.65}" fill="url(#${id}-halo)"/>
+ <circle class="g-ring" cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke-width="3" opacity="0"/>
+ <circle cx="${CX}" cy="${CY}" r="${R}" fill="url(#${id}-body)"/>
+ <circle cx="${CX}" cy="${CY}" r="${R}" fill="url(#${id}-shade)"/>
+ <circle cx="${CX}" cy="${CY}" r="${R}" fill="url(#${id}-shine)"/>
+ <g class="g-face" transform="translate(${CX} ${CY + 10}) scale(${FACE})">
+  <ellipse class="g-blush" cx="-23" cy="10" rx="7" ry="3.8" fill="${BLUSH}" opacity="${c.blush}"/>
+  <ellipse class="g-blush" cx="23" cy="10" rx="7" ry="3.8" fill="${BLUSH}" opacity="${c.blush}"/>
+  <g class="g-eyes" transform="translate(${gaze[0]} ${gaze[1]})">${eye(-1)}${eye(1)}</g>
+  <g class="g-mouth-pos" transform="translate(${gaze[0] * 0.6} 13)"><path class="g-mouth" d="${mouthPath(explaining ? 6 : 6.5, curve, open)}" fill="${INK}" stroke="${INK}" stroke-width="1.1" stroke-linejoin="round"/></g>
  </g>
- ${sparks}
 </g>
+<g class="g-sparks" fill="${hsl(c.h, c.s + 10, 66)}" opacity="${explaining ? 1 : 0}">${star(176, 84, 7)}${star(190, 62, 4.5)}${star(164, 58, 3.5)}</g>
 </svg>`;
 }
 
-function createGuide(el, { health = "healthy", pose = "idle" } = {}) {
-  const state = { health, pose, talking: false };
-  const id = `lumi${++uid}`;
-  el.classList.add("guide");
-  const t0 = performance.now();
-  let moveTimer = 0;
+// ------------------------------------------------------------------ live guide
 
-  // Each change renders a new layer and cross-fades it over the old one. Animations are kept in
-  // phase with a negative delay so the float never jumps.
-  function render() {
-    const layer = document.createElement("div");
-    layer.className = "guide-layer is-entering";
-    layer.style.setProperty("--phase", `${-((performance.now() - t0) / 1000)}s`);
-    layer.innerHTML = guideSVG({ ...state, id: `${id}-${Date.now()}` });
-    if (state.talking) layer.classList.add("is-talking");
-    el.appendChild(layer);
-    requestAnimationFrame(() => layer.classList.remove("is-entering"));
-    for (const old of el.querySelectorAll(".guide-layer:not(:last-child)")) {
-      old.classList.add("is-leaving");
-      setTimeout(() => old.remove(), 450);
-    }
+let uid = 0;
+
+function createGuide(el, { health = "healthy", pose = "idle", onTap, makeWay = true } = {}) {
+  const id = `lumi${++uid}`;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.classList.add("guide");
+  el.tabIndex = 0;
+  el.setAttribute("role", "button");
+  el.setAttribute("aria-label", "Lumi, your guide");
+  el.innerHTML = `<div class="guide-nudge">${guideSVG({ health, pose, id })}</div>`;
+
+  const q = (s) => el.querySelector(s);
+  const qa = (s) => [...el.querySelectorAll(s)];
+  const dom = {
+    nudge: q(".guide-nudge"),
+    pose: q(".g-pose"),
+    shadow: q(".g-shadow"),
+    halo: q(".g-halo"),
+    ring: q(".g-ring"),
+    face: q(".g-face"),
+    eyes: q(".g-eyes"),
+    pupils: qa(".g-pupil"),
+    arcs: qa(".g-arc"),
+    glints: qa(".g-glint"),
+    mouthPos: q(".g-mouth-pos"),
+    mouth: q(".g-mouth"),
+    blush: qa(".g-blush"),
+    sparks: q(".g-sparks"),
+    stops: Object.fromEntries(Object.keys(STOPS).map((k) => [k, qa(`#${id}-${k} stop`)])),
+  };
+  dom.sparks.removeAttribute("opacity");
+
+  const target = { health, pose, talking: false };
+  const cur = { ...HEALTH[health] }; // health params, eased toward the target every frame
+  const face = { eyeL: cur.eye, eyeR: cur.eye, happy: 0, curve: cur.curve, open: 1, tilt: 0, blush: cur.blush, sparks: pose === "explaining" ? 1 : 0 };
+  const s = {
+    t0: performance.now(),
+    last: performance.now(),
+    y: 0, vy: 0, // hop
+    sq: 0, sqv: 0, // jelly: + squash, - stretch
+    lean: 0,
+    spin: 0, spinTo: 0,
+    gx: 0, gy: 0, glance: [0, 0], nextGlance: 0,
+    nextBlink: performance.now() + rand(1500, 4000), blinkAt: -1e9,
+    flash: null, flashUntil: 0,
+    ringAt: -1e9,
+    mouse: { x: -1e4, y: -1e4, at: -1e4 },
+    lastInput: performance.now(),
+    noticeUntil: 0,
+    talk: 0,
+    colorKey: "",
+    pos: { x: 0, y: 0 },
+    nudgeTimer: 0,
+  };
+
+  function react(emo, ms = 1100) {
+    s.flash = emo;
+    s.flashUntil = performance.now() + ms;
   }
-  render();
+
+  // -------------------------------------------------------------- input
+  const svgEl = q(".guide-svg");
+  const center = () => {
+    const b = svgEl.getBoundingClientRect();
+    return { x: b.left + (b.width * CX) / 200, y: b.top + (b.height * CY) / 240, r: (b.width * R) / 200 };
+  };
+  const onMove = (e) => {
+    const now = performance.now();
+    if (now - s.mouse.at > 4000) s.noticeUntil = now + 1400; // you came back: it notices
+    if (now - s.lastInput > 25000) react("surprised", 700); // woken up
+    s.mouse = { x: e.clientX, y: e.clientY, at: now };
+    s.lastInput = now;
+    if (makeWay) checkWay(e.clientX, e.clientY);
+  };
+  const onTapEvent = (e) => {
+    if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+    if (e.type === "keydown") e.preventDefault();
+    s.lastInput = performance.now();
+    tap();
+    onTap?.();
+  };
+  const onEnter = () => {
+    react("happy", 1000);
+    s.sqv += 3;
+  };
+  addEventListener("pointermove", onMove, { passive: true });
+  el.addEventListener("pointerdown", onTapEvent);
+  el.addEventListener("keydown", onTapEvent);
+  el.addEventListener("pointerenter", onEnter);
+
+  function tap() {
+    react("happy", 1300);
+    s.ringAt = performance.now();
+    if (reduced) return;
+    s.spinTo += Math.PI * 2;
+    // crouch, then jump: the anticipation sells the weight
+    s.sqv += 5;
+    setTimeout(() => {
+      s.vy = -340;
+      s.sqv -= 9;
+    }, 110);
+  }
+
+  // If it sits on top of something clickable the cursor is reaching for, it slides aside.
+  function checkWay(x, y) {
+    const c = center();
+    if (Math.hypot(x - c.x, y - c.y) > c.r * 1.1) return;
+    const under = document.elementsFromPoint(x, y).find((n) => !el.contains(n));
+    if (!under?.closest("button, a, input, select, textarea, [role=button]")) return;
+    const dx = c.x - x || 1;
+    const dy = c.y - y;
+    const d = Math.hypot(dx, dy) || 1;
+    dom.nudge.style.transform = `translate(${(dx / d) * c.r * 1.8}px, ${(dy / d) * c.r * 1.8 - c.r * 0.4}px)`;
+    clearTimeout(s.nudgeTimer);
+    s.nudgeTimer = setTimeout(() => (dom.nudge.style.transform = ""), 1600);
+  }
+
+  // -------------------------------------------------------------- frame
+  let raf = 0;
+  function frame() {
+    const now = performance.now(); // same clock as the input handlers
+    const dt = clamp((now - s.last) / 1000, 0, 0.5); // frame-rate independent below
+    s.last = now;
+    const T = (now - s.t0) / 1000;
+    const k = (rate) => 1 - Math.exp(-rate * dt);
+
+    // health eases in: colour, glow, face and weight all drift together
+    const H = HEALTH[target.health];
+    for (const key in cur) cur[key] = lerp(cur[key], H[key], k(2.5));
+
+    // emotion: a short reaction wins; otherwise dozing, curious about a close cursor, or calm
+    const c = center();
+    const md = Math.hypot(s.mouse.x - c.x, s.mouse.y - c.y);
+    const near = now - s.mouse.at < 2500 ? clamp(1 - md / (c.r * 3.2), 0, 1) : 0;
+    let emo = "calm";
+    if (s.flash && now < s.flashUntil) emo = s.flash;
+    else if (now - s.lastInput > 25000 && !target.talking && target.pose === "idle") emo = "sleepy";
+    else if (near > 0.15) emo = "curious";
+
+    const explaining = target.pose === "explaining";
+    const F = { eyeL: cur.eye, eyeR: cur.eye, happy: 0, curve: cur.curve, open: 1, tilt: 0, blush: cur.blush, bob: cur.bob };
+    if (explaining) Object.assign(F, { tilt: 9, eyeL: cur.eye + 1, eyeR: cur.eye + 1 });
+    if (emo === "happy") Object.assign(F, { happy: 1, curve: 5.5, open: 2.4, blush: Math.max(0.7, cur.blush) });
+    if (emo === "curious") Object.assign(F, { eyeL: cur.eye + 2, eyeR: cur.eye - 1, tilt: F.tilt + 10, open: 1.6, curve: Math.max(0.5, cur.curve * 0.5) });
+    if (emo === "surprised") Object.assign(F, { eyeL: cur.eye + 3, eyeR: cur.eye + 3, curve: 0, open: 3.6 });
+    if (emo === "sleepy") Object.assign(F, { eyeL: 1.6, eyeR: 1.6, tilt: 5, open: 0.6, curve: 1, bob: 0.4 });
+    for (const key of ["eyeL", "eyeR", "happy", "curve", "open", "tilt", "blush"]) face[key] = lerp(face[key], F[key], k(10));
+    face.sparks = lerp(face.sparks, explaining ? 1 : 0, k(6));
+
+    // talking: lips open and close on a syllable-like rhythm (two unrelated waves)
+    const flap = target.talking ? 0.3 + 0.7 * Math.abs(Math.sin(T * 12.5) * Math.sin(T * 6.9 + 0.6)) : 0;
+    s.talk = lerp(s.talk, flap, k(25));
+
+    // gaze: the cursor when it is close (or just came back), else its own glances
+    let gx, gy;
+    if (explaining) [gx, gy] = [1, -0.35];
+    else if (emo === "sleepy") [gx, gy] = [0, 0.4];
+    else if (now < s.noticeUntil || near > 0) {
+      const m = Math.min(1, md / (c.r * 2.2));
+      [gx, gy] = [((s.mouse.x - c.x) / (md || 1)) * m, ((s.mouse.y - c.y) / (md || 1)) * m];
+    } else {
+      if (now > s.nextGlance) {
+        s.glance = Math.random() < 0.5 ? [0, 0] : [rand(-0.8, 0.8), rand(-0.5, 0.5)];
+        s.nextGlance = now + rand(1800, 4500);
+      }
+      [gx, gy] = s.glance;
+    }
+    s.gx = lerp(s.gx, gx, k(9));
+    s.gy = lerp(s.gy, gy, k(9));
+
+    // blink
+    if (now > s.nextBlink) {
+      s.blinkAt = now;
+      s.nextBlink = now + rand(2800, 6500);
+    }
+    const bt = (now - s.blinkAt) / 160;
+    const blink = bt >= 0 && bt <= 1 ? 1 - 0.9 * Math.sin(Math.PI * bt) : 1;
+
+    // physics: hop under gravity, jelly spring, spin easing, lean from moving
+    if (!reduced) {
+      for (let left = dt; left > 0; left -= 1 / 120) {
+        const h = Math.min(1 / 120, left); // fixed small steps keep the springs stable
+        s.vy += 1900 * h;
+        s.y += s.vy * h;
+        if (s.y > 0) {
+          if (s.vy > 120) s.sqv += s.vy / 90; // landing squash
+          s.y = 0;
+          s.vy = 0;
+        }
+        s.sqv += (-170 * s.sq - 11 * s.sqv) * h;
+        s.sq += s.sqv * h;
+      }
+      s.spin = lerp(s.spin, s.spinTo, k(4.5));
+    }
+    s.lean = lerp(s.lean, 0, k(3));
+
+    const bob = reduced ? 0 : (Math.sin(T * 1.7) * 3.4 + Math.sin(T * 0.67 + 1.1) * 1.5) * F.bob;
+    const lift = s.y + bob + cur.drop;
+    const sq = clamp(s.sq * 0.06 + cur.flat * 0.06, -0.25, 0.3);
+    const tilt = face.tilt + s.lean;
+    dom.pose.setAttribute(
+      "transform",
+      `translate(0 ${lift.toFixed(2)}) rotate(${tilt.toFixed(2)} ${CX} ${BASE}) translate(${CX} ${BASE}) scale(${(1 + sq).toFixed(3)} ${(1 - sq).toFixed(3)}) translate(${-CX} ${-BASE})`,
+    );
+    const air = clamp(1 + (s.y + bob) / 140, 0.55, 1.1);
+    dom.shadow.setAttribute("transform", `translate(${CX} 206) scale(${air.toFixed(3)} 1) translate(${-CX} -206)`);
+    dom.shadow.setAttribute("opacity", (0.12 * air).toFixed(3));
+
+    // colour: only touch the gradients when it actually changed
+    const key = `${cur.h.toFixed(1)}|${cur.s.toFixed(1)}|${cur.halo.toFixed(2)}`;
+    if (key !== s.colorKey) {
+      s.colorKey = key;
+      for (const name in STOPS) STOPS[name].forEach(([, f], i) => dom.stops[name][i].setAttribute("stop-color", f(cur.h, cur.s, cur.halo)));
+      dom.sparks.setAttribute("fill", hsl(cur.h, cur.s + 10, 66));
+      dom.ring.setAttribute("stroke", hsl(cur.h, cur.s + 15, 70));
+    }
+    dom.halo.setAttribute("r", (R * 1.65 * (1 + 0.035 * Math.sin(T * 1.3) + 0.05 * s.talk)).toFixed(2));
+    dom.sparks.setAttribute("opacity", face.sparks.toFixed(3));
+
+    // ripple of light on tap
+    const rt = (now - s.ringAt) / 650;
+    if (rt >= 0 && rt <= 1) {
+      dom.ring.setAttribute("r", (R * (1 + 0.6 * (1 - (1 - rt) ** 3))).toFixed(2));
+      dom.ring.setAttribute("opacity", (0.7 * (1 - rt)).toFixed(3));
+    } else dom.ring.setAttribute("opacity", "0");
+
+    // face: follows the gaze a little, and slides round the sphere while it spins
+    const sin = Math.sin(s.spin);
+    const cos = Math.cos(s.spin);
+    const fx = CX + s.gx * 5 + sin * 34;
+    const fy = CY + 10 + s.gy * 4;
+    dom.face.setAttribute("transform", `translate(${fx.toFixed(2)} ${fy.toFixed(2)}) scale(${(Math.max(0.02, Math.abs(cos)) * FACE).toFixed(3)} ${FACE})`);
+    dom.face.setAttribute("opacity", clamp(cos * 3, 0, 1).toFixed(3));
+    dom.eyes.setAttribute("transform", `translate(${(s.gx * 5).toFixed(2)} ${(s.gy * 3.2).toFixed(2)})`);
+    [face.eyeL, face.eyeR].forEach((h0, i) => {
+      const h = Math.max(1.4, h0 * blink);
+      const x = (i ? 1 : -1) * EYE_X;
+      const p = dom.pupils[i];
+      p.setAttribute("y", (-h / 2).toFixed(2));
+      p.setAttribute("height", h.toFixed(2));
+      p.setAttribute("rx", (Math.min(EYE_W, h) / 2).toFixed(2));
+      p.setAttribute("opacity", (1 - face.happy).toFixed(3));
+      dom.arcs[i].setAttribute("opacity", face.happy.toFixed(3));
+      dom.glints[i].setAttribute("cy", (-h / 2 + 2.6).toFixed(2));
+      dom.glints[i].setAttribute("r", h > 5 && face.happy < 0.5 ? "1.35" : "0");
+      dom.glints[i].setAttribute("cx", (x + 1.1).toFixed(2));
+    });
+    const open = face.open + s.talk * 4.5;
+    const curve = face.curve * (1 - s.talk * 0.5);
+    dom.mouthPos.setAttribute("transform", `translate(${(s.gx * 2.4).toFixed(2)} ${(13 + s.gy * 1.5).toFixed(2)})`);
+    dom.mouth.setAttribute("d", mouthPath(6.5 + s.talk, curve, open));
+    for (const b of dom.blush) b.setAttribute("opacity", face.blush.toFixed(3));
+
+    raf = requestAnimationFrame(frame);
+  }
+  raf = requestAnimationFrame(frame);
 
   return {
     get state() {
-      return { ...state };
+      return { ...target };
     },
     setHealth(h) {
-      if (!HEALTH[h] || h === state.health) return;
-      state.health = h;
-      render();
+      if (HEALTH[h]) target.health = h;
     },
     setPose(p) {
-      if (!POSES.includes(p) || p === state.pose) return;
-      state.pose = p;
-      render();
+      if (POSES.includes(p)) target.pose = p;
     },
     setTalking(on) {
-      state.talking = !!on;
-      el.querySelector(".guide-layer:last-child")?.classList.toggle("is-talking", state.talking);
+      target.talking = !!on;
+      if (on) s.lastInput = performance.now();
     },
+    react,
+    tap,
     moveTo(x, y) {
-      el.classList.add("is-moving");
+      const dx = x - s.pos.x;
+      s.pos = { x, y };
+      s.lean = clamp(dx / 30, -12, 12); // leans into the trip
+      s.sqv -= 6; // and stretches as it sets off
+      s.lastInput = performance.now();
       el.style.transform = `translate(${x}px, ${y}px)`;
-      clearTimeout(moveTimer);
-      moveTimer = setTimeout(() => el.classList.remove("is-moving"), 900);
     },
     destroy() {
-      clearTimeout(moveTimer);
+      cancelAnimationFrame(raf);
+      clearTimeout(s.nudgeTimer);
+      removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerdown", onTapEvent);
+      el.removeEventListener("keydown", onTapEvent);
+      el.removeEventListener("pointerenter", onEnter);
       el.replaceChildren();
-      el.classList.remove("guide", "is-moving");
+      el.classList.remove("guide");
     },
   };
 }

@@ -43,7 +43,7 @@ figcaption{font-size:12px;color:var(--muted)}
 ${css}
 </style></head><body>
 <h1>Lumi, the guide</h1>
-<p class="sub">A soft glowing orb that floats next to the tree and explains it. It never recommends or decides. Its colour, glow and face follow the health of the selected node. Try the controls: health, pose, talking, and gliding to the leaf it explains.</p>
+<p class="sub">A soft glowing orb that floats next to the tree and explains it. It never recommends or decides. Its colour, glow and face follow the health of the selected node. Move the mouse near it (it watches you), hover it, click it (spin + hop), leave it alone for 25 s (it dozes off), or use the controls.</p>
 <div class="stage"><div class="ground"></div><div class="leaf"><b>Master's in Lausanne</b><br>Cash runs out in month 7 in the median path. Range: month 5 to 10.</div><div id="lumi"></div></div>
 <div class="controls">
   <button data-health="healthy" aria-pressed="true">Healthy</button>
