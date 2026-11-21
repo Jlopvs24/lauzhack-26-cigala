@@ -60,7 +60,10 @@ function createPlayer(ctx, onLevel) {
 async function openMic(ctx, onChunk) {
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-  await ctx.audioWorklet.addModule(new URL('./micWorklet.js', import.meta.url));
+  // Blob URL: works in dev and in the build (a data: URL or bare asset path is not accepted everywhere)
+  const { default: workletSource } = await import('./micWorklet.js?raw');
+  const url = URL.createObjectURL(new Blob([workletSource], { type: 'text/javascript' }));
+  try { await ctx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
   const src = ctx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(ctx, 'live-mic');
   node.port.onmessage = (e) => onChunk(e.data.pcm, e.data.level);
