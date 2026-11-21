@@ -332,6 +332,101 @@ def personal_flags(tree: dict, node_id: str, chain: list[dict] | None = None) ->
     return out
 
 
+# --- profile-aware tree (#77): the tree is written for a reference profile; another profile
+# --- re-bases its person-specific amounts and gets its own root narration
+
+PROFILE_FIELDS = ("monthly_net_income", "monthly_rent", "monthly_other_expenses")
+STORY_FIELDS = ("display_name", "employment_status", "city", "cash")
+
+
+def profile_baseline(profile: dict) -> dict[str, float]:
+    """Today's monthly amounts of a profile (a gross salary counts as its payslip net)."""
+    def f(key):
+        try:
+            return float(profile.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    income = f("monthly_net_income")
+    if not income and f("monthly_gross_income") and profile.get("age") is not None:
+        from .payroll import payslip
+        income = payslip(f("monthly_gross_income"), float(profile["age"]), build_assumptions().values())["net"]
+    return {"monthly_net_income": income, "monthly_rent": f("monthly_rent"),
+            "monthly_other_expenses": f("monthly_other_expenses")}
+
+
+def root_narration(profile: dict, base: dict[str, float]) -> tuple[str, str]:
+    """Root label and description written from the profile (the reference profile keeps the tree's text)."""
+    who = str(profile.get("display_name") or "").strip()
+    status = str(profile.get("employment_status") or "").strip().replace("_", " ")
+    city = str(profile.get("city") or "").strip()
+    label = "Today: " + (status or "your current life") + (f" in {city}" if city else "")
+    costs = base["monthly_rent"] + base["monthly_other_expenses"]
+    try:
+        cash = float(profile.get("cash") or 0)
+    except (TypeError, ValueError):
+        cash = 0.0
+    subject = f"{who} keeps the current life" if who else "You keep your current life"
+    return label, (f"{subject}: net income of CHF {base['monthly_net_income']:,.0f} a month and "
+                   f"CHF {costs:,.0f} of monthly costs (rent CHF {base['monthly_rent']:,.0f}), "
+                   f"starting with CHF {cash:,.0f} in cash.")
+
+
+def for_profile(tree: dict, profile: dict | None, overrides=None) -> dict:
+    """The tree as it applies to ``profile``.
+
+    The tree file is written for its reference profile (``tree["profile_id"]``). Amounts marked
+    ``"relative_to": <profile field>`` describe that person's own life (the income they keep while
+    studying, their room, their level of living costs): for another profile they move by the
+    difference between the two profiles' current amounts, so the decision keeps its meaning
+    ("your costs + CHF 600 while studying"). Market figures (salaries after a degree, flat rents,
+    tuition) are not marked and stay as they are. The root label and description are written from
+    the profile. For the reference profile the tree is returned untouched (same object)."""
+    ref_id = tree.get("profile_id")
+    if not ref_id or not isinstance(profile, dict):
+        return tree
+    try:
+        ref = load_profile()
+    except OSError:
+        return tree
+    if str(ref.get("profile_id")) != str(ref_id):
+        return tree
+    base, mine = profile_baseline(ref), profile_baseline(profile)
+    deltas = {k: round(mine[k] - base[k], 2) for k in PROFILE_FIELDS}
+    if not any(deltas.values()) and all(profile.get(k) == ref.get(k) for k in STORY_FIELDS):
+        return tree
+    out = copy.deepcopy(tree)
+    fx = None
+    adjusted = []
+    for a in out.get("assumptions", []):
+        d = deltas.get(a.get("relative_to"))
+        if d:
+            a["reference_value"] = a["value"]
+            a["value"] = round(max(0.0, a["value"] + d), 2)
+            if a.get("range"):
+                a["range"] = [round(max(0.0, x + d), 2) for x in a["range"]]
+            a["profile_adjusted"] = True
+            adjusted.append(a["id"])
+    for node, _ in _index(out).values():
+        for iv in node.get("interventions") or []:
+            d = deltas.get(iv.get("relative_to"))
+            v = iv.get("value")
+            if not d or isinstance(v, bool) or not isinstance(v, (int, float)):
+                continue
+            if iv.get("currency") == "EUR":  # the profile is in CHF: convert the difference
+                fx = fx or build_assumptions(tree.get("assumptions", []), overrides).values()["eurchf"]
+                d = d / fx
+            iv["reference_value"] = v
+            iv["value"] = round(max(0.0, v + d), 2)
+    root = out["root"]
+    root["reference_label"], root["reference_description"] = root.get("label"), root.get("description")
+    root["label"], root["description"] = root_narration(profile, mine)
+    root["generated_from_profile"] = True
+    out["profile_basis"] = {"reference_profile_id": str(ref_id), "is_reference": False, "baseline": mine,
+                            "deltas_vs_reference": deltas, "adjusted_assumptions": adjusted}
+    return out
+
+
 DELTA_KEYS = ("final_net_worth", "final_net_worth_p50", "min_cash", "shortfall_probability", "final_cash")
 
 
@@ -357,6 +452,7 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
     """
     tree = tree or load_tree()
     profile = profile or load_profile()
+    tree = for_profile(tree, profile, assumptions)
     prof = Profile.from_dict(profile)
     aset = build_assumptions(tree.get("assumptions", []), assumptions)
     tree = _personal_tree(tree, custom_nodes, node_patches, prof, aset)
@@ -399,6 +495,7 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
             "is_current": nid == current,
             "depth": len(chain) - 1,
             "has_children": bool(node.get("children")),
+            "generated_from_profile": bool(node.get("generated_from_profile")),
             "interventions": ivs,
             "changes": [describe_intervention(iv, values) for iv in ivs],
             "assumptions_ref": assumption_refs(ivs),
@@ -418,6 +515,7 @@ def expand(profile: dict | None = None, path: list[str] | str | None = None,
         "back_path": path[:-1] if path else None,
         "nodes": nodes,
         "pruned_nodes": pruned_nodes(tree, path),
+        "profile_basis": tree.get("profile_basis") or {"reference_profile_id": tree.get("profile_id"), "is_reference": True},
         "weather": wx,
         "weather_options": {w["type"]: w["description"] for w in weather_catalog()},
         "assumptions": aset.to_list(),
@@ -476,6 +574,7 @@ def simulate(profile: dict | None = None, node: dict | str | None = None,
     ``custom_nodes`` / ``node_patches``: the user's own conditions (see ``personalize``)."""
     tree = tree or load_tree()
     profile = profile or load_profile()
+    tree = for_profile(tree, profile, assumptions)
     aset = build_assumptions(tree.get("assumptions", []), assumptions)
     if custom_nodes or node_patches:
         tree = _personal_tree(tree, custom_nodes, node_patches, Profile.from_dict(profile), aset)
@@ -528,6 +627,7 @@ def explore(profile: dict | None = None, path: list[str] | str | None = None,
     ``expand(..., exploration=False, sensitivity=False)``, which then stays fast."""
     tree = tree or load_tree()
     profile = profile or load_profile()
+    tree = for_profile(tree, profile, assumptions)
     prof = Profile.from_dict(profile)
     aset = build_assumptions(tree.get("assumptions", []), assumptions)
     tree = _personal_tree(tree, custom_nodes, node_patches, prof, aset)
@@ -548,7 +648,7 @@ def warm(profile: dict | None = None, *, tree: dict | None = None, explore_nodes
     (same cache keys as the matching ``expand`` / ``explore`` calls)."""
     tree = tree or load_tree()
     kw = {"custom_nodes": custom_nodes, "node_patches": node_patches}
-    full = personalize(tree, custom_nodes, node_patches)
+    full = personalize(for_profile(tree, profile or load_profile()), custom_nodes, node_patches)
     n = 0
     for nid in _index(full):
         p = normalise_path(full, nid)

@@ -38,6 +38,8 @@ def _context(profile, path, assumptions, weather, tree, custom_nodes, node_patch
     from . import tree as tr
     tree = tree or tr.load_tree()
     profile = profile or tr.load_profile()
+    if isinstance(profile, dict):
+        tree = tr.for_profile(tree, profile, assumptions)
     prof = profile if isinstance(profile, Profile) else Profile.from_dict(profile)
     aset = build_assumptions(tree.get("assumptions", []), assumptions)
     tree = tr._personal_tree(tree, custom_nodes, node_patches, prof, aset)

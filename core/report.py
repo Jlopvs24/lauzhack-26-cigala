@@ -12,7 +12,7 @@ from .assumptions import build_assumptions
 from .models import Profile
 from .plan import WEATHER_TYPES, headline
 from .simulate import DEFAULT_PATHS, DEFAULT_SEED, ENGINE_VERSION, simulate_node
-from .tree import (_index, _personal_tree, assumptions_introduced, comparators, describe_intervention, flatten_interventions,
+from .tree import (_index, _personal_tree, for_profile, assumptions_introduced, comparators, describe_intervention, flatten_interventions,
                    lineage, load_profile, load_tree, normalise_path, normalise_weather,
                    personal_flags)
 
@@ -58,6 +58,7 @@ def report_data(profile: dict | None = None, path: list[str] | str | None = None
                 custom_nodes: list[dict] | None = None, node_patches: dict | None = None) -> dict:
     tree = tree or load_tree()
     profile = profile or load_profile()
+    tree = for_profile(tree, profile, assumptions)
     prof = Profile.from_dict(profile)
     aset = build_assumptions(tree.get("assumptions", []), assumptions)
     tree = _personal_tree(tree, custom_nodes, node_patches, prof, aset)
