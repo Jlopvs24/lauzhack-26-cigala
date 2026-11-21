@@ -32,4 +32,12 @@ npm run build
 4. Back one step and return to Today. Earlier siblings disappear once more than one level away.
 5. Stop the backend and choose an option: an error and retry appear; the last valid tree stays visible.
 
-Mock results are explicitly labelled. Negative balances show financing needs. No local financial fixture, paid API calls, or persisted user data. Profile details are loaded from `/profiles/demo`; if unavailable, the tree can still load independently. Leaf detail, editable assumptions, roots intake and chat/voice are separate issues #3/#4.
+Mock results are explicitly labelled. Negative balances show financing needs. No local financial fixture, paid API calls, or persisted user data. Profile details are loaded from `/profiles/demo`; if unavailable, the tree can still load independently.
+
+## Scenario detail and assumptions
+
+Below the tree, the current node has an SVG p10/p50/p90 net-worth chart, final percentile values, comparison with siblings (at the root, the initial options), goal outcomes, health components, sensitivity, and calculation checks/trace. Supports the v0 mock and v1 core: their health scales and sensitivity methods are displayed according to their different metadata. Node descriptions and changes, assumption sources, verification status and sensitivity ranges are displayed when supplied.
+
+Open the assumption panel, edit a value, and apply. The API recalculates every visible node at the current path. Overrides survive navigation; reset reverts to engine defaults. A failed recalculation preserves the last successful results and retry retains the attempted overrides. Units/rates remain exactly those supplied by the API. The shaded uncertainty range is pointwise, conditional on the model, not a guaranteed future.
+
+Roots intake and chat/voice remain issue #4. The guide panel leaves space for the character assets owned by the art thread.
