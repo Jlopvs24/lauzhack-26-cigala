@@ -73,6 +73,22 @@ export function CompareBar({ lang = 'en', tr, hidden = false }) {
   </div>;
 }
 
+const HINT_KEY = 'cigala.compare.hint.v1';
+const hintSeen = () => { try { return localStorage.getItem(HINT_KEY) === '1'; } catch { return false; } };
+const markHint = () => { try { localStorage.setItem(HINT_KEY, '1'); } catch { /* private mode */ } };
+
+/** First use (#103): one line on how comparing works, until dismissed or the first + is used. */
+export function CompareHint({ lang = 'en', hidden = false }) {
+  const L = ci(lang), items = useCompareItems();
+  const [seen, setSeen] = useState(hintSeen);
+  useEffect(() => { if (items.length && !seen) { markHint(); setSeen(true); } }, [items.length, seen]);
+  if (hidden || seen || items.length) return null;
+  return <div className="cmp-hint" role="note">
+    <span className="cmp-hint-plus" aria-hidden="true">+</span><span>{L.firstHint}</span>
+    <button type="button" onClick={() => { markHint(); setSeen(true); }}>{L.hintClose}</button>
+  </div>;
+}
+
 /**
  * Mount once in the app shell. Renders the sticky bar and, when opened (openCompare / the bar / the
  * options button), the comparison page. Also handles `+` pins inside the scene's HTML cards.
@@ -101,6 +117,7 @@ export function CompareRoot({ lang = 'en', tr, profile = null, assumptions = [],
   const paths = open ? (open.paths || items.map((i) => i.path)) : null;
   return <>
     {showBar && <CompareBar lang={lang} tr={tr} hidden={!!open} />}
+    {showBar && <CompareHint lang={lang} hidden={!!open} />}
     {open && <Suspense fallback={null}>
       <ComparePage lang={lang} tr={tr} paths={paths} source={open.source} profile={profile} assumptions={assumptions}
         weather={weather ?? currentWeather()} fields={personalFields()} onClose={() => setOpen(null)}

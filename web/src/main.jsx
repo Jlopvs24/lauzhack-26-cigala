@@ -110,7 +110,7 @@ function App() {
     createScene({ world: worldRef.current, labels: labelsRef.current, onTagClick: (id, status) => onTag(id, status) }).then(async (s) => {
       if (disposed) { s.destroy(); return; }
       scene.current = s;
-      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), ...document.querySelectorAll('.nav-back'), document.querySelector('.cmp-bar'), document.querySelector('.cmp-options-mount'),
+      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), ...document.querySelectorAll('.nav-back'), document.querySelector('.cmp-bar'), document.querySelector('.cmp-hint'), document.querySelector('.cmp-options-mount'),
         document.querySelector('.top .brand'), ...document.querySelectorAll('#crumbs > span'), document.querySelector('.top-actions'), document.querySelector('.wx'), document.querySelector('.leaf-cta'),
         ...document.querySelectorAll('[data-layout-obstacle]')].filter(Boolean) })); // any panel can opt in (weather rail, Lumi dock)
       await s.intro();
