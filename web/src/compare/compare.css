@@ -58,6 +58,7 @@
 .cmp-bar-clear { border: 0; background: transparent; color: inherit; opacity: 0.65; font: inherit; padding: 8px; cursor: pointer; }
 .cmp-bar-go { border: 0; border-radius: 12px; padding: 9px 16px; background: #2a78d6; color: #fff; font: 600 13px/1 var(--sans, system-ui); cursor: pointer; white-space: nowrap; transition: transform 0.12s; }
 .cmp-bar-go:active { transform: scale(0.97); }
+.cmp-bar-n { display: none; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.25); font: 600 11px/1 var(--sans, system-ui); font-style: normal; }
 .cmp-bar-go:disabled { background: rgba(127, 127, 127, 0.25); color: inherit; cursor: default; font-weight: 500; }
 @media (max-width: 720px) {
   .cmp-bar { flex-wrap: wrap; gap: 8px; border-radius: 16px; padding: 10px 10px 10px 14px; }
@@ -230,4 +231,30 @@ td.lo .cmp-mark { color: var(--c-lo-ink); }
 }
 @media (forced-colors: active) {
   .cmp-table td.hi, .cmp-table td.lo { outline: 1px solid CanvasText; }
+}
+
+/* ---------------------------------------------------------------- mounts in the app shell (main.jsx) */
+.tag .card:has(.cmp-pin) { position: relative; }
+.tag .meta .cmp-pin { position: absolute; top: -9px; right: -9px; z-index: 1; color: var(--ink, #f7f4ec); background: rgba(18, 22, 20, 0.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.tag .meta .cmp-pin.on { background: #2a78d6; }
+.tag.sibling .meta .ccs { opacity: 0.85; }
+.cmp-options-head { display: inline-flex; align-items: center; gap: 6px; }
+.cmp-options-mount { display: none; }
+/* in the app: the bar sits under the header on the right, clear of Lumi, Make it mine and the chat dock */
+.cmp-options-mount ~ .cmp-bar, #stage ~ .cmp-bar { top: 84px; bottom: auto; left: auto; right: 28px; transform: none; max-width: min(640px, calc(100vw - 460px)); animation-name: cmp-down; }
+@keyframes cmp-down { from { opacity: 0; transform: translateY(-10px); } }
+@media (max-width: 720px) {
+  /* phones: one compact row just above the dock, right side; chips and "clear" live in the page */
+  .cmp-options-head { display: none; }
+  .cmp-options-mount { display: block; position: fixed; z-index: 5; right: 16px; bottom: calc(84px + var(--chat-panel-h, 0px)); }
+  .cmp-options-mount .cmp-options-btn { width: 40px; height: 40px; padding: 0; justify-content: center; }
+  .cmp-options-mount .cmp-options-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  #stage ~ .cmp-bar { top: auto; bottom: calc(84px + var(--chat-panel-h, 0px)); right: 64px; max-width: none; flex-wrap: nowrap; gap: 6px; padding: 4px 4px 4px 12px; border-radius: 999px; }
+  #stage ~ .cmp-bar .cmp-bar-chips, #stage ~ .cmp-bar .cmp-bar-clear { display: none; }
+  #stage ~ .cmp-bar .cmp-bar-count { display: none; }
+  #stage ~ .cmp-bar { padding: 2px; }
+  #stage ~ .cmp-bar .cmp-bar-go { font-size: 0; width: 44px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
+  #stage ~ .cmp-bar .cmp-bar-go::before { content: "⇄"; font-size: 15px; }
+  #stage ~ .cmp-bar .cmp-bar-n { display: inline-grid; margin: 0; font-size: 11px; }
+  #stage ~ .cmp-bar .cmp-bar-go { padding: 8px 12px; border-radius: 999px; }
 }

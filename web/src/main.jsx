@@ -18,6 +18,7 @@ import PathReport from './report/PathReport.jsx';
 import Verified from './Verified.jsx';
 import { MakeItMine, YourConditions, personalFields, personalStore, PROPOSAL_EVENT, CHANGE_EVENT } from './personalize/index.js';
 import WeatherControl from './weather/WeatherControl.jsx';
+import { CompareRoot, CompareOptionsButton, cardCompareHTML, compareSiblings, compareStore, pinHTML } from './compare/index.js';
 import { eventDetail, stormLine, stormSummary } from './weather/weatherModel.js';
 import { UI, LANGS } from './scene/i18n.js';
 import './app.css';
@@ -38,13 +39,17 @@ function engineFields() {
   return f;
 }
 
-function tagMeta(n, lang) {
+// + the compare strip (where this option sits among its siblings) and a "+" pin (web/src/compare)
+function tagMeta(n, lang, cmp = {}) {
   if (!n.result || !(n.status === 'child' || n.status === 'sibling')) return '';
   const h = cardHeadline(n.result, lang);
   if (!h) return '';
   const a = h.a ? `<span class="slot-a ${h.a.kind}">${escHTML(h.a.text)}</span>` : '';
   const b = h.b ? `<span class="slot-b">${escHTML(h.b.text)}${h.b.vs ? `<i>${escHTML(h.b.vs)}</i>` : ''}</span>` : '';
-  return a + b;
+  const label = (id, l) => translateNode({ node_id: id, label: l }, lang).label;
+  const strip = cmp.sib ? cardCompareHTML(n, cmp.nodes, { lang, label, cmp: cmp.sib }) : '';
+  const pin = cmp.path ? pinHTML(n.status === 'child' ? [...cmp.path, n.node_id] : [...cmp.path.slice(0, -1), n.node_id], translateNode(n, lang).label, lang) : '';
+  return a + b + strip + pin;
 }
 
 function App() {
@@ -91,7 +96,7 @@ function App() {
     createScene({ world: worldRef.current, labels: labelsRef.current, onTagClick: (id, status) => onTag(id, status) }).then(async (s) => {
       if (disposed) { s.destroy(); return; }
       scene.current = s;
-      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), document.querySelector('.nav-back')] }));
+      s.setAvoid(() => ({ narration: document.querySelector('.narration'), others: [document.querySelector('.chatp-dock-wrap'), document.querySelector('.nav-back'), document.querySelector('.cmp-bar'), document.querySelector('.cmp-options-mount')].filter(Boolean) }));
       await s.intro();
       if (introRef.current) gsap.from(introRef.current.children, { opacity: 0, y: 16, duration: 1, stagger: 0.12, ease: 'power3.out' });
     });
@@ -126,9 +131,10 @@ function App() {
 
   // ---------- data + camera ----------
   function tagItems(data, l) {
+    const cmp = { nodes: data.nodes, sib: compareSiblings(data.nodes), path: (data.path || []).filter((id) => id !== '0') };
     return visibleNodes(data, seen.current)
       .filter((n) => n.node_id !== data.current && n.status !== 'chosen')
-      .map((n) => ({ id: n.node_id, status: n.status, name: translateNode(n, l).label, meta: tagMeta(n, l), clickable: n.status === 'child' || n.status === 'sibling',
+      .map((n) => ({ id: n.node_id, status: n.status, name: translateNode(n, l).label, meta: tagMeta(n, l, cmp), clickable: n.status === 'child' || n.status === 'sibling',
         custom: (n.custom || n.origin === 'user' || personalStore.isCustom(n.node_id)) ? t(l, 'yours')
           : (n.patched || n.inherits_patch || personalStore.forNode(n.node_id)?.length) ? t(l, 'yoursPatched') : '' }));
   }
@@ -212,6 +218,9 @@ function App() {
     try { setTree(await fetchTree(path, { lens: true, exploration: true })); } catch (e) { setError(e.message); } finally { setLensPending(false); }
   }
 
+  // the comparison selection changed: redraw the cards' "+" pins (full / added states)
+  useEffect(() => compareStore.subscribe(() => { const s = state.current; if (s.tree) scene.current?.setTags(tagItems(s.tree, s.lang)); }), []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // personal conditions changed (confirmed, removed, cleared): re-expand with them, and the branch re-grows
   useEffect(() => {
     const on = () => { if (state.current.tree) go(target.current, { force: true, regrow: true }); };
@@ -287,6 +296,7 @@ function App() {
         <button className="ghost-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? t(lang, 'light') : t(lang, 'dark')}</button>
         <button className="ghost-btn" aria-pressed={muted} onClick={() => { voice.current?.unlock(); setMuted(!muted); }}>{muted ? t(lang, 'soundOff') : t(lang, 'soundOn')}</button>
         <Verified lang={lang} />
+        {started && tree && !busy && !pathReport && <CompareOptionsButton tree={tree} lang={lang} className="ghost-btn cmp-options-head" />}
         {tree && <button className={`ghost-btn ${panel === 'report' ? 'on' : ''}`} onClick={() => setPanel(panel === 'report' ? null : 'report')}>{t(lang, 'report')}</button>}
       </div>
     </header>
@@ -294,6 +304,8 @@ function App() {
     {started && path.length > 0 && <button className="nav-back" onClick={back}>
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
       <span>{t(lang, 'back')}</span></button>}
+    {started && tree && !busy && !pathReport && <div className="cmp-options-mount"><CompareOptionsButton tree={tree} lang={lang} /></div>}
+    {started && <CompareRoot lang={lang} tr={(n) => translateNode(n, lang)} profile={profile} assumptions={overrides} weather={tree?.weather} />}
 
     {!started && !sheet && <section className="intro" ref={introRef}>
       <p className="eyebrow">{t(lang, 'eyebrow')}</p>
