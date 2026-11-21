@@ -44,3 +44,14 @@ test('#103: under a macro outlook slot B says how much it moves the card, in eve
   const same = { headline: { slot_b: { ...r.headline.slot_b, vs_neutral: 0.2 } } };
   assert.equal(cardHeadline(same, 'en').b.vs, 'same as the neutral outlook');
 });
+
+test('plain cards: two bullets without jargon, 4 languages', async () => {
+  const { cardBullets } = await import('./headline.js');
+  const master = cardBullets(node('2').result, 'en');
+  assert.equal(master.bullets.length, 2);
+  assert.match(master.bullets[0], /^Money runs out in month 7 unless you borrow about CHF 18’600$/);
+  assert.match(master.bullets[1], /^In 10 years you'd have about CHF [\d’]+ \(today's money\)$/);
+  for (const l of ['es', 'fr', 'de']) assert.equal(cardBullets(node('2').result, l).bullets.length, 2);
+  const out = cardBullets({ ...node('1').result, headline: { slot_b: { vs_neutral: -23921 } } }, 'en');
+  assert.match(out.bullets[1], /\(−CHF 24k vs a normal economy\)$/);
+});

@@ -14,7 +14,7 @@ import { createVoice } from './scene/voice.js';
 import { createNarrator, translateNode, openingFor, t } from './scene/narration.js';
 import { splitSentences } from './scene/voice.js';
 import { renderReport } from './scene/report.js';
-import { cardHeadline } from './scene/headline.js';
+import { cardBullets } from './scene/headline.js';
 import PathReport from './report/PathReport.jsx';
 import Verified from './Verified.jsx';
 import { MakeItMine, YourConditions, personalFields, personalStore, PROPOSAL_EVENT, CHANGE_EVENT } from './personalize/index.js';
@@ -43,14 +43,13 @@ function engineFields() {
 // + the compare strip (where this option sits among its siblings) and a "+" pin (web/src/compare)
 function tagMeta(n, lang, cmp = {}) {
   if (!n.result || !(n.status === 'child' || n.status === 'sibling')) return '';
-  const h = cardHeadline(n.result, lang);
-  if (!h) return '';
-  const a = h.a ? `<span class="slot-a ${h.a.kind}">${escHTML(h.a.text)}</span>` : '';
-  const b = h.b ? `<span class="slot-b">${escHTML(h.b.text)}${h.b.vs ? `<i>${escHTML(h.b.vs)}</i>` : ''}</span>` : '';
-  const label = (id, l) => translateNode({ node_id: id, label: l }, lang).label;
-  const strip = cmp.sib ? cardCompareHTML(n, cmp.nodes, { lang, label, cmp: cmp.sib }) : '';
+  const c = cardBullets(n.result, lang);
+  if (!c) return '';
+  // a title + two plain bullets; the plan check is only a small coloured dot; compare is the corner "+"
+  const dot = `<i class="pc-dot ${c.level}" aria-hidden="true"></i>`;
+  const list = `<ul class="plain">${c.bullets.map((b) => `<li>${escHTML(b)}</li>`).join('')}</ul>`;
   const pin = cmp.path ? pinHTML(n.status === 'child' ? [...cmp.path, n.node_id] : [...cmp.path.slice(0, -1), n.node_id], translateNode(n, lang).label, lang) : '';
-  return a + b + strip + pin;
+  return dot + list + pin;
 }
 
 function BackButton({ className, onClick, label }) {

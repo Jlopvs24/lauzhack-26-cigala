@@ -120,3 +120,37 @@ export function planCheckHTML(result, lang = 'en', esc = (s) => s) {
     ${rows ? `<h4>${L.constraints}</h4><ul class="constraints">${rows}</ul>` : ''}
     ${Number.isFinite(pc.score) ? `<p class="note">${L.score(pc.score)}</p>` : ''}</div>`;
 }
+
+// Plain-words card (Juan, 21 Nov): a title + exactly two bullets a non-finance person understands.
+// 1) does the money hold? 2) savings in 10 years (today's money), plus the outlook's effect when one is on.
+const about = (n) => { const a = Math.abs(n), r = a >= 100000 ? 1000 : 100; return chf(Math.round(a / r) * r); };
+const short = (n) => { const a = Math.abs(n); return a >= 1000 ? `CHF ${Math.round(a / 1000)}k` : chf(a); };
+export const PLAIN = {
+  en: { runsOut: (m, x) => `Money runs out in month ${m} unless you borrow about ${x}`, never: 'You never run short of money',
+    thin: 'You never run short, but your safety cushion gets thin', veryThin: 'Your safety cushion drops below one month of costs',
+    have: (x) => `In 10 years you'd have about ${x} (today's money)`, owe: (x) => `In 10 years you'd still owe about ${x}`, outlook: (d) => `(${d} vs a normal economy)` },
+  es: { runsOut: (m, x) => `El dinero se acaba en el mes ${m} si no pides unos ${x}`, never: 'Nunca te quedas sin dinero',
+    thin: 'Nunca te quedas sin dinero, pero tu colchón se queda justo', veryThin: 'Tu colchón baja de un mes de gastos',
+    have: (x) => `En 10 años tendrías unos ${x} (dinero de hoy)`, owe: (x) => `En 10 años aún deberías unos ${x}`, outlook: (d) => `(${d} frente a una economía normal)` },
+  fr: { runsOut: (m, x) => `L'argent manque au mois ${m}, sauf si tu empruntes environ ${x}`, never: "Tu ne manques jamais d'argent",
+    thin: "Tu ne manques jamais d'argent, mais ton coussin devient mince", veryThin: "Ton coussin de sécurité tombe sous un mois de dépenses",
+    have: (x) => `Dans 10 ans, tu aurais environ ${x} (argent d'aujourd'hui)`, owe: (x) => `Dans 10 ans, tu devrais encore environ ${x}`, outlook: (d) => `(${d} par rapport à une économie normale)` },
+  de: { runsOut: (m, x) => `Das Geld reicht bis Monat ${m}, außer du leihst dir etwa ${x}`, never: 'Dir geht nie das Geld aus',
+    thin: 'Dir geht nie das Geld aus, aber dein Notgroschen wird knapp', veryThin: 'Dein Notgroschen fällt unter einen Monat Ausgaben',
+    have: (x) => `In 10 Jahren hättest du etwa ${x} (heutiges Geld)`, owe: (x) => `In 10 Jahren schuldest du noch etwa ${x}`, outlook: (d) => `(${d} gegenüber einer normalen Wirtschaft)` },
+};
+export function cardBullets(result, lang = 'en') {
+  const P = PLAIN[lang] || PLAIN.en, m = result?.metrics;
+  if (!m) return null;
+  const B = result.headline?.slot_b;
+  let one;
+  if (m.first_negative_month != null) one = P.runsOut(m.first_negative_month + 1, about(-(m.min_cash ?? 0)));
+  else if (Number.isFinite(m.liquidity_months) && m.liquidity_months < 1) one = P.veryThin;
+  else if (Number.isFinite(m.liquidity_months) && m.liquidity_months < 3) one = P.thin;
+  else one = P.never;
+  const nw = Number.isFinite(m.final_net_worth_real) ? m.final_net_worth_real : m.final_net_worth;
+  let two = Number.isFinite(nw) ? (nw >= 0 ? P.have(about(nw)) : P.owe(about(nw))) : '';
+  if (two && B?.vs_neutral != null && Math.abs(B.vs_neutral) >= 500) two += ` ${P.outlook(signed(short(B.vs_neutral), B.vs_neutral))}`;
+  const level = result.plan_check?.level || (m.first_negative_month != null ? 'needs_financing' : 'holds');
+  return { level, bullets: [one, two].filter(Boolean) };
+}
