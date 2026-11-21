@@ -24,6 +24,9 @@ EVENT_PARAMS = ("one_off_cost", "one_off_income", "new_liability", "loan_change"
                 "tax_residence")  # #48 item 3: where/as what income is taxed from from_month
 MODEL_PARAMS = ("assumption",)  # node-level assumption values, applied by AssumptionSet.with_node_values
 OPS = ("set", "add", "mul")
+# #48 item 5: amounts may be in EUR (converted each month at the EURCHF path); only these params
+CURRENCIES = ("CHF", "EUR")
+FX_PARAMS = ("monthly_net_income", "monthly_rent", "monthly_other_expenses", "one_off_cost", "one_off_income")
 # What "monthly_net_income" means (#48 item 1). net_before_tax: after social contributions, before
 # income tax (the Swiss payslip "Nettolohn"; residents pay income tax separately), so the engine
 # charges income tax. take_home: what is left after income tax too, so no income tax is charged
@@ -210,6 +213,7 @@ class Intervention:
     liability: Liability | None = None
     loan: str = ""  # loan_change: label of the loan to change
     residence: dict | None = None  # tax_residence: {city?, canton?, country?, household?}
+    currency: str = "CHF"  # #48 item 5
     monthly_payment: float | None = None
     annual_rate: float | None = None
 
@@ -239,6 +243,11 @@ def parse_interventions(items: list[dict], assumptions: dict[str, float], horizo
     for i, it in enumerate(items or []):
         lab = f"{where}[{i}]"
         param = it.get("param")
+        cur = str(it.get("currency", "CHF")).upper()
+        if cur not in CURRENCIES:
+            raise ValueError(f"{lab}.currency must be one of {CURRENCIES}")
+        if cur != "CHF" and param not in FX_PARAMS:
+            raise ValueError(f"{lab}.currency {cur} is only supported for {FX_PARAMS}")
         if param in SERIES_PARAMS:
             op = it.get("op", "set")
             if op not in OPS:
@@ -249,13 +258,14 @@ def parse_interventions(items: list[dict], assumptions: dict[str, float], horizo
             if end <= start:
                 raise ValueError(f"{lab}: to_month must be > from_month")
             out.append(Intervention(param=param, op=op, value=resolve_value(it.get("value", 0), assumptions, f"{lab}.value"),
-                                    from_month=start, to_month=end, label=str(it.get("label", ""))))
+                                    from_month=start, to_month=end, label=str(it.get("label", "")), currency=cur))
         elif param in ("one_off_cost", "one_off_income"):
             m = month_int(it.get("month", 0), f"{lab}.month", horizon)
             v = resolve_value(it.get("value", 0), assumptions, f"{lab}.value")
             if v < 0:
                 raise ValueError(f"{lab}.value cannot be negative (use the other event type)")
-            out.append(Intervention(param=param, op="add", value=v, month=m, label=str(it.get("label", param))))
+            out.append(Intervention(param=param, op="add", value=v, month=m, label=str(it.get("label", param)),
+                                    currency=cur))
         elif param == "new_liability":
             m = month_int(it.get("month", 0), f"{lab}.month", horizon)
             spec = dict(it.get("liability", {}))

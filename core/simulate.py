@@ -10,7 +10,7 @@ import numpy as np
 
 from . import analysis as an
 from .assumptions import AssumptionSet, build_assumptions
-from .engine import FLOW_KEYS, PAYROLL_KEYS, PILLAR3A_KEYS, run, run_batch
+from .engine import FLOW_KEYS, FX_KEYS, PAYROLL_KEYS, PILLAR3A_KEYS, run, run_batch
 from .models import Profile, parse_interventions
 from .schedule import build_schedule
 from .explore import explore_node, levers
@@ -147,6 +147,9 @@ def simulate_node(profile: dict | Profile, interventions: list[dict] | None = No
             deterministic["flows"].update({k: an.series(f[k]) for k in PAYROLL_KEYS})
         if has_3a:
             deterministic["flows"].update({k: an.series(f[k]) for k in PILLAR3A_KEYS})
+        if sched.eur is not None:
+            deterministic["flows"].update({k: [round(float(x), 4) if k == "eurchf" else round(float(x), 2) for x in f[k]]
+                                           for k in FX_KEYS})
 
     tornado = sensitivity_analysis(prof, interventions, aset, weather, seed) if (sensitivity or exploration) else None
     result = {

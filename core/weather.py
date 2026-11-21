@@ -29,6 +29,16 @@ CATALOG = {
         "description": "Invested savings lose a share of their value in one month, then markets behave as usual.",
         "defaults": {"start_month": 12, "drop": 0.30},
     },
+    "chf_strengthens": {
+        "label": "Swiss franc strengthens",
+        "description": "EURCHF falls by a share from the start month: what is earned or spent in EUR is worth fewer francs.",
+        "defaults": {"start_month": 0, "duration_months": 1200, "change": -0.10},
+    },
+    "chf_weakens": {
+        "label": "Swiss franc weakens",
+        "description": "EURCHF rises by a share from the start month: what is earned or spent in EUR is worth more francs.",
+        "defaults": {"start_month": 0, "duration_months": 1200, "change": 0.10},
+    },
     "job_loss": {
         "label": "Job loss",
         "description": "Income stops for a few months; unemployment insurance replaces part of it "
@@ -51,6 +61,7 @@ class WeatherArrays:
     job_loss_multiplier: np.ndarray  # (H,)
     forced_unemployment: np.ndarray  # (H,) bool
     applied: list[dict]
+    fx_factor: np.ndarray | None = None  # (H,) multiplies EURCHF (#48 item 5), 1 = assumption
 
 
 def build_weather(events: list[dict] | None, H: int) -> WeatherArrays:
@@ -62,6 +73,7 @@ def build_weather(events: list[dict] | None, H: int) -> WeatherArrays:
         job_loss_multiplier=np.ones(H),
         forced_unemployment=np.zeros(H, dtype=bool),
         applied=[],
+        fx_factor=np.ones(H),
     )
     for i, ev in enumerate(events or []):
         ev = {"type": ev} if isinstance(ev, str) else ev
@@ -87,5 +99,10 @@ def build_weather(events: list[dict] | None, H: int) -> WeatherArrays:
             end = start + 1
         elif typ == "job_loss":
             w.forced_unemployment[win] = True
+        elif typ in ("chf_strengthens", "chf_weakens"):
+            ch = num(p["change"], "change")
+            if ch <= -1:
+                raise ValueError(f"{typ}.change must be > -1")
+            w.fx_factor[win] *= 1.0 + ch
         w.applied.append({"type": typ, "label": CATALOG[typ]["label"], **p, "end_month": end})
     return w

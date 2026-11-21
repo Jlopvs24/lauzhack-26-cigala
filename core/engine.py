@@ -41,6 +41,8 @@ FLOW_KEYS = ("income", "income_tax", "living_expenses", "one_off_cost", "one_off
              "investment_return", "contribution", "withdrawal")
 # pillar 3a (#48 item 4): cash -> locked 3a account, its return, and (informational) the income tax it saved
 PILLAR3A_KEYS = ("pillar_3a_contribution", "pillar_3a_return", "pillar_3a_tax_saving")
+# EUR amounts (#48 item 5), informational: already converted inside income / living_expenses / one-offs
+FX_KEYS = ("income_eur", "spending_eur", "eurchf")
 # informational payroll lines (#48 item 2): already deducted from `income`, not cash flows themselves
 PAYROLL_KEYS = ("gross_income", "social_contributions", "bvg_employee", "bvg_employer")
 
@@ -49,7 +51,7 @@ PARAMS = ("inflation_mean", "inflation_sd", "real_wage_growth", "investment_retu
           "unemployment_mean_duration_months", "unemployment_replacement_rate",
           "unexpected_expense_annual_prob", "unexpected_expense_mean", "income_tax_scale",
           "auto_liquidate_investments", "pillar3a_max", "pillar3a_max_no_bvg", "pillar3a_no_bvg_share",
-          "pillar3a_return", "payroll_bvg_entry")
+          "pillar3a_return", "payroll_bvg_entry", "eurchf")
 
 
 @dataclass
@@ -118,6 +120,23 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
     expense_plan = np.repeat(np.stack([s.expenses for s in scheds]), n, axis=0)
     cost_plan = stack("one_off_cost")
     extra_plan = stack("one_off_income")
+    # EUR parts converted at EURCHF (assumption x weather factor), then floored at 0 like CHF plans
+    any_eur = any(s.eur is not None for s in scheds)
+    if any_eur:
+        z = np.zeros(H)
+
+        def eur(k):
+            return np.repeat(np.stack([s.eur[k] if s.eur is not None else z for s in scheds]), n, axis=0)
+
+        wlist = weather if isinstance(weather, list) else [weather] * K
+        fxw = np.repeat(np.stack([(w.fx_factor if w.fx_factor is not None else np.ones(H)) for w in wlist]), n, axis=0)
+        fx = np.repeat(np.array([float(a["eurchf"]) for a in As]), n)[:, None] * fxw  # (N, H) CHF per EUR
+        e_inc, e_spend = eur("income"), eur("rent") + eur("other_expenses")
+        e_cost, e_extra = eur("one_off_cost"), eur("one_off_income")
+        income_plan = np.maximum(income_plan + e_inc * fx, 0.0)
+        expense_plan = np.maximum(expense_plan + e_spend * fx, 0.0)
+        cost_plan = cost_plan + e_cost * fx
+        extra_plan = extra_plan + e_extra * fx
     contrib_plan = stack("investment_contribution")
     zeros_h = np.zeros(H)
     p3_plan = np.repeat(np.stack([s.pillar_3a if s.pillar_3a is not None else zeros_h for s in scheds]), n, axis=0)
@@ -220,7 +239,7 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
     inv = np.empty((N, H + 1))
     cash[:, 0] = opening_cash
     inv[:, 0] = opening_investments
-    flows = {k: np.zeros((N, H)) for k in FLOW_KEYS + PAYROLL_KEYS + PILLAR3A_KEYS} if keep_flows else None
+    flows = {k: np.zeros((N, H)) for k in FLOW_KEYS + PAYROLL_KEYS + PILLAR3A_KEYS + FX_KEYS} if keep_flows else None
     p3 = np.empty((N, H + 1))
     p3[:, 0] = p3_open
     g3 = _monthly(P["pillar3a_return"])
@@ -308,6 +327,10 @@ def run_batch(scheds: list[Schedule], As: list[dict[str, float]], opening_cash: 
             flows["pillar_3a_contribution"][:, t] = c3
             flows["pillar_3a_return"][:, t] = ret3
             flows["pillar_3a_tax_saving"][:, t] = saving
+            if any_eur:
+                flows["income_eur"][:, t] = e_inc[:, t] * emp * wage_t[:, t]
+                flows["spending_eur"][:, t] = (e_spend[:, t] + e_cost[:, t]) * price_t[:, t]
+                flows["eurchf"][:, t] = fx[:, t]
             on_pay = np.where(unemployed, 0.0, 1.0) * wage_t[:, t]  # no payslip while unemployed
             for k, plan in pay_plan.items():
                 flows[k][:, t] = plan[:, t] * on_pay

@@ -75,6 +75,7 @@ The tree content is editable data. `alexia-v2` (issue #25) is the 3 x 3 x 3 tree
 | `param` | Fields | Effect |
 |---|---|---|
 | `monthly_net_income`, `monthly_rent`, `monthly_other_expenses`, `monthly_investment_contribution` | `op` (`set` / `add` / `mul`), `value`, `from_month`, `to_month` | changes the planned monthly amount in the window (never below 0) |
+| `currency` (on `monthly_net_income`, `monthly_rent`, `monthly_other_expenses`, `one_off_cost`, `one_off_income`) | `"CHF"` (default) or `"EUR"` | #48 item 5: the amount is in EUR (today's prices) and is converted every month at `AS-eurchf` (ECB reference rate, constant unless an FX weather moves it). `set` in EUR replaces the CHF amount in the window (and a Swiss gross salary for income); `set` in CHF replaces an EUR one (coming back); `add` adds in its own currency; `mul` scales both. A month mixing CHF and EUR is floored at 0 after conversion. Other params reject `EUR`; any other currency is rejected. With EUR amounts, `deterministic.flows` gains `income_eur`, `spending_eur` (rent + living + EUR one-offs, in EUR) and `eurchf` (the rate used each month); `income`, `living_expenses` and one-offs are already in CHF |
 | `monthly_pillar_3a` | `op`, `value`, `from_month`, `to_month` | #48 item 4: changes the planned pillar 3a payment (capped as above) |
 | `tax_residence` | `city` / `canton` / `country` and/or `household`, `from_month`, `to_month` (optional), `label` | #48 item 3: from `from_month` the income is taxed at that place and/or as that household (a later one wins; `household` alone keeps the place, e.g. getting married). `country` other than `CH` = abroad, flat `AS-tax-abroad-rate`. Ignored with `income_basis: take_home` (never taxed). The timing analysis delays it like a monthly change |
 | `monthly_gross_income` | same fields | #48 item 2: sets/changes the gross salary in the window; it is converted to net by the payroll layer (needs the profile's `age`). In months paid from a gross salary, a `monthly_net_income` `add`/`mul` adjusts the resulting net (e.g. a side job); a `monthly_net_income` `set` replaces the gross salary in its window (e.g. a job paid net) |
@@ -113,6 +114,7 @@ Sent as `["recession", "inflation"]` or with parameters `[{"type": "recession", 
 | `inflation` | `start_month` 0, `duration_months` 24, `annual_rate` 0.05 | prices rise at 5% while wages keep their usual pace |
 | `market_crash` | `start_month` 12, `drop` 0.30 | investments lose 30% in one month |
 | `job_loss` | `start_month` 12, `duration_months` 6 | income replaced by unemployment insurance (`AS-unemployment-replacement`) |
+| `chf_strengthens` / `chf_weakens` | `start_month` 0, `change` -0.10 / +0.10, `duration_months` to the horizon | #48 item 5: EURCHF × (1 + change) from the start month; moves only amounts given in EUR. Not part of the resilience score's weather set |
 
 ## `expand` result (POST `/tree/expand`)
 

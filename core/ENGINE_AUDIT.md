@@ -99,7 +99,7 @@ Counts (from the files): 15 default assumptions (7 verified, 8 not), 24 tree ass
 3. **No pillar 2 / 3a** (pillar 2 since #48 item 2, 3a since #48 item 4). Retirement saving is the most "Swiss" part of personal finance and is
    absent: no BVG savings as a (non-liquid) asset, no 3a contribution lever with its tax
    deduction. A judge from UBS will likely ask "what about 3a?".
-4. **Move abroad ignores currency and foreign rules.** Salary and costs are CHF at a constant
+4. **Move abroad ignores currency and foreign rules** (currency since #48 item 5, foreign tax as one rate since item 3). Salary and costs are CHF at a constant
    rate; no EUR path, no FX shock, no foreign tax or social security, no health-insurance change.
 5. **Unemployment rules are simplified.** The job-loss hazard uses the *stock* unemployment
    rate as an annual *inflow* probability (conceptually different); everyone with income is
@@ -137,7 +137,7 @@ T = transparency 10) against effort (S < 1 h, M 1-3 h, L > 3 h). Ranked for toni
 | 2 | ✅ Tax by city/canton/household + abroad tax, ESTV 2026 tables (#48 item 3); arrears timing not done | C+++ | M-L | done; see the design note |
 | 3 | ✅ Pillar 3a lever (+ tax deduction, locked asset), #48 item 4 | C++ E++ | M | done; see the design note |
 | 4 | Combined decisions + 2-lever surfaces + constraint-targeted search | E+++ | M | "what if master's AND share a flat", "what salary AND rent keep the plan feasible" |
-| 5 | Currency for move abroad (EUR + EURCHF path + FX weather) | C++ E+ | M | the abroad branch becomes defensible |
+| 5 | ✅ Currency for move abroad (EUR + EURCHF path + FX weather), #48 item 5 | C++ E+ | M | done; see the design note |
 | 6 | Unemployment eligibility, cap, 520 days, inflow hazard | C+ | S-M | cheap, fixes a known conceptual error |
 | 7 | Category inflation (health premiums, rent reference rate) | C+ | S-M | small code, sourced parameters |
 | 8 | Goals with a `net_of_debt` option, loan proceeds labelled | C+ T+ | S | removes a visible oddity |
@@ -229,6 +229,19 @@ plan check and final net worth for start months 0..36, the latest start that sti
 **5. Currency.** Node-level `currency: "EUR"` on income/expense interventions + assumption
 `EURCHF` path (constant by default, a weather `chf_strengthens` / `chf_weakens` as a shift);
 amounts converted each month; FX shown in `flows`. Tests: constant rate reproduces today exactly.
+
+*Done (#48 item 5):* `currency: "EUR"` on income, rent, living costs and one-offs; `AS-eurchf`
+0.9223 (ECB reference rate, 20 Nov 2026, verified; held constant, no forecast); weathers
+`chf_strengthens` / `chf_weakens` (±10% from a month); flows `income_eur`, `spending_eur`,
+`eurchf`; the tornado now includes the rate (range 0.85–1.00). The tree's "Move abroad" branch is
+in EUR, converted from the kit's CHF figures at that rate (salary EUR 4,012, rent 1,301, living
+1,843, promotion 602, shared-flat saving 542, deposit 2,711), so at a constant rate its numbers
+only move by rounding; the moving costs to and from Switzerland stay in CHF. Fixed with it: node
+3.3 "Come back after 3 years" is taxed in Lausanne again from month 36 (it stayed at the abroad
+rate since #48 item 3; +CHF 5.5k final net worth on 3.3 and 3.3.1, +4.6k on 3.3.2). Not done:
+cost of living by city (the kit does not name the city abroad; the amounts are the kit's, to
+replace with Eurostat price levels for a chosen city), EUR inflation (EUR amounts are indexed with
+Swiss inflation and wage growth), FX volatility in the Monte Carlo lens, foreign social security.
 
 **6. Unemployment.** Eligibility flag from the income history (≥ 12 of the last 24 months with
 income), benefit cap at the insured-salary maximum, duration cap (520 daily allowances ≈ 24
