@@ -134,7 +134,7 @@ def _context(profile: dict | None, path: list[str], node_id: str, overrides: lis
         except (KeyError, ValueError):
             pass
     levers = []
-    explore = engine.explore_fn()
+    explore = None  # P0 speed: no engine call for levers here; the node's own assumptions are enough
     if explore:
         try:
             ex = explore(profile, path, overrides, [])
@@ -387,21 +387,62 @@ def explanation_template(label: str, ivs: list[dict], H: int, mode: str) -> str:
 
 
 # ------------------------------------------------------------------ main
+LLM_TIMEOUT_S = float(__import__("os").environ.get("PERSONALIZE_LLM_TIMEOUT_S", "8"))
+FALLBACK_MODEL = __import__("os").environ.get("PERSONALIZE_FALLBACK_MODEL", "mistralai/ministral-8b-2512")
+FALLBACK_TIMEOUT_S = 5.0
+REPAIR_IF_UNDER_S = 5.0  # only repair a schema error if the whole request is still under this
+
+
+def _proposal(node_id: str, ctx: dict, ivs: list[dict], label: str, chosen: str) -> dict:
+    node_label = ctx["node"]["label"] or node_id
+    if chosen == "patch":
+        return {"mode": "patch", "node_id": node_id, "label": label,
+                "description": f"{label} (on “{node_label}”)", "interventions": ivs,
+                "apply": {"node_patches": {node_id: ivs}}}
+    taken = {str(c.get("node_id")) for c in engine.extras().get("custom_nodes") or []}
+    k = 1
+    while f"{node_id}.c{k}" in taken:
+        k += 1
+    new_id = f"{node_id}.c{k}"
+    custom = {"parent_id": node_id, "node_id": new_id, "label": f"{node_label}: {label}"[:80],
+              "description": f"{node_label}, with {label}", "interventions": ivs, "custom": True}
+    return {"mode": "new_branch", "parent_id": node_id, **custom, "apply": {"custom_nodes": [custom]}}
+
+
+def _llm_json(msgs: list[dict], model: str | None, timeout: float, purpose: str) -> tuple[dict, str, float, str]:
+    r = llm.chat(msgs, model=model, purpose=purpose, temperature=0, max_tokens=400, reasoning={"enabled": False},
+                 response_format={"type": "json_object"}, timeout=timeout)
+    raw = re.sub(r"^```(?:json)?|```$", "", (r["message"].get("content") or "").strip(), flags=re.M).strip()
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        m = re.search(r"\{.*\}", raw, re.S)
+        parsed = json.loads(m.group(0)) if m else {}
+    return parsed, raw, r["cost_usd"], r["model"]
+
+
 def personalize(profile: dict | None, path: list[str], node_id: str, text: str, language: str | None = None,
                 mode: str = "auto", overrides: list[dict] | None = None) -> dict:
+    """Rules first (~ms), then the LLM with a hard timeout and one faster fallback, never hanging:
+    worst case is a clarifying question in about LLM_TIMEOUT_S + FALLBACK_TIMEOUT_S."""
+    from api import personalize_rules
+
     t0 = time.perf_counter()
     text = (text or "").strip()[:1000]
     lang = agent.detect_language(text, language)
     base = {"proposal": None, "explanation": None, "clarifying_question": None, "language": lang,
-            "cost_usd": 0.0, "model": None, "text": text}
+            "cost_usd": 0.0, "model": None, "text": text, "parser": None}
 
     def done(**kw):
-        return {**base, **kw, "latency_ms": int((time.perf_counter() - t0) * 1000)}
+        out = {**base, **kw, "latency_ms": int((time.perf_counter() - t0) * 1000)}
+        log.info("personalize parser=%s latency_ms=%d proposal=%s model=%s", out.get("parser"), out["latency_ms"],
+                 bool(out.get("proposal")), out.get("model"))
+        return out
 
     if mode not in MODES:
         mode = "auto"
     if not text or agent.scope_gate(text) in ("injection", "off_topic"):
-        return done(clarifying_question=_REFUSE.get(lang, _REFUSE["en"]), refused=True)
+        return done(clarifying_question=_REFUSE.get(lang, _REFUSE["en"]), refused=True, parser="gate")
     path = [p for p in (path or []) if p and p != "0"]
     node_id = str(node_id or (path[-1] if path else "0"))
     if node_id not in path and node_id != "0":
@@ -411,80 +452,84 @@ def personalize(profile: dict | None, path: list[str], node_id: str, text: str, 
             pass  # a custom node: keep the client's path
     ctx = _context(profile, path, node_id, overrides or [])
     H = ctx["horizon_months"]
-    if not llm.available():
-        return done(clarifying_question=_ASK.get(lang, _ASK["en"]), error="LLM unavailable")
 
+    def finish(ivs, label, chosen, parser, explanation=None, model=None):
+        ivs, errors = validate(ivs, ctx)
+        ungrounded = _check_numbers(ivs, _user_numbers(text), ctx, text)
+        if errors or ungrounded:
+            return None, {"errors": errors, "numbers_not_in_your_words": ungrounded}
+        chosen = mode if mode != "auto" else (chosen if chosen in ("patch", "new_branch") else "patch")
+        label = str(label or "My condition")[:60]
+        template = explanation_template(label, ivs, H, chosen)
+        expl = str(explanation or "").strip()
+        if expl:  # the model's own sentence (user's language) only if its numbers are the user's or the template's
+            expl, _ = agent.strip_advice(expl)
+            expl, _ = agent.soften_forecasts(expl)
+            if not agent.check_grounding(expl, [template, ivs], text)["grounded"]:
+                expl = ""
+        return done(proposal=_proposal(node_id, ctx, ivs, label, chosen), explanation=expl or template,
+                    explanation_template=template, parser=parser, model=model,
+                    validation={"errors": [], "numbers_not_in_your_words": [], "numbers_checked": True}), None
+
+    # 1. deterministic fast path
+    try:
+        ruled = personalize_rules.parse(text, ctx)
+    except Exception as e:  # noqa: BLE001  a rules bug must never break the endpoint
+        log.warning("rules parser failed: %s", e)
+        ruled = None
+    if ruled and ruled.get("missing"):
+        return done(clarifying_question=_ASK.get(lang, _ASK["en"]), parser="rules",
+                    validation={"errors": ["no amount in your words"], "numbers_not_in_your_words": []})
+    if ruled and ruled.get("interventions"):
+        out, why = finish(ruled["interventions"], ruled.get("label"), ruled.get("mode"), "rules")
+        if out:
+            return out
+        log.info("rules proposal rejected (%s); trying the LLM", why)
+
+    # 2. LLM, bounded: primary (frugal) model, then one faster fallback, then a clarifying question
+    if not llm.available():
+        return done(clarifying_question=_ASK.get(lang, _ASK["en"]), error="LLM unavailable", parser="none")
     mode_rule = "" if mode == "auto" else f'The caller fixed mode = "{mode}".'
+    small_ctx = {k: ctx[k] for k in ("node", "assumptions", "horizon_months", "profile")}
+    small_ctx["path_above"] = [{"label": c["label"], "interventions": c["interventions"]} for c in ctx["path_above"]]
     msgs = [{"role": "system", "content": SYSTEM.format(lang_name=_LANG_NAMES.get(lang, "English"), horizon=H,
-                                                       mode_rule=mode_rule, context=json.dumps(ctx, ensure_ascii=False))},
+                                                       mode_rule=mode_rule,
+                                                       context=json.dumps(small_ctx, ensure_ascii=False))},
             {"role": "user", "content": text}]
-    try:
-        r = llm.chat(msgs, purpose="personalize", temperature=0, max_tokens=500, reasoning={"enabled": False},
-                     response_format={"type": "json_object"})
-    except Exception as e:  # noqa: BLE001
-        return done(clarifying_question=_ASK.get(lang, _ASK["en"]), error=str(e)[:200])
-    cost, model = r["cost_usd"], r["model"]
-    raw = (r["message"].get("content") or "").strip()
-    raw = re.sub(r"^```(?:json)?|```$", "", raw, flags=re.M).strip()
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        m = re.search(r"\{.*\}", raw, re.S)
-        parsed = json.loads(m.group(0)) if m else {}
+    parsed, raw, cost, model, err = {}, "", 0.0, None, None
+    for mdl, tmo in ((llm.models()[0], LLM_TIMEOUT_S), (FALLBACK_MODEL, FALLBACK_TIMEOUT_S)):
+        try:
+            parsed, raw, c, model = _llm_json(msgs, mdl, tmo, "personalize")
+            cost += c
+            err = None
+            break
+        except Exception as e:  # noqa: BLE001  timeout / provider error -> next model
+            err = f"{mdl}: {type(e).__name__}: {str(e)[:120]}"
+            log.warning("personalize LLM failed (%s)", err)
     base.update(cost_usd=round(cost, 6), model=model)
+    if err and not parsed:
+        return done(clarifying_question=_ASK.get(lang, _ASK["en"]), error=err, parser="llm-timeout")
 
     question = parsed.get("clarifying_question") or None
     if not parsed.get("understood") or not parsed.get("interventions"):
-        return done(clarifying_question=question or _ASK.get(lang, _ASK["en"]))
-    ivs, errors = validate(parsed.get("interventions"), ctx)
-    if errors:  # one repair round: show the model its schema errors (costs one more small call)
+        return done(clarifying_question=question or _ASK.get(lang, _ASK["en"]), parser="llm")
+    out, why = finish(parsed.get("interventions"), parsed.get("label"), parsed.get("mode"), "llm",
+                      parsed.get("explanation"), model)
+    if out:
+        return out
+    if why["errors"] and time.perf_counter() - t0 < REPAIR_IF_UNDER_S:  # one repair round, only with time left
         try:
-            r2 = llm.chat(msgs + [{"role": "assistant", "content": raw},
-                                  {"role": "user", "content": "Your JSON broke the schema: " + "; ".join(errors)
-                                   + ". Return the corrected JSON object only, same rules."}],
-                          model=model, purpose="personalize-repair", temperature=0, max_tokens=500,
-                          reasoning={"enabled": False}, response_format={"type": "json_object"})
-            cost += r2["cost_usd"]
-            raw2 = re.sub(r"^```(?:json)?|```$", "", (r2["message"].get("content") or "").strip(), flags=re.M)
-            m2 = re.search(r"\{.*\}", raw2, re.S)
-            parsed2 = json.loads(m2.group(0)) if m2 else {}
+            fix = msgs + [{"role": "assistant", "content": raw},
+                          {"role": "user", "content": "Your JSON broke the schema: " + "; ".join(why["errors"])
+                           + ". Return the corrected JSON object only, same rules."}]
+            parsed2, _, c2, _ = _llm_json(fix, model, FALLBACK_TIMEOUT_S, "personalize-repair")
+            base.update(cost_usd=round(cost + c2, 6))
             if parsed2.get("understood") and parsed2.get("interventions"):
-                parsed = parsed2
-                ivs, errors = validate(parsed.get("interventions"), ctx)
+                out, why = finish(parsed2.get("interventions"), parsed2.get("label"), parsed2.get("mode"),
+                                  "llm-repaired", parsed2.get("explanation"), model)
+                if out:
+                    return out
         except Exception as e:  # noqa: BLE001
             log.info("repair failed: %s", e)
-        base.update(cost_usd=round(cost, 6))
-    user_nums = _user_numbers(text)
-    ungrounded = _check_numbers(ivs, user_nums, ctx, text)
-    if errors or ungrounded:
-        log.info("personalize rejected: errors=%s ungrounded=%s", errors, ungrounded)
-        return done(clarifying_question=question or _ASK.get(lang, _ASK["en"]),
-                    validation={"errors": errors, "numbers_not_in_your_words": ungrounded})
-
-    chosen = parsed.get("mode") if mode == "auto" else mode
-    chosen = chosen if chosen in ("patch", "new_branch") else "patch"
-    label = str(parsed.get("label") or "My condition")[:60]
-    node_label = ctx["node"]["label"] or node_id
-    if chosen == "patch":
-        proposal = {"mode": "patch", "node_id": node_id, "label": label,
-                    "description": f"{label} (on “{node_label}”)", "interventions": ivs,
-                    "apply": {"node_patches": {node_id: ivs}}}
-    else:
-        taken = {str(c.get("node_id")) for c in engine.extras().get("custom_nodes") or []}
-        k = 1
-        while f"{node_id}.c{k}" in taken:
-            k += 1
-        new_id = f"{node_id}.c{k}"
-        custom = {"parent_id": node_id, "node_id": new_id, "label": f"{node_label}: {label}"[:80],
-                  "description": f"{node_label}, with {label}", "interventions": ivs, "custom": True}
-        proposal = {"mode": "new_branch", "parent_id": node_id, **custom, "apply": {"custom_nodes": [custom]}}
-
-    template = explanation_template(label, ivs, H, chosen)
-    expl = str(parsed.get("explanation") or "").strip()
-    if expl:  # the model's own sentence (user's language) only if its numbers are the user's or the template's
-        expl, _ = agent.strip_advice(expl)
-        expl, _ = agent.soften_forecasts(expl)
-        if not agent.check_grounding(expl, [template, ivs], text)["grounded"]:
-            expl = ""
-    return done(proposal=proposal, explanation=expl or template, explanation_template=template,
-                validation={"errors": [], "numbers_not_in_your_words": [], "numbers_checked": True})
+    log.info("personalize rejected: %s", why)
+    return done(clarifying_question=question or _ASK.get(lang, _ASK["en"]), validation=why, parser="llm")

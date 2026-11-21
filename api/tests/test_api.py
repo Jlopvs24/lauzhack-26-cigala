@@ -618,6 +618,9 @@ def test_personalize_refuses_numbers_not_in_the_users_words(monkeypatch):
     _fake_parser(monkeypatch, {"understood": True, "mode": "patch", "label": "Scholarship",
                                "interventions": [_iv(value=600)], "explanation": "", "clarifying_question": None})
     j = c.post("/tree/personalize", json={"path": ["2"], "text": "I would get a scholarship"}).json()
+    assert j["proposal"] is None and j["clarifying_question"] and j["parser"] == "rules"  # instant, no LLM
+    # a phrasing the rules do not recognise goes to the LLM; its invented 600 is rejected
+    j = c.post("/tree/personalize", json={"path": ["2"], "text": "Things would be a bit different for me"}).json()
     assert j["proposal"] is None and j["clarifying_question"]
     assert j["validation"]["numbers_not_in_your_words"] == ["value=600"]
 
@@ -627,8 +630,8 @@ def test_personalize_validates_ranges_and_repairs_once(monkeypatch):
            "interventions": [{"param": "add", "value": 300}], "explanation": "", "clarifying_question": None}
     good = {**bad, "interventions": [_iv(value=300)]}
     calls = _fake_parser(monkeypatch, bad, good)
-    j = c.post("/tree/personalize", json={"path": ["2"], "text": "my parents give me 300 a month for 2 years"}).json()
-    assert j["proposal"] and len(calls) == 2  # one repair round
+    j = c.post("/tree/personalize", json={"path": ["2"], "text": "something worth 300, over 2 years"}).json()
+    assert j["proposal"] and len(calls) == 2 and j["parser"] == "llm-repaired"  # one repair round
     calls = _fake_parser(monkeypatch, {**bad, "interventions": [_iv(value=300, op="set", from_month=50, to_month=10)]})
     j = c.post("/tree/personalize", json={"path": ["2"], "text": "300 a month from month 50 to 10"}).json()
     assert j["proposal"] is None and any("months must satisfy" in e for e in j["validation"]["errors"])
@@ -831,3 +834,59 @@ def test_tree_compare_ranking_and_baseline_and_errors():
     for bad in ({"paths": [["1"]]}, {"paths": [["1"], ["1"]]}, {"paths": [["1"], ["9.9"]]},
                 {"paths": [["1"], ["2"]], "baseline": "best"}, {"paths": [["1"], ["2"], ["3"], ["1", "1.1"], ["2", "2.1"]]}):
         assert c.post("/tree/compare", json=bad).status_code == 422, bad
+
+
+
+# ------------------------------------------------------------------ P0: deterministic fast path, bounded LLM
+@pytest.mark.parametrize("path,text,param,value", [
+    (["2"], "I'd get a CHF 600/month scholarship", "monthly_net_income", 600),
+    (["2"], "A scholarship of CHF 7'200 a year", "monthly_net_income", 600),
+    (["2"], "Mis padres me darían 300 francos al mes durante dos años", "monthly_net_income", 300),
+    (["2"], "Je toucherais une bourse de 450 francs par mois", "monthly_net_income", 450),
+    (["2"], "Ich würde ein Stipendium von 600 CHF pro Monat bekommen", "monthly_net_income", 600),
+    (["2"], "Une colocation à 650 francs par mois au lieu du studio", "monthly_rent", 650),
+    (["2"], "Meine Oma würde mir 5000 CHF schenken", "one_off_income", 5000),
+    (["2"], "I'd buy a car for 15000", "one_off_cost", 15000),
+    (["2"], "Après le master je trouverais un job à 6500 francs brut par mois", "monthly_gross_income", 6500),
+    (["2"], "I'd move to Zurich after the master's", "tax_residence", None),
+    (["1"], "I'd get married next year", "tax_residence", None),
+    (["1"], "Ich würde nach Genf ziehen, ab nächstem Jahr", "tax_residence", None),
+    (["3"], "Me iría a vivir a Alemania", "tax_residence", None),
+])
+def test_personalize_fast_path_without_llm(monkeypatch, path, text, param, value):
+    calls = _fake_parser(monkeypatch, {"understood": False})
+    j = c.post("/tree/personalize", json={"path": path, "text": text}).json()
+    p = j["proposal"]
+    assert p and j["parser"] == "rules" and not calls, j
+    iv = p["interventions"][0]
+    assert iv["param"] == param and (value is None or iv["value"] == value)
+    assert j["latency_ms"] < 4000 and j["cost_usd"] == 0
+
+
+def test_personalize_fast_path_windows_and_mode(monkeypatch):
+    _fake_parser(monkeypatch, {"understood": False})
+    iv = c.post("/tree/personalize", json={"path": ["2"], "text": "I'd get a CHF 600/month scholarship"}).json()[
+        "proposal"]["interventions"][0]
+    assert (iv["from_month"], iv["to_month"]) == (0, 24)  # a scholarship lasts the master's by default
+    iv = c.post("/tree/personalize", json={"path": ["2"], "text": "I'd move to Zurich after the master's"}).json()[
+        "proposal"]["interventions"][0]
+    assert iv["from_month"] == 24 and iv["city"] == "Zurich"
+    p = c.post("/tree/personalize", json={"path": ["2"], "text": "as another option, a 600 a month scholarship"}).json()[
+        "proposal"]
+    assert p["mode"] == "new_branch" and p["node_id"] == "2.c1"
+
+
+def test_personalize_llm_timeout_falls_back_then_asks(monkeypatch):
+    import httpx
+    from api import personalize as P
+    tried = []
+
+    def chat(msgs, model=None, timeout=None, **k):
+        tried.append((model, timeout))
+        raise httpx.ReadTimeout("slow provider")
+
+    monkeypatch.setattr(P.llm, "available", lambda: True)
+    monkeypatch.setattr(P.llm, "chat", chat)
+    j = c.post("/tree/personalize", json={"path": ["2"], "text": "Things would be a bit different for me"}).json()
+    assert j["proposal"] is None and j["clarifying_question"] and j["parser"] == "llm-timeout"
+    assert len(tried) == 2 and tried[0][1] == P.LLM_TIMEOUT_S and tried[1][0] == P.FALLBACK_MODEL
