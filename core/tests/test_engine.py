@@ -879,3 +879,21 @@ def test_personal_args_absent_change_nothing():
     assert personalize(t) is t and personalize(t, [], {}) is t
     n = _nodes(expand(None, ["2"], **FAST))
     assert all(not v["custom"] and not v["patched"] and not v["inherits_patch"] for v in n.values())
+
+
+def test_cards_show_how_a_macro_outlook_moves_them():
+    """#103: under a non-neutral weather, slot B is net worth vs the neutral outlook (Start working moves)."""
+    import core
+    p = core.load_profile()
+    plain = {n["node_id"]: n for n in core.expand(p, [], exploration=False, sensitivity=False)["nodes"]}
+    neutral = {n["node_id"]: n for n in core.expand(p, [], weather=[{"type": "scenario", "level": "neutral"}],
+                                                     exploration=False, sensitivity=False)["nodes"]}
+    assert "vs_neutral" not in plain["1"]["result"]["headline"]["slot_b"]
+    assert "vs_neutral" not in neutral["1"]["result"]["headline"]["slot_b"]
+    for level, sign in (("pessimistic", -1), ("optimistic", 1)):
+        nodes = {n["node_id"]: n for n in core.expand(p, [], weather=[{"type": "scenario", "level": level}],
+                                                       exploration=False, sensitivity=False)["nodes"]}
+        b = nodes["1"]["result"]["headline"]["slot_b"]
+        assert b["metric"] == "final_net_worth_real" and b["basis"] == "weather"
+        want = nodes["1"]["result"]["metrics"]["final_net_worth_real"] - plain["1"]["result"]["metrics"]["final_net_worth_real"]
+        assert b["vs_neutral"] == pytest.approx(want, abs=0.02) and sign * b["vs_neutral"] > 1000, (level, b)

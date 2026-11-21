@@ -10,7 +10,7 @@ export const H_I18N = {
   en: {
     gap: (v, m) => `Funding gap ${chf(v)} from month ${m}`, missed: (g, v) => `${g} missed by ${chf(v)}`, buffer: (v, m) => `Tightest buffer: ${dec(v)} months (month ${m})`,
     metric: { final_net_worth_real: "Net worth after 10 years (today's prices)", final_net_worth: 'Net worth after 10 years', min_cash: 'Lowest cash', liquidity_months: 'Tightest buffer', final_debt: 'Debt after 10 years', earliest_goal_month: 'First goal reached' },
-    months: (v) => `${dec(v)} months`, monthN: (v) => `month ${v}`, vsParent: (d) => `${d} vs before this choice`, same: 'same as before this choice', none: 'none',
+    months: (v) => `${dec(v)} months`, monthN: (v) => `month ${v}`, vsParent: (d) => `${d} vs before this choice`, vsNeutral: (d) => `${d} vs the neutral outlook`, sameNeutral: 'same as the neutral outlook', same: 'same as before this choice', none: 'none',
     level: { needs_financing: 'Needs financing', infeasible: 'Does not hold: a limit is broken', holds_below_target: 'Holds, below the buffer target', holds: 'Holds' },
     planCheck: 'Plan check', holdsWeather: (h, o) => `Holds in ${h} of ${o} stress scenarios`, shock: (v) => `absorbs a surprise cost of up to ${chf(v)}`, shockBroken: 'no room for a surprise cost',
     constraints: 'Limits and targets', pass: 'passes', fail: 'breached', margin: 'margin', breach: (m, n) => `from month ${m}, ${n} months in breach`,
@@ -19,7 +19,7 @@ export const H_I18N = {
   es: {
     gap: (v, m) => `Falta financiación de ${chf(v)} desde el mes ${m}`, missed: (g, v) => `${g}: faltan ${chf(v)}`, buffer: (v, m) => `Colchón mínimo: ${dec(v)} meses (mes ${m})`,
     metric: { final_net_worth_real: 'Patrimonio a 10 años (precios de hoy)', final_net_worth: 'Patrimonio a 10 años', min_cash: 'Liquidez mínima', liquidity_months: 'Colchón mínimo', final_debt: 'Deuda a 10 años', earliest_goal_month: 'Primer objetivo alcanzado' },
-    months: (v) => `${dec(v)} meses`, monthN: (v) => `mes ${v}`, vsParent: (d) => `${d} respecto a antes de esta decisión`, same: 'igual que antes de esta decisión', none: 'ninguno',
+    months: (v) => `${dec(v)} meses`, monthN: (v) => `mes ${v}`, vsParent: (d) => `${d} respecto a antes de esta decisión`, vsNeutral: (d) => `${d} respecto a la perspectiva neutral`, sameNeutral: 'igual que con la perspectiva neutral', same: 'igual que antes de esta decisión', none: 'ninguno',
     level: { needs_financing: 'Necesita financiación', infeasible: 'No se sostiene: se rompe un límite', holds_below_target: 'Se sostiene, por debajo del colchón objetivo', holds: 'Se sostiene' },
     planCheck: 'Revisión del plan', holdsWeather: (h, o) => `Se sostiene en ${h} de ${o} escenarios de estrés`, shock: (v) => `aguanta un imprevisto de hasta ${chf(v)}`, shockBroken: 'sin margen para un imprevisto',
     constraints: 'Límites y objetivos', pass: 'se cumple', fail: 'se incumple', margin: 'margen', breach: (m, n) => `desde el mes ${m}, ${n} meses incumplido`,
@@ -28,7 +28,7 @@ export const H_I18N = {
   fr: {
     gap: (v, m) => `Besoin de financement de ${chf(v)} dès le mois ${m}`, missed: (g, v) => `${g} manqué de ${chf(v)}`, buffer: (v, m) => `Coussin le plus bas : ${dec(v)} mois (mois ${m})`,
     metric: { final_net_worth_real: "Patrimoine dans 10 ans (prix d'aujourd'hui)", final_net_worth: 'Patrimoine dans 10 ans', min_cash: 'Trésorerie minimale', liquidity_months: 'Coussin le plus bas', final_debt: 'Dette dans 10 ans', earliest_goal_month: 'Premier objectif atteint' },
-    months: (v) => `${dec(v)} mois`, monthN: (v) => `mois ${v}`, vsParent: (d) => `${d} par rapport à avant ce choix`, same: 'comme avant ce choix', none: 'aucun',
+    months: (v) => `${dec(v)} mois`, monthN: (v) => `mois ${v}`, vsParent: (d) => `${d} par rapport à avant ce choix`, vsNeutral: (d) => `${d} par rapport à la perspective neutre`, sameNeutral: 'comme avec la perspective neutre', same: 'comme avant ce choix', none: 'aucun',
     level: { needs_financing: 'A besoin de financement', infeasible: 'Ne tient pas : une limite est franchie', holds_below_target: 'Tient, sous le coussin visé', holds: 'Tient' },
     planCheck: 'Contrôle du plan', holdsWeather: (h, o) => `Tient dans ${h} scénarios de stress sur ${o}`, shock: (v) => `encaisse un imprévu jusqu'à ${chf(v)}`, shockBroken: "pas de marge pour un imprévu",
     constraints: 'Limites et objectifs', pass: 'respecté', fail: 'non respecté', margin: 'marge', breach: (m, n) => `dès le mois ${m}, ${n} mois hors limite`,
@@ -37,7 +37,7 @@ export const H_I18N = {
   de: {
     gap: (v, m) => `Finanzierungslücke ${chf(v)} ab Monat ${m}`, missed: (g, v) => `${g} um ${chf(v)} verfehlt`, buffer: (v, m) => `Knappster Puffer: ${dec(v)} Monate (Monat ${m})`,
     metric: { final_net_worth_real: 'Vermögen nach 10 Jahren (heutige Preise)', final_net_worth: 'Vermögen nach 10 Jahren', min_cash: 'Tiefste Liquidität', liquidity_months: 'Knappster Puffer', final_debt: 'Schulden nach 10 Jahren', earliest_goal_month: 'Erstes Ziel erreicht' },
-    months: (v) => `${dec(v)} Monate`, monthN: (v) => `Monat ${v}`, vsParent: (d) => `${d} gegenüber vor dieser Entscheidung`, same: 'gleich wie vor dieser Entscheidung', none: 'keines',
+    months: (v) => `${dec(v)} Monate`, monthN: (v) => `Monat ${v}`, vsParent: (d) => `${d} gegenüber vor dieser Entscheidung`, vsNeutral: (d) => `${d} gegenüber der neutralen Perspektive`, sameNeutral: 'gleich wie bei neutraler Perspektive', same: 'gleich wie vor dieser Entscheidung', none: 'keines',
     level: { needs_financing: 'Braucht Finanzierung', infeasible: 'Hält nicht: eine Grenze wird verletzt', holds_below_target: 'Hält, unter dem Pufferziel', holds: 'Hält' },
     planCheck: 'Plan-Check', holdsWeather: (h, o) => `Hält in ${h} von ${o} Stressszenarien`, shock: (v) => `verträgt unerwartete Kosten bis ${chf(v)}`, shockBroken: 'kein Spielraum für unerwartete Kosten',
     constraints: 'Grenzen und Ziele', pass: 'eingehalten', fail: 'verletzt', margin: 'Spielraum', breach: (m, n) => `ab Monat ${m}, ${n} Monate verletzt`,
@@ -69,7 +69,10 @@ export function cardHeadline(result, lang = 'en') {
     const label = L.metric[B.metric];
     const text = label ? `${label}: ${fmtByUnit(B.value, B.unit, L)}` : B.text;
     let vs = '';
-    if (label && B.vs_parent != null) {
+    if (label && B.vs_neutral != null) { // #103: a macro outlook is on: how much it moves this card
+      const d = B.vs_neutral;
+      vs = Math.abs(d) < 0.5 ? L.sameNeutral : L.vsNeutral(signed(chf(Math.abs(d)), d));
+    } else if (label && B.vs_parent != null) {
       const d = B.vs_parent;
       const mag = B.unit === 'CHF' ? chf(Math.abs(d)) : B.unit === 'months' ? L.months(Math.abs(d)) : B.unit === 'month' ? L.months(Math.abs(d)) : dec(Math.abs(d), 2);
       vs = Math.abs(d) < 1e-9 ? L.same : L.vsParent(signed(mag, d));
