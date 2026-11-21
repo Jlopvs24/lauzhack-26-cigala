@@ -18,8 +18,32 @@ log = logging.getLogger("api.llm")
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 # Small, cheap models with tool calling. Override with AGENT_MODEL / AGENT_FALLBACK_MODELS.
-DEFAULT_MODEL = "qwen/qwen3.7-flash"
-DEFAULT_FALLBACKS = ["openai/gpt-6-luna", "anthropic/claude-haiku-5.5"]
+# Default: an open-weight Qwen (Apache-2.0, weights on Hugging Face: Qwen/Qwen3.6-35B-A3B, ~3B active parameters),
+# so the same model can be self-hosted (LLM_BASE_URL). Fallbacks, only when a call fails: Qwen's API-only flash
+# model, then a proprietary model. Override with AGENT_MODEL / AGENT_FALLBACK_MODELS.
+DEFAULT_MODEL = "qwen/qwen3.6-35b-a3b"
+DEFAULT_FALLBACKS = ["qwen/qwen3.7-flash", "anthropic/claude-haiku-5.5"]
+
+
+def _target(force_openrouter: bool = False) -> tuple[str, dict, bool]:
+    """(chat-completions URL, headers, is_custom). LLM_BASE_URL points every chat call at any OpenAI-compatible
+    server (vLLM, Ollama, llama.cpp...) running the same open-weight model; LLM_API_KEY is optional there."""
+    base = os.environ.get("LLM_BASE_URL", "").strip()
+    if base and not force_openrouter:
+        key = os.environ.get("LLM_API_KEY", "")
+        return base.rstrip("/") + "/chat/completions", ({"Authorization": f"Bearer {key}"} if key else {}), True
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        raise RuntimeError("OPENROUTER_API_KEY not set")
+    return OPENROUTER_URL, {"Authorization": f"Bearer {key}", "X-Title": "cigala-lauzhack"}, False
+
+
+def _adapt(body: dict, custom: bool) -> dict:
+    """Drop OpenRouter-only fields for a self-hosted endpoint (server-side fallback list, usage accounting)."""
+    if custom:
+        for k in ("models", "usage", "reasoning"):
+            body.pop(k, None)
+    return body
 USAGE_LOG = Path(__file__).parent / "usage.jsonl"
 
 
@@ -104,8 +128,9 @@ def _check_budget() -> None:
 
 
 def available() -> bool:
-    """Key present and today's budget not exhausted (so callers go straight to their template fallback)."""
-    if not os.environ.get("OPENROUTER_API_KEY"):
+    """An endpoint is configured (OpenRouter key or LLM_BASE_URL) and today's budget is not exhausted (so callers
+    go straight to their template fallback)."""
+    if not os.environ.get("OPENROUTER_API_KEY") and not os.environ.get("LLM_BASE_URL"):
         return False
     try:
         _check_budget()
@@ -122,14 +147,12 @@ def models() -> list[str]:
 
 
 def chat(messages: list[dict], tools: list[dict] | None = None, model: str | None = None,
-         purpose: str = "agent", timeout: float = 30.0, **params) -> dict:
+         purpose: str = "agent", timeout: float = 30.0, force_openrouter: bool = False, **params) -> dict:
     """One completion. Returns {message, model, cost_usd, prompt_tokens, completion_tokens, latency_ms}.
 
     Uses OpenRouter's `models` list for server-side fallback. Raises on HTTP/network error.
     """
-    key = os.environ.get("OPENROUTER_API_KEY")
-    if not key:
-        raise RuntimeError("OPENROUTER_API_KEY not set")
+    url, headers, custom = _target(force_openrouter)
     _check_budget()
     chain = [model] if model else models()
     body = {"model": chain[0], "messages": messages, "usage": {"include": True}, **params}
@@ -137,9 +160,9 @@ def chat(messages: list[dict], tools: list[dict] | None = None, model: str | Non
         body["models"] = chain
     if tools:
         body["tools"] = tools
+    _adapt(body, custom)
     t0 = time.perf_counter()
-    r = httpx.post(OPENROUTER_URL, json=body, timeout=timeout,
-                   headers={"Authorization": f"Bearer {key}", "X-Title": "cigala-lauzhack"})
+    r = httpx.post(url, json=body, timeout=timeout, headers=headers)
     latency = int((time.perf_counter() - t0) * 1000)
     if r.status_code != 200:
         raise RuntimeError(f"openrouter {r.status_code}: {r.text[:300]}")
@@ -157,13 +180,11 @@ def chat(messages: list[dict], tools: list[dict] | None = None, model: str | Non
 
 
 def chat_stream(messages: list[dict], tools: list[dict] | None = None, model: str | None = None,
-                purpose: str = "agent", timeout: float = 30.0, **params):
+                purpose: str = "agent", timeout: float = 30.0, force_openrouter: bool = False, **params):
     """Streaming completion. Yields ("content", text_delta) as tokens arrive, then one
     ("final", {message: {content, tool_calls}, model, cost_usd, prompt_tokens, completion_tokens, latency_ms,
     first_token_ms}). Tool-call deltas are assembled. Raises on HTTP/network error."""
-    key = os.environ.get("OPENROUTER_API_KEY")
-    if not key:
-        raise RuntimeError("OPENROUTER_API_KEY not set")
+    url, headers, custom = _target(force_openrouter)
     _check_budget()
     chain = [model] if model else models()
     body = {"model": chain[0], "messages": messages, "usage": {"include": True}, "stream": True, **params}
@@ -174,8 +195,8 @@ def chat_stream(messages: list[dict], tools: list[dict] | None = None, model: st
     t0 = time.perf_counter()
     first = None
     content, calls, used_model, usage = [], {}, chain[0], {}
-    with httpx.stream("POST", OPENROUTER_URL, json=body, timeout=timeout,
-                      headers={"Authorization": f"Bearer {key}", "X-Title": "cigala-lauzhack"}) as r:
+    _adapt(body, custom)
+    with httpx.stream("POST", url, json=body, timeout=timeout, headers=headers) as r:
         if r.status_code != 200:
             raise RuntimeError(f"openrouter {r.status_code}: {r.read()[:300]!r}")
         for line in r.iter_lines():

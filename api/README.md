@@ -133,3 +133,18 @@ falls back to its template or clarifying question. Engine routes and local TTS a
 and `GET /health` show `budget` / `llm_budget` `{daily_limit_usd, spent_today_usd, remaining_usd, exceeded}`.
 Stream model: `AGENT_STREAM_MODEL` (default Haiku 5.5, about 1.4 s to the first sentence and about USD 0.0008 per
 answer; qwen measured 1.3–4.0 s, median 2.7 s, about USD 0.0001). Every other LLM path uses the frugal default chain.
+
+## Models & privacy
+
+| Step | Default | Where it runs | Fallback (only when the default fails) |
+|---|---|---|---|
+| Agent chat, streamed answers, report summary, personal-conditions parser | **`qwen/qwen3.6-35b-a3b`** (Qwen3.6-35B-A3B, **open weights, Apache-2.0**, `Qwen/Qwen3.6-35B-A3B` on Hugging Face; mixture of experts, about 3B active parameters) | OpenRouter today; **any OpenAI-compatible server** with `LLM_BASE_URL` (vLLM, Ollama, llama.cpp…), optional `LLM_API_KEY` | `qwen/qwen3.7-flash` (Qwen's API-only model, not open-weight), then `anthropic/claude-haiku-5.5` (proprietary) |
+| Personal conditions, common phrasings | deterministic rules (`api/personalize_rules.py`) | API process, no model | the LLM row above |
+| Text-to-speech | Kokoro-82M (Apache-2.0) | locally, in a worker process | browser `speechSynthesis` |
+| Speech-to-text | browser `SpeechRecognition` | the user's browser | `google/gemini-3.1-flash-lite` via OpenRouter, for voice notes and Firefox only; it stays on OpenRouter even with `LLM_BASE_URL` |
+| Documents (OCR) | RapidOCR / PDF text (thread 3, `multimodal/`) | locally | a small extraction LLM, then a vision model on failed checks (see `multimodal/README.md`) |
+
+- **Open weights:** the Qwen model id we used before, `qwen/qwen3.7-flash`, is an API-only model with no published weights, so it is now only a fallback. The default is an Apache-2.0 open-weight Qwen. Running it on your own server keeps the conversation off third-party APIs. Set `LLM_BASE_URL=http://localhost:11434/v1` with `AGENT_MODEL=<the local model name>` and `AGENT_FALLBACK_MODELS=` (empty) so nothing leaves the machine. We do not run it locally for the demo.
+- **Overrides:** `AGENT_MODEL`, `AGENT_FALLBACK_MODELS`, `AGENT_STREAM_MODEL` (defaults to `AGENT_MODEL`'s first model), `PERSONALIZE_FALLBACK_MODEL`. Every answer returns `model`, `primary_model` and `fallback_used`, and the server logs `agent answered_by=...`.
+- **Latency, measured 21 Nov:** the first streamed sentence takes about 3–6 s with either Qwen model. Haiku measured about 1.4 s earlier; it is still one env var away (`AGENT_STREAM_MODEL=anthropic/claude-haiku-5.5`).
+- **What the guards do:** financial figures come from the deterministic engine. The agent checks larger numeric claims (100 or more; years and small counts are skipped) against tool outputs or the user's own words, within 2% or CHF 1, and falls back to a template when a claim is not found. This is a number check, not a proof that every sentence is right. Advice and forecast wording are filtered, off-topic and injection text is refused before any LLM call, and spend is capped per day (`LLM_DAILY_BUDGET_USD`).

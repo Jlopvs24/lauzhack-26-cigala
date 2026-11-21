@@ -77,7 +77,8 @@ def stt(audio: bytes, filename: str, language: str | None = None, content_type: 
         {"type": "text", "text": prompt},
         {"type": "input_audio", "input_audio": {"data": base64.b64encode(audio).decode(), "format": _fmt(filename, content_type)}},
     ]}]
-    r = llm.chat(msgs, model=STT_MODEL, purpose="stt", max_tokens=400, temperature=0)
+    # audio input needs OpenRouter's audio-capable model, even when chat runs on a self-hosted LLM_BASE_URL
+    r = llm.chat(msgs, model=STT_MODEL, purpose="stt", max_tokens=400, temperature=0, force_openrouter=True)
     text = (r["message"].get("content") or "").strip()
     lang = language
     lines = text.splitlines()

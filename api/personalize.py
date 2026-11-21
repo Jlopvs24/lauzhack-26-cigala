@@ -388,7 +388,7 @@ def explanation_template(label: str, ivs: list[dict], H: int, mode: str) -> str:
 
 # ------------------------------------------------------------------ main
 LLM_TIMEOUT_S = float(__import__("os").environ.get("PERSONALIZE_LLM_TIMEOUT_S", "8"))
-FALLBACK_MODEL = __import__("os").environ.get("PERSONALIZE_FALLBACK_MODEL", "mistralai/ministral-8b-2512")
+FALLBACK_MODEL = __import__("os").environ.get("PERSONALIZE_FALLBACK_MODEL", "qwen/qwen3.7-flash")
 FALLBACK_TIMEOUT_S = 5.0
 REPAIR_IF_UNDER_S = 5.0  # only repair a schema error if the whole request is still under this
 
