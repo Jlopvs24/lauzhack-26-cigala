@@ -29,6 +29,7 @@ Keys are read from `.env.local` at the repo root (`OPENROUTER_API_KEY`, `TOGETHE
 | POST | `/simulate` | `{profile?, node, assumptions?, weather?, uncertainty?}` | `{result: SimulationResult}` |
 | POST | `/profiles/extract` | multipart `files[]` (PDF/JPG/PNG, audio also accepted), `text?`, `audio?`, `base_profile?` (JSON string) | `{profile (with per-field provenance), extractor, cost_usd, latency_ms, missing_fields, checks, documents, transcripts}` via `multimodal.extract`; mock (`extractor: "mock"`, `mock_reason`) only if multimodal deps are missing |
 | POST | `/agent/ask` | `{question, context}` | answer + traces (below) |
+| POST | `/report` | `{profile?, path, assumptions?, uncertainty?, language?}` | path report: 12 structured sections, numbers only from the engine; summary = deterministic template, optionally reworded/translated by the LLM and number-checked (see docs/contracts.md) |
 | POST | `/voice/stt` | multipart `audio` (WAV/MP3), `language?` | `{text, language, cost_usd, model}` |
 | POST | `/voice/ask` | multipart `audio`, `context` (JSON string), `language?` | `/agent/ask` response + `transcript`, `stt` |
 | POST | `/voice/tts` | `{text, language?, voice?}` | `audio/wav` (local Kokoro, cost 0; headers `X-Model`, `X-Cost-USD`, `X-Audio-Seconds`), or 503 → use browser `speechSynthesis` |

@@ -254,6 +254,26 @@ def _det(res: dict) -> dict:
             "first_negative_month": _month(m.get("first_negative_month"))}
 
 
+def _plan_check(res: dict) -> dict | None:
+    pc = res.get("plan_check")
+    if not pc:
+        return None
+    wr = res.get("weather_resilience") or {}
+    held = wr.get("holds_in")
+    return {"level": pc.get("level"), "feasible": pc.get("feasible"), "label": pc.get("label"),
+            "failed": [f.get("name") if isinstance(f, dict) else f for f in pc.get("failed") or []],
+            "holds_in_stress_scenarios": len(held) if isinstance(held, list) else held, "of": wr.get("of"),
+            "shock_buffer_chf": (pc.get("resilience") or {}).get("shock_buffer_chf")}
+
+
+def _headline_text(res: dict) -> dict | None:
+    h = res.get("headline") or {}
+    a, b = h.get("slot_a") or {}, h.get("slot_b") or {}
+    if not (a or b):
+        return None
+    return {"does_it_hold": a.get("text"), "what_it_trades": b.get("text"), "vs_parent": b.get("vs_parent_text")}
+
+
 def _summary(res: dict, node: dict, uncertainty: bool = False) -> dict:
     """Engine-agnostic digest of a SimulationResult. Deterministic first; the Monte Carlo
     lens is included only when the user asked for it (uncertainty=True)."""
@@ -270,8 +290,9 @@ def _summary(res: dict, node: dict, uncertainty: bool = False) -> dict:
                    "first_reached_month": _month(g.get("first_reached_month_deterministic"))}
                   for g in res.get("goals") or []] or None,
         "liquidity_months": m.get("liquidity_months"),
-        "health_score": res["health"]["score"],
-        "health_components": {k: (v.get("score") if isinstance(v, dict) else v) for k, v in comps.items()},
+        "plan_check": _plan_check(res),
+        "headline": _headline_text(res),
+        "health_score_secondary": res["health"]["score"],
         "levers": [_sens(x) for x in (res.get("sensitivity") or [])[:3]],
         "checks_passed": all(c["passed"] for c in res.get("checks", [])),
         "assumptions_used": _refs(node),
@@ -283,8 +304,9 @@ def _summary(res: dict, node: dict, uncertainty: bool = False) -> dict:
     for k in ("final_debt", "total_one_off_costs"):
         if k in m:
             out[k] = m[k]
-    if res["health"].get("level"):
-        out["health_level"] = res["health"]["level"]
+    if not out["plan_check"]:  # engines before #27: fall back to the health level
+        out["health_level"] = res["health"].get("level")
+        out["health_components"] = {k: (v.get("score") if isinstance(v, dict) else v) for k, v in comps.items()}
     expl = res.get("exploration") or node.get("exploration")
     if expl:
         out["exploration_facts"] = [f["text"] for f in exploration_facts(expl, node.get("label"))]
@@ -558,7 +580,7 @@ def _parse(tok: str) -> float | None:
     return v * 1000 if k else v
 
 
-def check_grounding(answer: str, tool_outputs: list[Any], user_text: str = "") -> dict:
+def check_grounding(answer: str, tool_outputs: list[Any], user_text: str = "", rel_tol: float = 0.02) -> dict:
     """Every number >= 100 in the answer must match a tool number or one the user said
     (tolerating rounding and probabilities written as percent)."""
     known = _numbers_in(tool_outputs, []) + _numbers_in(user_text, [])
@@ -568,7 +590,7 @@ def check_grounding(answer: str, tool_outputs: list[Any], user_text: str = "") -
         v = _parse(tok)
         if v is None or abs(v) < 100 or (1900 <= v <= 2100 and float(v).is_integer()):
             continue  # small counts, months, option ids and calendar years are not money figures
-        if not any(abs(abs(v) - abs(k)) <= max(0.02 * abs(k), 1.0) for k in known):
+        if not any(abs(abs(v) - abs(k)) <= max(rel_tol * abs(k), 1.0) for k in known):
             ungrounded.append(tok.strip())
     return {"grounded": not ungrounded, "ungrounded_numbers": ungrounded}
 
@@ -617,6 +639,9 @@ def template_answer(ctx: dict, lang: str, box: Toolbox) -> str:
     top = (s.get("levers") or [{}])[0]
     if top.get("delta_final_net_worth") is not None:
         txt += t["lever"].format(a=top.get("label") or top["assumption_id"], d=_fmt(abs(top["delta_final_net_worth"])))
+    pc = s.get("plan_check") or {}
+    if pc.get("label") and lang == "en":
+        txt += f"Plan check: {pc['label']}. "
     res_, node_ = box._node(str(node_id))
     facts = exploration_facts(res_.get("exploration") or node_.get("exploration"), node_.get("label"))
     pick = next((f for f in facts if f["kind"] == "break_even" and f["status"] == "threshold_found"), None) or         next((f for f in facts if f["kind"] == "reverse_stress"), None)
@@ -663,6 +688,8 @@ Hard rules:
 3. Cite where numbers come from: the node (e.g. "option 1.2") and the key assumptions (levers) involved.
 4. Talk in if-then terms: "if you take X, then under these assumptions Y would…". NEVER say "you will", "expected",
    "likely", "chance" or "probability" about the future. {lens_rule}
+4b. To say whether a plan holds, use plan_check (holds / holds below target / infeasible / needs financing) and
+   its label; the health score is secondary: do not lead with it or call a plan good or bad by it.
 5. For "what would have to be true" questions (break-even, what salary or saving would be needed, what breaks the
    plan, what if I decide later), first use `exploration_facts` in the loaded results (ready if-then sentences built
    from the engine) or call get_exploration; if they do not answer, call what_would_have_to_be_true. Report the

@@ -532,8 +532,58 @@ Engine side of `POST /report` (thread 2 aggregates and words it; every sentence 
 | POST | `/simulate` | `{profile, node, assumptions, weather}` → SimulationResult |
 | POST | `/agent/ask` | `{question, context}` → answer + tool traces (numbers only from engine) |
 | POST | `/voice/stt`, `/voice/tts` | speech in/out |
+| POST | `/report` | `{profile?, path, assumptions?, uncertainty?, language?}` → path report (12 sections, below) |
 
 Engine functions for `api/engine.py`: `core.expand(profile, path, assumptions, weather)`, `core.simulate(profile, node, assumptions, weather)`, `core.node_info(node_id)`, `core.assumptions_list(overrides)`, `core.weather_catalog()`.
+
+### Path report (POST `/report`, `report-1.0`, additive)
+
+Implements `docs/report-spec.md` §3. Every number comes from engine calls (one `expand` per step of the path, plus `simulate` for each stress scenario and, if `uncertainty: true`, the Monte Carlo lens on the leaf). Fields that core will provide (`result.headline`, `result.constraints`) are used when present; until then the API derives them and marks them `"derived_by": "api"`.
+
+```json
+{
+  "report_version": "report-1.0", "generated_at": "2026-11-21T17:55:00+00:00",
+  "path": ["0", "2", "2.1"], "leaf": "2.1",
+  "section_order": [{"key": "summary", "title": "Plain-language summary", "n": 1}, "... 12 items ..."],
+  "sections": {
+    "summary": {"text": "If “Do a master's” then “Student job only”, then under these assumptions ...", "mode": "llm | template",
+                "template": "deterministic text the LLM may only reword", "model": "qwen/qwen3.7-flash", "cost_usd": 0.0001},
+    "scope": {"question": "...", "horizon_months": 120, "currency": "CHF", "jurisdiction": "Switzerland (Lausanne)",
+              "as_of": "2025-01-01", "values": "nominal CHF; final_net_worth_real is in today's prices", "basis": "..."},
+    "starting_state": {"fields": [{"field": "cash", "value": 8000, "source": "ubs_kit:synthetic-profiles.csv",
+                                   "label": "synthetic | observed (document) | user-entered | assumption | unknown", "confidence": 1.0}],
+                       "assets": [], "liabilities": [], "goals": [], "goals_source": "synthetic"},
+    "decisions": [{"step": 1, "node_id": "2", "label": "Do a master's", "description": "...", "changes": ["..."],
+                   "interventions": [], "ubs_catalog": ["S0xx"], "assumptions_introduced": [{"id": "AS-...", "kind": "...", "source": "...", "verified": false}],
+                   "delta_vs_parent": {}, "events": [], "debts": [],
+                   "headline": {"slot_a": "Funding gap CHF 18'835 from month 7", "derived_by": "api"}}],
+    "alternatives": {"status_quo_baseline": {"node_id": "0", "...": "row"},
+                     "levels": [{"step": 1, "chosen": {"node_id": "2", "final_net_worth": 121727.55, "final_net_worth_real": 0,
+                                 "final_cash": 0, "min_cash": -18835.02, "min_cash_month": 24, "first_negative_month": 7,
+                                 "final_debt": 0, "liquidity_months": -8.8, "goals_met": 2, "goals_total": 2,
+                                 "plan_check": "ok", "trace_id": "sim-..."}, "siblings": ["rows"]}]},
+    "exploration": [{"step": 1, "node_id": "2", "facts": ["If net salary after the master's were at least CHF 4'845/month, then ..."],
+                     "exploration": {"...": "core result.exploration"}, "tornado": ["core result.sensitivity"]}],
+    "stress": {"node_id": "2.1", "rows": [{"weather": "none | recession | inflation | market_crash | job_loss", "label": "...", "...": "row"}],
+               "holds_in": [], "summary": "holds in 0 of 4 stress scenarios", "derived_by": "api"},
+    "constraints": {"items": [{"name": "liquidity_floor", "threshold": "cash >= CHF 0", "defined_by": "scenario", "passed": false,
+                               "margin": -18835.02, "first_breach_month": 7, "months_in_breach": 32},
+                              {"name": "debt_service", "...": "..."}, {"name": "goal: Emergency savings", "...": "..."}],
+                    "funding_gap_months": 32, "average_monthly_surplus": 0, "derived_by": "api | core"},
+    "tradeoffs": {"items": [{"node_id": "2", "label": "Do a master's", "dimensions": [{"dimension": "education", "note": "..."}]}],
+                  "reading": "qualitative, not computed by the engine; the user weighs them"},
+    "uncertainty": {"enabled": false},
+    "validation": {"checks": [], "all_checks_passed": true, "engine_version": "core-1.1", "seed": 42, "trace_id": "sim-...",
+                   "reproduce": {"route": "POST /report", "body": {"path": ["2", "2.1"], "assumptions": [], "uncertainty": false}},
+                   "test_evidence": [{"file": "core/tests/test_engine.py", "test": "test_scenario_isolation_unrelated_assumption_has_no_effect"}]},
+    "limitations": ["Synthetic profile ...", "Not financial advice ...", "No number is produced by a language model ..."]
+  },
+  "cost_usd": 0.0001, "latency_ms": 7300, "model": "qwen/qwen3.7-flash"
+}
+```
+
+- Months in report rows are 1-based ("month 7"), unlike engine metrics (0-based).
+- `summary.mode = "llm"` only when the LLM's rewording of `summary.template` adds no number outside it (0.5% tolerance); otherwise the template is returned (`rejected_llm_numbers`).
 
 ## Env vars
 
