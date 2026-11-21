@@ -279,3 +279,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .say-card { font-size: 13px; padding: 12px 14px; max-height: 28vh; overflow-y: auto; margin-bottom: 8px; }
   .tag .meta { font-size: 11px; }
 }
+.report .ex-alert { margin: 0; padding: 12px 14px; border-radius: 12px; background: rgba(196, 81, 58, 0.1); color: var(--card-ink); border-left: 3px solid #c4513a; font-size: 13.5px; }
+.report .ex-block p { font-size: 13.5px; color: var(--card-ink); margin: 0; }
+.report .levers li { font-size: 13px; line-height: 1.5; }
+.report .status { color: var(--card-muted); }
+.lever-btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.lever-btn { min-height: 30px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--card-line); background: transparent; color: var(--card-ink); font-size: 12px; font-variant-numeric: tabular-nums; transition: background 0.2s; }
+.lever-btn:hover { background: var(--card-line); }

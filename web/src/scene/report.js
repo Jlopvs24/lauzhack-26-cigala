@@ -1,3 +1,4 @@
+import { explorationSections, KNOWN_EXPLORATION } from "./exploration.js";
 // The leaf report: exploration, not prediction. It leads with the deterministic scenario, then
 // how this option differs from its siblings, then the levers ("what would have to be true").
 // Monte Carlo is an optional "uncertainty lens", off by default. Unknown numeric result fields are
@@ -84,7 +85,7 @@ export function scenarioChart(r, { lens = false, L }) {
   <div class="legend"><span class="k nw"></span>${esc(L.nw)}<span class="k cash"></span>${esc(L.cash)}</div>`;
 }
 
-export function renderReport({ data, lang, ui, tr, lens, lensPending = false }) {
+export function renderReport({ data, lang, ui, tr, lens, lensPending = false, applied = false }) {
   const L = REPORT_I18N[lang] || REPORT_I18N.en;
   const cur = data.nodes.find((n) => n.node_id === data.current);
   const r = cur.result || {}, m = r.metrics || {}, h = r.health || {};
@@ -105,7 +106,9 @@ export function renderReport({ data, lang, ui, tr, lens, lensPending = false }) 
 
   // "what would have to be true": the engine's exploration block (#21) when present, else sensitivity
   let levers = "";
-  const exHTML = explorationHTML(r.exploration || cur.exploration);
+  const ex = r.exploration || cur.exploration;
+  const unknown = ex && typeof ex === "object" ? Object.fromEntries(Object.entries(ex).filter(([k]) => !KNOWN_EXPLORATION.has(k))) : null;
+  const exHTML = ex ? explorationSections(ex, { lang, metrics: m, applied }) + explorationHTML(unknown) : "";
   if (exHTML) {
     levers = exHTML;
   } else if (Array.isArray(r.sensitivity) && r.sensitivity.length) {
