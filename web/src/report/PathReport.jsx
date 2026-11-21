@@ -5,7 +5,7 @@
 // model's wording of the summary whenever /report answers: nothing waits for the LLM.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { buildFromLevels, loadAnalyses, loadExploration, loadLevels, loadLiveValidation, loadSummary, mergeExploration } from './pathReport.js';
-import { chf, compareLevels, constraintRows, fixOptions, fmtVal, heroTiles, pillar3a, surfaceGrid, taxSegments, timingStrip, oneLiner, plainTemplate, qualKeys, signedChf, stressRows, timeSeries, tornadoRows, whatIfCards } from './reportModel.js';
+import { chf, compareLevels, constraintRows, fixOptions, fmtVal, heroTiles, outlook, pillar3a, surfaceGrid, taxSegments, timingStrip, oneLiner, plainTemplate, qualKeys, signedChf, stressRows, timeSeries, tornadoRows, whatIfCards } from './reportModel.js';
 import { ri } from './reportI18n.js';
 import { usePersonalItems } from '../personalize/YourConditions.jsx';
 import { describe as describeOwn } from '../personalize/model.js';
@@ -96,6 +96,7 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
       series: timeSeries(data, metric), levels: compareLevels(data), ti,
       cards: steps.length ? whatIfCards(steps[ti], lang, tr) : [], tornado: steps.length ? tornadoRows(steps[ti]) : [], p3a: steps.length ? pillar3a(steps[ti], lang) : null,
       fix: fixOptions(adv?.fix, lang), grid: surfaceGrid(adv?.surface, lang), strip: timingStrip(adv?.timing, lang),
+      outlook: outlook(data, lang),
       stress: stressRows(data, lang), limits: constraintRows(data.leaf.constraints, lang), qual: qualKeys(data),
     };
   }, [data, lang, metric, trueStep, adv]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -151,6 +152,7 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
           {[data.baseline, ...steps].map((s, i) => <li key={s.node_id} className={i === 0 ? 'root' : i === steps.length ? 'leaf' : ''}>{i === 0 ? L.today : name(s)}</li>)}
         </ol>
         <h1>{v.line}</h1>
+        {v.outlook && <p className="vr-outlook"><span className="vr-outlook-l">{L.olLead}</span>{v.outlook.items.map((it) => <span key={it.key} className={`vr-chip sm ${it.scenario ? 'obs' : 'asm'}`}>{it.text}</span>)}</p>}
         <div className="vr-tiles">
           {v.tiles.map((t, i) => <div className={`vr-tile ${t.tone}`} key={t.key} style={{ '--i': i }}>
             <span className="vr-tile-l">{TONE_ICON[t.tone] && <span className={`vr-dot ${t.tone}`} aria-hidden="true">{TONE_ICON[t.tone]}</span>}{t.label}</span>
@@ -320,6 +322,11 @@ export default function PathReport({ lang = 'en', tr = (n) => ({ label: n.label,
             </table></div> : <p className="vr-muted">–</p>}
           </Disclosure>
           <Disclosure n={4} title={L.dAssume}>
+            {v.outlook && <><h4>{L.olBehind}</h4><ul className="vr-own">{v.outlook.items.map((it) => <li key={it.key}>
+              <span className="vr-chip sm warn"><span aria-hidden="true">!</span>{L.kinds.assumption}</span>
+              <span><b>{it.text}</b>{it.assumptions.length > 0 && <small className="vr-own-d">{it.assumptions.join(' · ')}</small>}
+                {it.source && <small className="vr-own-d">{L.aSource}: {it.source}</small>}</span>
+            </li>)}</ul><p className="vr-muted">{L.olNote}</p></>}
             {tax.length > 0 && <><h4>{L.taxTitle}</h4>{taxList}</>}
             {mine.length > 0 && <><h4>{L.aYours}</h4><ul className="vr-own">{mine.map((it) => <li key={it.id}>
               <span className={`vr-chip sm ${it.mode === 'branch' ? 'own solid' : 'own'}`}>{it.mode === 'branch' ? L.yourBranch : L.yourCond}</span>

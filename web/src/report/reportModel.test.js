@@ -162,3 +162,22 @@ test('what would fix it, room to move, timing: from the engine shapes, guarded w
   assert.match(timingStrip({ ...ts, latest_start_that_holds: null }, 'en').text, /does not hold at any/);
   assert.equal(timingStrip({ status: 'no_own_decision', rows: [] }), null);
 });
+
+test('outlook: macro perspective + factors in plain words, internal assumptions flagged, stress names; absent -> null', async () => {
+  const { outlook, weatherName } = await import('./reportModel.js');
+  const data = { outlook: {
+    selected: [{ type: 'scenario', level: 'pessimistic' }, { type: 'inflation', level: 'high' }, 'recession'],
+    applied: [{ type: 'inflation', level: 'high', assumptions: { annual_rate: 0.04 } }],
+    options: { 'scenario:pessimistic': { label: 'Pessimistic', assumptions: ['wages grow slower', { label: 'Return shift', value: -0.02 }], source: 'team assumption', verified: false },
+      'inflation:high': { label: 'High inflation' }, chf_strengthens: 'CHF strengthens' } } };
+  const o = outlook(data, 'de');
+  assert.equal(o.line, 'Wirtschaft: pessimistisch · Inflation: hoch');
+  assert.ok(!/\d/.test(o.line)); // no magnitudes in the headline
+  assert.deepEqual(o.items[0].assumptions, ['wages grow slower', 'Return shift: -0.02']);
+  assert.deepEqual(o.items[1].assumptions, ['annual rate: 0.04']);
+  assert.equal(o.items[0].verified, false);
+  assert.equal(outlook({ outlook: { selected: ['recession'] } }), null);
+  assert.equal(outlook({}), null);
+  assert.equal(weatherName('recession', 'fr', data.outlook.options), 'Récession');
+  assert.equal(weatherName('chf_strengthens', 'en', data.outlook.options), 'CHF strengthens');
+});
