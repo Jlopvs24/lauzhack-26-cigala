@@ -258,3 +258,14 @@ td.lo .cmp-mark { color: var(--c-lo-ink); }
   #stage ~ .cmp-bar .cmp-bar-n { display: inline-grid; margin: 0; font-size: 11px; }
   #stage ~ .cmp-bar .cmp-bar-go { padding: 8px 12px; border-radius: 999px; }
 }
+
+/* "Added · Compare (n)" in the report header; the comparison opens above the report (z 60 > 20) */
+.cmp-add-group { display: inline-flex; align-items: stretch; }
+.cmp-add-group .cmp-add.on { border-radius: 999px 0 0 999px; }
+.cmp-add-go { padding: 7px 13px 7px 11px; border-radius: 0 999px 999px 0; border: 0; border-left: 1px solid rgba(255, 255, 255, 0.35); background: #1c5cab; color: #fff; font: 600 13px/1 var(--sans, system-ui); cursor: pointer; white-space: nowrap; transition: transform 0.12s, background-color 0.16s; }
+.cmp-add-go:hover { background: #184f95; }
+.cmp-add-go:active { transform: scale(0.97); }
+.cmp-add-go:focus-visible { outline: 2px solid #3987e5; outline-offset: 2px; }
+.cmp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+body:has(.path-report) .cmp-bar { display: none; } /* the report header has its own "Compare (n)" */
+@media (max-width: 720px) { .cmp-add-group .cmp-add.on span { display: none; } .cmp-add-group .cmp-add.on { padding: 7px 10px; } .cmp-add-go { padding: 7px 10px; font-size: 12px; } }

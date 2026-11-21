@@ -63,12 +63,25 @@ export function normalizeServer(r) {
   });
 }
 
+// One pinned path: compare it with its siblings (same parent), up to 4 columns in all.
+export async function withAlternatives(path, { request = apiRequest, signal, body = {} } = {}) {
+  try {
+    const d = await request('/tree/expand', { body: { path, exploration: false, uncertainty: false, ...body }, signal });
+    const sibs = (d?.nodes || []).filter((n) => n.status === 'sibling').map((n) => [...path.slice(0, -1), n.node_id]);
+    return [path, ...sibs].slice(0, 4);
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    return [path];
+  }
+}
+
 /**
  * Load the columns for `paths`. `fields` = {custom_nodes?, node_patches?}. `onPartial(cols)` fires
  * once the outcome rows are ready (the what-if rows arrive a moment later).
  */
 export async function loadComparison({ paths, profile, assumptions = [], weather = [], fields = {}, request = apiRequest, signal, onPartial } = {}) {
-  const ps = paths.map(clean);
+  let ps = paths.map(clean);
+  if (ps.length === 1 && ps[0].length) ps = await withAlternatives(ps[0], { request, signal, body: { assumptions, weather, ...fields, ...(profile ? { profile } : {}) } });
   const common = { assumptions, weather, ...fields, ...(profile ? { profile } : {}) };
   let cols = null;
   if (ps.length >= 2 && ps.length <= 4) {

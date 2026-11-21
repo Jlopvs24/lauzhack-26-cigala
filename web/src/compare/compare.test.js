@@ -130,3 +130,10 @@ test('loadComparison falls back to /tree/expand when /tree/compare is missing, a
   assert.ok(calls.every(([, b]) => b.weather?.[0]?.type === 'recession' && b.node_patches));
   await assert.rejects(loadComparison({ paths: [['1'], ['3']], request: async () => { throw new Error('The API returned 500.'); } }));
 });
+
+test('one pinned path is compared with its alternatives (siblings), up to 4', async () => {
+  const { withAlternatives } = await import('./data.js');
+  const request = async (route, { body }) => ({ nodes: [{ node_id: body.path.at(-1), status: 'chosen' }, { node_id: '2.1', status: 'sibling' }, { node_id: '2.3', status: 'sibling' }, { node_id: '2.2.1', status: 'child' }] });
+  assert.deepEqual(await withAlternatives(['2', '2.2'], { request }), [['2', '2.2'], ['2', '2.1'], ['2', '2.3']]);
+  assert.deepEqual(await withAlternatives(['2'], { request: async () => { throw new Error('x'); } }), [['2']]);
+});
