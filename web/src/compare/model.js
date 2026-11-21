@@ -95,6 +95,18 @@ export function chipText(chip, lang = 'en', label = (id, l) => l) {
  * peers + 1–2 chips. `compact` (phones) keeps the scale and one chip. Empty string when the node has
  * no peers to compare with.
  */
+/**
+ * The position strip on option cards is off by default (Juan, #103 follow-up): cards keep only the
+ * "+" pin, and the position and deltas live in the comparison view. Opt in with `?strip=1` or
+ * localStorage `cigala.compare.cardStrip` = '1'.
+ */
+export const CARD_STRIP_KEY = 'cigala.compare.cardStrip';
+export function cardStripEnabled({ search = globalThis.location?.search || '', storage = globalThis.localStorage } = {}) {
+  const q = new URLSearchParams(search).get('strip');
+  if (q === '0' || q === '1') return q === '1';
+  try { return storage?.getItem(CARD_STRIP_KEY) === '1'; } catch { return false; }
+}
+
 export function cardCompareHTML(node, nodes, { lang = 'en', label = (id, l) => l, metric = 'final_net_worth_real', compact = false, cmp } = {}) {
   const c = (cmp || compareSiblings(nodes, { metric }))[node?.node_id];
   if (!c || c.n < 2 || c.pos == null) return '';
