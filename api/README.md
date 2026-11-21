@@ -25,8 +25,8 @@ Keys are read from `.env.local` at the repo root (`OPENROUTER_API_KEY`, `TOGETHE
 | GET | `/health` | – | engine, llm, voice status |
 | GET | `/profiles/demo` | – | `{profile}` (Alexia) |
 | GET | `/assumptions` | – | `{assumptions: [Assumption]}` |
-| POST | `/tree/expand` | `{profile?, path, assumptions?, weather?}` | visible tree (below) |
-| POST | `/simulate` | `{profile?, node, assumptions?, weather?}` | `{result: SimulationResult}` |
+| POST | `/tree/expand` | `{profile?, path, assumptions?, weather?, uncertainty?}` | visible tree (below); `uncertainty` (default `false`) turns on the optional Monte Carlo lens |
+| POST | `/simulate` | `{profile?, node, assumptions?, weather?, uncertainty?}` | `{result: SimulationResult}` |
 | POST | `/profiles/extract` | multipart `files[]` (PDF/JPG/PNG, audio also accepted), `text?`, `audio?`, `base_profile?` (JSON string) | `{profile (with per-field provenance), extractor, cost_usd, latency_ms, missing_fields, checks, documents, transcripts}` via `multimodal.extract`; mock (`extractor: "mock"`, `mock_reason`) only if multimodal deps are missing |
 | POST | `/agent/ask` | `{question, context}` | answer + traces (below) |
 | POST | `/voice/stt` | multipart `audio` (WAV/MP3), `language?` | `{text, language, cost_usd, model}` |
@@ -82,3 +82,18 @@ Visible = root + chosen path (`chosen`) + siblings of the current node (`sibling
 ```
 
 The character never computes: numbers come from engine tools (`get_node`, `compare_nodes`, `what_if`, `get_assumptions`). Every number in the answer is checked against tool outputs; if one is not found, or the LLM fails, the answer falls back to a template built from engine results (`mode: "template"`). `language` defaults to English, and the answer switches only when the question is clearly in es/fr/de (or `context.language` is set). The current node, its siblings and its children are preloaded from the engine, so most questions need one LLM call (~USD 0.0001, ~3–5 s with `qwen/qwen3.7-flash`). Model benchmark: `python -m api.bench_agent` (results in `api/bench_agent_results.json`).
+
+## Exploration first (UBS feedback, issue #21)
+
+Results are deterministic "if this, then that" paths. With `uncertainty: false` (the default), stochastic fields are
+null or empty (`n_paths: 0`, empty band arrays). Use the deterministic fields: `metrics.final_net_worth`,
+`metrics.min_cash`, `metrics.first_negative_month` and `goals[].met_deterministic`.
+
+The agent speaks in if-then terms ("if you take X, then under these assumptions…"). A deterministic guard rewrites
+forecast phrasing (`forecast_phrases_softened`). It mentions simulated-path spreads only when `context.uncertainty`
+is true. Tools:
+- `get_node`, `compare_nodes`
+- `what_if` (pull one lever)
+- `get_exploration`: the engine's levers, break-even, goal-seek, reverse stress and timing analyses, when present
+- `what_would_have_to_be_true`: an engine-computed bisection for the threshold value of a lever at which cash
+  never goes negative, the node catches up with a sibling, or a goal is reached
