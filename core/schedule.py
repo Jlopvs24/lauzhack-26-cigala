@@ -42,6 +42,9 @@ class Schedule:
     pillar_3a: np.ndarray | None = None
     calendar_year: np.ndarray | None = None
     opening_pillar_3a: float = 0.0
+    # #48 item 5: the EUR part of each plan (EUR at today's prices), None = all CHF. The engine
+    # converts it each month at the EURCHF path and adds it to the CHF part.
+    eur: dict | None = None
 
     @property
     def expenses(self) -> np.ndarray:
@@ -117,9 +120,33 @@ def build_schedule(profile: Profile, interventions: list[Intervention], A: dict 
     }
     one_off_cost = np.zeros(H)
     one_off_income = np.zeros(H)
+    eur = {k: np.zeros(H) for k in ("income", "rent", "other_expenses", "one_off_cost", "one_off_income")}
+    eur_key = {"monthly_net_income": "income", "monthly_rent": "rent", "monthly_other_expenses": "other_expenses"}
     liabilities = list(profile.liabilities)
     events: list[dict] = []
     for iv in interventions:
+        if iv.currency == "EUR" and iv.param in eur_key:  # a plan (partly) in EUR
+            e, s = eur[eur_key[iv.param]], series[iv.param]
+            w = slice(iv.from_month, iv.to_month)
+            if iv.op == "set":
+                e[w], s[w] = iv.value, 0.0
+                if iv.param == "monthly_net_income":
+                    gross[w] = 0.0  # a salary paid abroad replaces the Swiss gross salary
+            elif iv.op == "add":
+                e[w] += iv.value
+            else:
+                e[w] *= iv.value
+                s[w] *= iv.value
+            continue
+        if iv.currency == "EUR" and iv.param in ("one_off_cost", "one_off_income"):
+            eur[iv.param][iv.month] += iv.value
+            events.append({"month": iv.month, "type": "cost" if iv.param == "one_off_cost" else "income",
+                           "amount": iv.value, "currency": "EUR", "label": iv.label})
+            continue
+        if iv.param in eur_key and iv.op == "mul":
+            eur[eur_key[iv.param]][iv.from_month:iv.to_month] *= iv.value  # a CHF "x k" scales both parts
+        if iv.param in eur_key and iv.op == "set":
+            eur[eur_key[iv.param]][iv.from_month:iv.to_month] = 0.0  # a CHF amount replaces an EUR one
         if iv.param == "monthly_gross_income":
             window = slice(iv.from_month, iv.to_month)
             if iv.op == "set":
@@ -155,7 +182,10 @@ def build_schedule(profile: Profile, interventions: list[Intervention], A: dict 
                 s[window] += iv.value
             else:
                 s[window] *= iv.value
-            np.maximum(s, 0.0, out=s)  # a planned income/expense never goes below zero
+            if iv.param in eur_key and eur[eur_key[iv.param]].any():
+                pass  # mixed CHF/EUR month: the engine floors the converted total at 0
+            else:
+                np.maximum(s, 0.0, out=s)  # a planned income/expense never goes below zero
         elif iv.param == "one_off_cost":
             one_off_cost[iv.month] += iv.value
             events.append({"month": iv.month, "type": "cost", "amount": iv.value, "label": iv.label})
@@ -207,6 +237,7 @@ def build_schedule(profile: Profile, interventions: list[Intervention], A: dict 
         pillar_3a=series["monthly_pillar_3a"],
         calendar_year=(profile.as_of.month - 1 + np.arange(H)) // 12,
         opening_pillar_3a=profile.pillar_3a,
+        eur=eur if any(a.any() for a in eur.values()) else None,
         one_off_cost=one_off_cost,
         one_off_income=one_off_income,
         liabilities=liabilities,

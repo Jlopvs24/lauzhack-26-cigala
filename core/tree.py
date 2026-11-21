@@ -154,16 +154,18 @@ def describe_intervention(iv: dict, values: dict[str, float]) -> str:
             win += f" to month {iv['to_month']}"
         v = val(iv.get("value", 0))
         op = iv.get("op", "set")
+        cur = str(iv.get("currency", "CHF")).upper()
         if op == "set":
-            what = f"{names[p]} = CHF {v:,.0f}/month"
+            what = f"{names[p]} = {cur} {v:,.0f}/month"
         elif op == "add":
-            what = f"{names[p]} {'+' if v >= 0 else '-'} CHF {abs(v):,.0f}/month"
+            what = f"{names[p]} {'+' if v >= 0 else '-'} {cur} {abs(v):,.0f}/month"
         else:
             what = f"{names[p]} x {v:g}"
         return f"{iv.get('label') or names[p]}: {what} {win}"
     if p in ("one_off_cost", "one_off_income"):
         sign = "cost" if p == "one_off_cost" else "income"
-        return f"{iv.get('label') or sign}: one-off {sign} CHF {val(iv.get('value', 0)):,.0f} in month {iv.get('month', 0) + 1}"
+        return (f"{iv.get('label') or sign}: one-off {sign} {str(iv.get('currency', 'CHF')).upper()} "
+                f"{val(iv.get('value', 0)):,.0f} in month {iv.get('month', 0) + 1}")
     if p == "assumption":
         return f"{iv.get('label') or iv.get('id')}: assumption {iv.get('id')} = {val(iv.get('value', 0)):g} on this branch"
     if p == "cancel_one_off":
