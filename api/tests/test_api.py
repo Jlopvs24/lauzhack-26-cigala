@@ -1037,3 +1037,101 @@ def test_chat_changes_the_tree_directly_question_grows_a_branch_statement_patche
     assert j["mode"] == "whatif" and j["personalize"]["proposal"]["mode"] == "patch" and "recomputed" in j["answer"]
     j = agent_ask("¿Qué pasa si invierto 300 en vez de 500 en esta rama?", ["1", "1.2"])
     assert j["personalize"]["proposal"]["mode"] == "patch" and "recalculado" in j["answer"]
+
+
+# ------------------------------------------------------------------ chat edits: the matrix (Juan, after #120)
+_ID_LEAK = __import__("re").compile(r"\b\d+\.(?:c?\d+)(?:\.c?\d+)*\b(?!\s*(?:months?|meses|mois|monat|%))|\bAS-[\w-]+|"
+                                    r"\b[a-z]+_[a-z_]+\b|\bsim-[0-9a-f]{6,}")
+
+MATRIX = [  # (lang, path, sentence, mode, [(param, op, value, from, to)])
+    ("en", ["1", "1.2"], "What happens if I invest 300 instead of 500?", "new_branch",
+     [("monthly_investment_contribution", "set", 300, 0, 120)]),
+    ("es", ["1", "1.2"], "¿Qué pasa si invierto 300 en vez de 500?", "new_branch",
+     [("monthly_investment_contribution", "set", 300, 0, 120)]),
+    ("fr", ["1"], "Et si j'investis 250 par mois pendant 2 ans ?", "new_branch",
+     [("monthly_investment_contribution", "set", 250, 0, 24)]),
+    ("de", ["1", "1.2"], "Was wäre, wenn ich 400 statt 500 anlege?", "new_branch",
+     [("monthly_investment_contribution", "set", 400, 0, 120)]),
+    ("en", ["1"], "what if I invest 300 a month from next year", "new_branch",
+     [("monthly_investment_contribution", "set", 300, 12, 120)]),
+    ("en", ["2"], "My rent is 1300 francs a month", "patch", [("monthly_rent", "set", 1300, 0, 120)]),
+    ("es", ["2"], "Mi alquiler es de 900 al mes en esta rama", "patch", [("monthly_rent", "set", 900, 0, 120)]),
+    ("en", ["1"], "what if I save 200 more a month and invest 300", "new_branch",
+     [("monthly_other_expenses", "add", -200, 0, 120), ("monthly_investment_contribution", "set", 300, 0, 120)]),
+    ("es", ["1"], "¿y si ahorro 200 más al mes y mi alquiler es 900?", "new_branch",
+     [("monthly_other_expenses", "add", -200, 0, 120), ("monthly_rent", "set", 900, 0, 120)]),
+    ("en", ["1"], "what if I work at 80%", "new_branch", [("monthly_net_income", "mul", 0.8, 0, 120)]),
+    ("es", ["2"], "¿y si trabajo al 60%?", "new_branch", [("monthly_net_income", "mul", 0.6, 0, 120)]),
+    ("fr", ["1"], "Et si mon loyer est 10% plus cher ?", "new_branch", [("monthly_rent", "mul", 1.1, 0, 120)]),
+    ("de", ["1"], "Was wäre, wenn mein Gehalt 5% niedriger wäre?", "new_branch", [("monthly_net_income", "mul", 0.95, 0, 120)]),
+    ("de", ["1"], "Und wenn ich 80% arbeite?", "new_branch", [("monthly_net_income", "mul", 0.8, 0, 120)]),
+    ("en", ["1", "1.2"], "Add a new branch where I invest 300 a month", "new_branch",
+     [("monthly_investment_contribution", "set", 300, 0, 120)]),
+]
+
+
+@pytest.mark.parametrize("lang,path,q,mode,ivs", MATRIX)
+def test_chat_edit_matrix(lang, path, q, mode, ivs):
+    r = c.post("/agent/ask", json={"question": q, "context": {"path": path, "node_id": path[-1], "language": lang}})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["mode"] == "whatif", (q, j["answer"])
+    p = j["personalize"]["proposal"]
+    assert p["mode"] == mode, q
+    got = [(i["param"], i.get("op"), i["value"], i.get("from_month"), i.get("to_month")) for i in p["interventions"]]
+    assert [(a, b, round(v, 4), f, t) for a, b, v, f, t in got] == [(a, b, v, f, t) for a, b, v, f, t in ivs], q
+    assert not _ID_LEAK.search(j["answer"]), j["answer"]
+    assert len([s for s in j["answer"].split(". ") if s.strip()]) <= 4, j["answer"]
+
+
+LAST = {"id": "x1", "mode": "branch", "label": "Invest CHF 300 a month", "node_id": "1.2", "custom_id": "1.2.c1",
+        "interventions": [{"param": "monthly_investment_contribution", "op": "set", "value": 300, "from_month": 0,
+                           "to_month": 120, "label": "Invest CHF 300 a month"}]}
+CUSTOM = [{"parent_id": "1.2", "node_id": "1.2.c1", "label": "Invest CHF 300 a month",
+           "interventions": LAST["interventions"], "custom": True}]
+
+
+@pytest.mark.parametrize("lang,q", [("en", "undo that"), ("es", "quítalo"), ("fr", "annule"), ("de", "mach das rückgängig")])
+def test_chat_undo_the_last_change(lang, q):
+    j = c.post("/agent/ask", json={"question": q, "context": {"path": ["1", "1.2"], "node_id": "1.2", "language": lang,
+                                                             "last_change": LAST, "custom_nodes": CUSTOM}}).json()
+    assert j["mode"] == "edit" and j["tree_action"] == {"type": "undo", "id": "x1"}, j
+    assert "300" in j["answer"] and not _ID_LEAK.search(j["answer"])
+    j = c.post("/agent/ask", json={"question": q, "context": {"path": ["1"], "node_id": "1", "language": lang}}).json()
+    assert j["mode"] == "edit" and j["tree_action"] is None and j["answer"]  # nothing to undo: said plainly
+
+
+@pytest.mark.parametrize("lang,q,v", [("en", "make it 400 instead", 400), ("es", "hazlo 250", 250),
+                                      ("fr", "mets plutôt 350", 350), ("de", "mach es 450", 450)])
+def test_chat_edit_the_last_change(lang, q, v):
+    j = c.post("/agent/ask", json={"question": q, "context": {"path": ["1", "1.2"], "node_id": "1.2", "language": lang,
+                                                             "last_change": LAST, "custom_nodes": CUSTOM}}).json()
+    assert j["mode"] == "edit", j["answer"]
+    a = j["tree_action"]
+    assert a["type"] == "replace" and a["id"] == "x1" and a["interventions"][0]["value"] == v
+    # the numbers: the branch it hangs from, with the new amount, by the engine (the old branch excluded)
+    prof = engine.default_profile()
+    with engine.using_extras(None, {"1.2": a["interventions"]}):
+        after = engine.simulate(prof, {"node_id": "1.2"}, [], [], fast=True)
+    assert f"{_real_nw(after):,.0f}".replace(",", "'") in j["answer"]
+    assert not _ID_LEAK.search(j["answer"])
+
+
+def test_no_internal_references_in_answers():
+    from api.agent import scrub_ids
+    s = scrub_ids("Under option 2.1 and node 2.c9 (trace sim-ffafd0282eaf) AS-alexia-master-salary moves "
+                  "final_net_worth_real; the buffer is 3.2 months.", None, "en")
+    assert not _ID_LEAK.search(s) and "3.2 months" in s and "Student job only" in s, s
+    for lang, t in [("es", "En la rama 2.1.3 el colchón sube."), ("fr", "Le nœud 1.2 tient."), ("de", "Im Knoten 3.1 reicht es.")]:
+        out = scrub_ids(t, None, lang)
+        assert not _ID_LEAK.search(out) and "“" in out, out
+    j = agent_ask("Why does the master's need financing?", ["2"])  # the template path too
+    assert not _ID_LEAK.search(j["answer"]), j["answer"]
+
+
+def test_edit_renames_the_amount_where_it_is():
+    from api.agent import _swap_amount
+    assert _swap_amount("Invest CHF 500 a month: Invest CHF 300 a month", 300, 400) == \
+        "Invest CHF 500 a month: Invest CHF 400 a month"
+    assert _swap_amount("Rent CHF 1'300", 1300, 1200) == "Rent CHF 1'200"
+    assert _swap_amount("New rent", 1300, 1200) == "New rent"
