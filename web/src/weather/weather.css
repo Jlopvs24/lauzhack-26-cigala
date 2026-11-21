@@ -45,3 +45,8 @@
   .wx-tip { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .wx-icon, .wx-pair button, .wx-reset, .wx-tip { transition: none; } }
+/* #103 P1-10: on wide screens Back sits to the right of the rail (rail 44 px + 2 x 5 px padding,
+   + 12 px gap), so no part of it is covered; on phones Back lives in the narration column. */
+@media (min-width: 721px) {
+  .nav-back.nav-back-wide { left: calc(max(18px, env(safe-area-inset-left)) + 66px); }
+}
