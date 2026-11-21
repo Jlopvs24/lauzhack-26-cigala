@@ -288,7 +288,7 @@ export function outlook(data, lang = 'en') {
     const type = L.olType[w.type] || opt.type_label || w.type, level = L.olLevel[w.level] || opt.level_label || w.level;
     const applied = (o.applied || []).filter((e) => OL_KEY(e) === key || e.source_key === key || e.from === key);
     return { key, type, level, text: `${type}: ${level}`, scenario: w.type === 'scenario',
-      assumptions: plainAssumptions(opt.assumptions ?? opt.internal_assumptions).concat(applied.flatMap((e) => plainAssumptions(e.assumptions ?? e.applied ?? null))),
+      assumptions: [...new Set(plainAssumptions(opt.assumptions ?? opt.internal_assumptions).concat(applied.flatMap((e) => plainAssumptions(e.assumptions ?? e.applied ?? null))))],
       source: opt.source || '', verified: opt.verified === true };
   });
   return { items, line: items.map((i) => i.text).join(' · ') };
