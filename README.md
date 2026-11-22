@@ -6,7 +6,7 @@
 
 LauzHack 2026 (EPFL) · team cigala · challenges: **UBS AI Financial Twin** (main), **AXA Frugal multimodal AI**, **IMC Tech for Good**.
 
-> **Every engine figure on this page comes from [`scripts/pitch_figures.py`](scripts/pitch_figures.py)** (engine `core-1.1`, Alexia's demo profile, default assumptions, Sat 21 Nov 22:06, master `991f129`). The engine is still being improved tonight, so re-run `python scripts/pitch_figures.py` before submitting and update the numbers here, in [`docs/pitch.md`](docs/pitch.md) and in [`docs/submission/`](docs/submission/).
+> **Every engine figure on this page comes from [`scripts/pitch_figures.py`](scripts/pitch_figures.py)** (engine `core-1.1`, Alexia's demo profile, default assumptions, Sun 22 Nov 01:55, master `1b36a48`). The engine is still being improved tonight, so re-run `python scripts/pitch_figures.py` before submitting and update the numbers here, in [`docs/pitch.md`](docs/pitch.md) and in [`docs/submission/`](docs/submission/).
 
 ## In 30 seconds
 
@@ -33,7 +33,7 @@ Then she makes it hers. She tells it, by voice or text, *"I'd get a CHF 600/mont
 |---|---|
 | ![Start portal](docs/submission/screenshots/01-portal.png) *Start portal* | ![The tree, master's branch](docs/submission/screenshots/02-tree-master.png) *Option cards in plain words: two bullets and a plan-check dot; past paths greyed* |
 | ![What would have to be true](docs/submission/screenshots/03-exploration.png) *Levers, break-even, reverse stress, timing* | ![Make it mine](docs/submission/screenshots/04-make-it-mine.png) *Make it mine: her own condition, confirmed, re-grows the branch* |
-| ![Path report](docs/submission/screenshots/05-report.png) *Visual path report: what would fix it, room to move, start later* | ![Verified panel](docs/submission/screenshots/06-verified.png) *Verified: six live engine checks* |
+| ![Path report](docs/submission/screenshots/05-report.png) *Visual path report: what would fix it, room to move, start later* | ![Verified panel](docs/submission/screenshots/06-verified.png) *Verified: ten live engine checks, four of them on the user's own branches* |
 | ![Comparison](docs/submission/screenshots/07-compare.png) *Comparison: options from any branch, side by side* | ![Weather on the tree](docs/submission/screenshots/08-weather.png) *Weather rail: a pessimistic outlook, every card recomputed* |
 
 ## How it works
@@ -46,7 +46,7 @@ flowchart LR
     T --> MM["Make it mine: own conditions"]
     T --> R["Visual path report + PDF"]
     T --> CP["Comparison: options side by side"]
-    V["Verified panel: 6 live checks"]
+    V["Verified panel: 10 live checks"]
     C["Chat panel: type or speak; what-ifs grow branches; optional Lumi Live"]
   end
 
@@ -140,7 +140,7 @@ Under the starter kit's own assumptions (cash only, no tax, no inflation), the e
 | Master's degree | CHF 144,600 | CHF −18,600 | month 7 |
 | Move abroad | CHF 97,500 | CHF 2,300 | never |
 
-**3. Six live validation checks**, shown in the app's *Verified* panel and served at `GET /validation`. On Sat 21 Nov 22:06, `core.validation()` passed 6/6. They establish the numerical properties stated below (arithmetic, reproducibility, method), not that any scenario will happen:
+**3. Ten live validation checks (+4 on your own branches)**, shown in the app's *Verified* panel and served at `GET /validation`. On Sun 22 Nov 01:55, `core.validation()` passed 10/10. Six run on the 40-node tree; four run on a sample of the user's own branches (a custom branch and patches on two branches, in the shapes the chat and *Make it mine* produce). They establish the numerical properties stated below (arithmetic, reproducibility, method), not that any scenario will happen:
 
 | Check | What it proves |
 |---|---|
@@ -150,8 +150,12 @@ Under the starter kit's own assumptions (cash only, no tax, no inflation), the e
 | Isolation | Changing the cost of moving abroad leaves "Start working" untouched. The riskier portfolio in 1.2.3 does not leak into 1.2.1 |
 | UBS starter kit | The three scenarios above, matched exactly |
 | Search verified | The break-even salary found by the bounded monotone threshold search (CHF 4,959.51) is re-simulated: at it the master's ends level with working or ahead; CHF 1 lower, it ends behind |
+| Personal identities | A custom branch and two patched branches, with every node below them (18 runs), keep all accounting identities; largest error CHF 0.00 |
+| Personal isolation | The custom branch changes no other node; the patches change exactly the patched branches and the nodes below them (17 of 40), nothing else |
+| Personal monotonicity | On a personal branch, more income never lowers cash and a higher rent never raises it, in any month |
+| Personal reproducibility | The same personal branch and patches with the same seed give the same trace id |
 
-Test suites on Sat 21 Nov 22:06 (master `991f129`): 154 core and 108 API tests collected. Core: 149 passed and 5 skipped (they need the private UBS kit); the first run had one failure, a speed limit on a busy laptop, which passed on re-run. API: 108 passed. Web unit tests: 73 of 73 passed. Re-run on the submission commit with `python scripts/pitch_figures.py --tests`. A calibration harness ([`core/bench/`](core/bench/)) checks the engine against the UBS synthetic ledgers (identities on 1,200 profiles × 24 months, maximum error CHF 0.00) and scores parameters against public Swiss targets only. It never tunes the engine to the synthetic data.
+Test suites on Sun 22 Nov 02:05 (master `1b36a48`): 172 core and 151 API tests collected. Core: 165 passed, 5 skipped (they need the private UBS kit) and 2 failed, both speed limits rather than results: the Monte Carlo limit passes when run alone, while lazy exploration of one node takes 0.80 s against a 0.40 s limit even alone. API: 151 passed. Web unit tests: 108 of 108 passed. Re-run on the submission commit with `python scripts/pitch_figures.py --tests`. A calibration harness ([`core/bench/`](core/bench/)) checks the engine against the UBS synthetic ledgers (identities on 1,200 profiles × 24 months, maximum error CHF 0.00) and scores parameters against public Swiss targets only. It never tunes the engine to the synthetic data.
 
 **4. Conditional scenarios first.** We centre conditional, fully specified scenarios so attention stays on the choices; Monte Carlo is an optional simulation lens, off by default, not a forecast. For every node, the engine re-runs itself with inputs moved:
 
@@ -275,7 +279,7 @@ python -m multimodal.benchmark.run --strategies frugal ocr_llm vlm_cheap vlm_sma
   - unemployment rules are simplified;
   - shocks in the optional lens are independent;
   - pillar 2 (BVG) is reported but not counted in net worth;
-  - source-backed inputs (returns, wage growth, inflation) remain assumptions over ten years, and the six checks test arithmetic and method, not predictive validity.
+  - source-backed inputs (returns, wage growth, inflation) remain assumptions over ten years, and the ten checks test arithmetic and method, not predictive validity.
 - **The plan check comes first and the score second.** A funding gap means "Needs financing"; another broken hard limit or a missed goal means "Does not hold"; a buffer-only shortfall means "Holds, below the buffer target", whatever the score. The 33% debt-service limit and the 3-month buffer are editable rules of thumb. Negative cash is shown as an unfunded need, never as an automatic loan.
 - **The uncertainty lens is opt-in.** Monte Carlo is a simulation, kept secondary so attention stays on choices. Its results are shares of simulated paths under stated assumptions, labelled "not real-world probabilities". The four named stresses are selected what-ifs, not exhaustive.
 - **Synthetic data.** The extraction benchmark uses our own rendered documents, and real documents are messier.

@@ -26,14 +26,14 @@ The product is **Arbor** (tagline: *Explore your futures before you live them*).
 ## Long description (max 1000 characters): 994 characters
 
 ```text
-Arbor is a financial twin for students, drawn as a tree of life. Branches are decisions, explored with a deterministic monthly engine: official ESTV 2026 income tax by city, pillar 3a, payroll for gross salaries, editable sourced assumptions, plan check, break-even, what would fix it, stress what-ifs and comparison. Under the UBS starter kit's own assumptions it reproduces the kit exactly; six live checks pass. Make it mine: say your own situation ("I'd get a CHF 600/month scholarship"); rules or a small model turn it into one change using only your numbers, you confirm, and the branch re-grows. Roots come from a questionnaire, voice or a payslip photo read by a frugal chain (local OCR, a small model, checks; vision only if a check fails): 97.7% accuracy, 154x cheaper than a frontier model. Lumi explains engine results in four languages, with a local voice and a self-hostable open-weight model, and never recommends. Free: a student network could offer it before a lease is signed.
+Arbor is a financial twin for students, drawn as a tree of life. Branches are decisions, explored with a deterministic monthly engine: official ESTV 2026 income tax by city, pillar 3a, payroll for gross salaries, editable sourced assumptions, plan check, break-even, what would fix it, stress what-ifs and comparison. Under the UBS starter kit's own assumptions it reproduces the kit exactly; ten live checks pass. Make it mine: say your own situation ("I'd get a CHF 600/month scholarship"); rules or a small model turn it into one change using only your numbers, you confirm, and the branch re-grows. Roots come from a questionnaire, voice or a payslip photo read by a frugal chain (local OCR, a small model, checks; vision only if a check fails): 97.7% accuracy, 154x cheaper than a frontier model. Lumi explains engine results in four languages, with a local voice and a self-hostable open-weight model, and never recommends. Free: a student network could offer it before a lease is signed.
 ```
 
 Every claim traces to the repo:
 
 - personal conditions: `api/README.md` (`/tree/personalize`) and `docs/contracts.md`;
 - payroll (statutory rates plus explicitly assumed insurer and plan inputs), tax and pillar 3a: `core/README.md`;
-- the starter-kit reproduction and the six checks: `core/validation.py`;
+- the starter-kit reproduction and the ten checks (six on the tree, four on the user's own branches): `core/validation.py`;
 - the benchmark: `multimodal/benchmark/RESULTS.md`;
 - the agent's numeric grounding guard (larger numbers only, not a proof of every claim) and the advice guard: `api/README.md`;
 - the open-weight default model (Qwen3.6-35B-A3B, Apache-2.0), self-hostable with `LLM_BASE_URL` but served through OpenRouter in the demo: `api/README.md`, *Models & privacy*;

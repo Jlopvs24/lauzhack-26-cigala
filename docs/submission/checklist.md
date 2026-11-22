@@ -9,9 +9,9 @@ python scripts/pitch_figures.py            # about 5 s: engine, demo path, perso
 python scripts/pitch_figures.py --tests    # minutes: adds test pass counts
 ```
 
-- [ ] Every engine figure in `README.md`, `docs/pitch.md`, `docs/submission/video.md` and the captions matches the script's output. The docs were last filled from it on Sat 21 Nov 22:06 (engine `core-1.1`, master `991f129`). Update anything that moved.
+- [ ] Every engine figure in `README.md`, `docs/pitch.md`, `docs/submission/video.md` and the captions matches the script's output. The docs were last filled from it on Sun 22 Nov 01:55 (engine `core-1.1`, master `1b36a48`). Update anything that moved.
 - [ ] The README's test line matches `--tests`.
-- [ ] Validation prints `6/6`.
+- [ ] Validation prints `10/10` (since #128: 6 checks on the tree + 4 on the user's own branches; about 50 s).
 
 ## 1. Repository: before making it public (Sun 11:00–11:30)
 
@@ -64,7 +64,7 @@ gh repo view Jlopvs24/lauzhack-26-cigala --json visibility -q .visibility    # e
 - [ ] On `master` at the commit you demo: `git status` is clean.
 - [ ] API: `python -m uvicorn api.main:app --port 8000`. Then `curl -s http://127.0.0.1:8000/health` shows `"engine":"core"`, `"personal_conditions_supported":true`, `"llm":{"available":true…}`, Kokoro `available:true`, and an `llm_budget` with money remaining. Restart it on current `master`: since #92 (Sat 21:03) the default LLM is the open-weight `qwen/qwen3.6-35b-a3b`, and an API started earlier still uses the old default.
 - [ ] **Default model:** ask Lumi one question in the chat panel, then check the API log line `agent answered_by=...`: it should name `qwen/qwen3.6-35b-a3b` with no fallback. If it names a fallback, the open-weight model failed; the demo still works, but do not claim the answer came from the open-weight model.
-- [ ] `curl -s http://127.0.0.1:8000/validation` shows `"passed":6,"total":6`, and the header badge reads **Verified 6/6**.
+- [ ] `curl -s http://127.0.0.1:8000/validation` shows `"passed":10,"total":10`, and the header badge reads **Verified 10/10**. It takes about 50 s to compute and is cached for 60 s (`VALIDATION_TTL_S`): run the curl right before judging, or raise `VALIDATION_TTL_S` in `.env.local` (for example 3600) so the badge never waits.
 - [ ] **Personal conditions work end to end:**
   ```bash
   curl -s -X POST http://127.0.0.1:8000/tree/personalize -H "Content-Type: application/json" \
@@ -113,6 +113,7 @@ gh repo view Jlopvs24/lauzhack-26-cigala --json visibility -q .visibility    # e
 
 ## 3. Submission (Sun 11:30, before 12:00)
 
+- [ ] The ~4:20 demo video (thread 0) plays from the demo laptop and from a USB stick, with sound; the team has rehearsed narrating over it within the 5-minute slot.
 - [ ] Paste the fields from [`form.md`](form.md): title, short and long descriptions, public link, thumbnail (300 KB or less), and the challenges UBS, AXA and IMC.
 - [ ] Invite the teammate on the platform.
 - [ ] Post on the board: submitted, the link, and the commit that was demoed.
