@@ -1,6 +1,6 @@
 # Pitch and demo script
 
-> **Format on Sunday:** a 5-minute slot plus 5 minutes of Q&A. Thread 0 is producing a recorded demo video of about 4:20 (screen recording with cursor: voice note, chat edit, weather, compare, path report, Verified, documents, Spanish), and the team narrates live over it. The live-click script below is the booth version and the fallback if the video fails; a rewrite to the video's timings follows.
+> **Present from [`docs/pitch-script.md`](pitch-script.md)**: the final 5-minute script plus Q&A, timed against the recorded demo video `arbor-demo-v2.mp4` (4:50, not in the repo). The video runs the full 5 minutes; Juan and Lluc narrate over it. The live-click script below is for the booths and is the fallback if the video fails.
 
 **Arbor: explore your futures before you live them.** Lumi is the light that lives in the tree. One story, Alexia, told in under three minutes, hitting UBS (main), AXA and IMC. The climax is **Make it mine**: Alexia adds her own condition and the branch re-grows. Booth variants and a Q&A cheat sheet follow.
 
