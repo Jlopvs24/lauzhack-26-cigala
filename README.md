@@ -6,6 +6,8 @@
 
 LauzHack 2026 (EPFL) · team cigala · challenges: **UBS AI Financial Twin** (main), **AXA Frugal multimodal AI**, **IMC Tech for Good**.
 
+![Arbor: explore your futures before you live them](docs/submission/screenshots/01-portal.jpg)
+
 > **Every engine figure on this page comes from [`scripts/pitch_figures.py`](scripts/pitch_figures.py)** (engine `core-1.1`, Alexia's demo profile, default assumptions, Sun 22 Nov 01:55, master `1b36a48`). The engine is still being improved tonight, so re-run `python scripts/pitch_figures.py` before submitting and update the numbers here, in [`docs/pitch.md`](docs/pitch.md) and in [`docs/submission/`](docs/submission/).
 
 ## In 30 seconds
@@ -27,14 +29,14 @@ Then she makes it hers. She tells it, by voice or text, *"I'd get a CHF 600/mont
 
 ## Screenshots
 
-> TODO (team): capture these on the demo laptop (`http://127.0.0.1:5175`) and save them in `docs/submission/screenshots/`. Add the 2-minute backup video link here (shot list: [`docs/submission/video.md`](docs/submission/video.md)).
+Captured from the running app (`http://127.0.0.1:5175`), Alexia's demo profile, default assumptions.
 
 | | |
 |---|---|
-| ![Start portal](docs/submission/screenshots/01-portal.png) *Start portal* | ![The tree, master's branch](docs/submission/screenshots/02-tree-master.png) *Option cards in plain words: two bullets and a plan-check dot; past paths greyed* |
-| ![What would have to be true](docs/submission/screenshots/03-exploration.png) *Levers, break-even, reverse stress, timing* | ![Make it mine](docs/submission/screenshots/04-make-it-mine.png) *Make it mine: her own condition, confirmed, re-grows the branch* |
-| ![Path report](docs/submission/screenshots/05-report.png) *Visual path report: what would fix it, room to move, start later* | ![Verified panel](docs/submission/screenshots/06-verified.png) *Verified: ten live engine checks, four of them on the user's own branches* |
-| ![Comparison](docs/submission/screenshots/07-compare.png) *Comparison: options from any branch, side by side* | ![Weather on the tree](docs/submission/screenshots/08-weather.png) *Weather rail: a pessimistic outlook, every card recomputed* |
+| ![Today: three options on the tree](docs/submission/screenshots/00-tree-today.jpg) *Today: three options on the tree, Lumi explains* | ![The tree, master's branch](docs/submission/screenshots/02-tree-master.jpg) *Option cards in plain words: two bullets and a plan-check dot; past paths greyed* |
+| ![What would have to be true](docs/submission/screenshots/03-exploration.jpg) *Levers, break-even, reverse stress, timing* | ![Make it mine](docs/submission/screenshots/04-make-it-mine.jpg) *Tell Lumi a what-if ("a CHF 600/month scholarship"): a new branch grows, computed by the engine* |
+| ![Path report](docs/submission/screenshots/05-report.jpg) *Visual path report: what would fix it, room to move, start later* | ![Verified panel](docs/submission/screenshots/06-verified.jpg) *Verified: ten live engine checks, four of them on the user's own branches* |
+| ![Comparison](docs/submission/screenshots/07-compare.jpg) *Comparison: options from any branch, side by side* | ![Weather on the tree](docs/submission/screenshots/08-weather.jpg) *Weather rail: a pessimistic outlook, every card recomputed* |
 
 ## How it works
 
