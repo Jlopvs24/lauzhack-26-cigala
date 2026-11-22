@@ -255,7 +255,7 @@ def profiles_extract(files: list[UploadFile] | None = File(None), text: str | No
         raise HTTPException(422, "base_profile must be a JSON object") from e
 
     try:
-        from multimodal import extract
+        from multimodal.extract.profile import extract  # not `from multimodal import extract`: importing the subpackage rebinds that name to a module after the first call
         out = extract(files=docs, text=text, audio=audio_bytes, audio_format=audio_fmt, strategy=strategy,
                       base_profile=base)
     except ImportError as e:  # multimodal deps not installed on this machine
